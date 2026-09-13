@@ -79,3 +79,86 @@ jobs:
             dist/*.exe
             dist/latest.yml
           if-no-files-found: error
+
+  # ------------------------------------------------------------------ mac
+  #
+  # A macOS app can only be assembled on macOS -- the .dmg and the .app
+  # bundle both need Apple's own tooling -- so this job has to run on a mac
+  # runner. GitHub gives those away free on public repositories.
+  #
+  # It builds unsigned by default, which costs nothing. If an Apple
+  # Developer certificate is ever added to the repo secrets, the same job
+  # signs and notarizes instead, with no edit needed here.
+  macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Make sure the tag matches the version in package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag is v$TAG but package.json says $PKG."
+            exit 1
+          fi
+          echo "version $PKG"
+
+      - name: Sanity-check the game file
+        run: |
+          F=game/VOIDBLOOM.html
+          test -f "$F" || { echo "::error::$F is missing"; exit 1; }
+          SIZE=$(wc -c < "$F")
+          echo "game file: $SIZE bytes"
+          [ "$SIZE" -gt 100000 ] || { echo "::error::$F is only $SIZE bytes - wrong file?"; exit 1; }
+          grep -q "boot();" "$F" || { echo "::error::$F has no boot() call - not a playable build"; exit 1; }
+          if grep -q "__VB" "$F"; then
+            echo "::error::$F contains the __VB debug hook. That is TEST_BUILD.html, not the shipping file."
+            exit 1
+          fi
+
+      - name: Build the mac app and publish it to Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # All five are optional. With none of them set the build is
+          # unsigned and free; set them and the same command signs and
+          # notarizes instead.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo "Signing certificate found - building signed and notarized."
+            npx electron-builder --mac --publish always --config.mac.notarize=true
+          else
+            echo "No signing certificate - building unsigned. This is the free path."
+            echo "Players will need to clear the quarantine flag once; see README."
+            # Stop electron-builder rummaging in the runner keychain for an
+            # identity that is not there, which otherwise turns a clean
+            # unsigned build into a confusing failure.
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            npx electron-builder --mac --publish always
+          fi
+
+      - name: Keep a copy on the run itself
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOIDBLOOM-macos
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac.yml
+          if-no-files-found: error
