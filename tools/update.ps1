@@ -69,8 +69,38 @@ if (Test-Path $src) {
     $srcHash  = (Get-FileHash $src  -Algorithm SHA256).Hash
     $destHash = if (Test-Path $dest) { (Get-FileHash $dest -Algorithm SHA256).Hash } else { '' }
     if ($srcHash -ne $destHash) {
+        $si = Get-Item $src
+        $newKB = [math]::Round($si.Length / 1KB)
+        if (Test-Path $dest) {
+            $di = Get-Item $dest
+            $oldKB = [math]::Round($di.Length / 1KB)
+            Info ("shipping now : {0,6} KB   {1}" -f $oldKB, $di.LastWriteTime)
+            Info ("about to use : {0,6} KB   {1}" -f $newKB, $si.LastWriteTime)
+
+            # A big jump in size means it is not simply an edited version of
+            # what you shipped -- it may be a build from somewhere else that
+            # has overwritten VOIDBLOOM.html. That has happened before, and it
+            # shipped the wrong game to everyone. So stop and make it a choice.
+            $delta = [math]::Abs($si.Length - $di.Length)
+            if ($di.Length -gt 0 -and ($delta / $di.Length) -gt 0.05) {
+                $pct = [math]::Round(100 * $delta / $di.Length)
+                Write-Host ""
+                Write-Host "  CHECK " -ForegroundColor Yellow -NoNewline
+                Write-Host "the game file differs by $pct% in size from the one you shipped." -ForegroundColor White
+                Info "That is a lot. Make sure VOIDBLOOM.html is really the build you want"
+                Info "before this goes out - open it and look at it if you are not sure."
+                Write-Host ""
+                Write-Host "       ship this file? [y/N] " -NoNewline -ForegroundColor DarkGray
+                $yes = Read-Host
+                if ($yes -notmatch '^[yY]') {
+                    Stop-Here "Stopped - nothing was changed." "Put the build you want at VOIDBLOOM.html, then run this again."
+                }
+            }
+        } else {
+            Info ("about to use : {0,6} KB" -f $newKB)
+        }
         Copy-Item $src $dest -Force
-        Ok "copied the newer VOIDBLOOM.html in"
+        Ok "copied VOIDBLOOM.html in"
     } else {
         Ok "game file already up to date"
     }

@@ -252,13 +252,6 @@ const PAL = {
   text: '#dfe7ff', dim: '#7d86ab', danger: '#ff4d6d', boss: '#ff4fd8'
 };
 
-/* One hue means "this will hurt you", and nothing else in the arena is
-   allowed to use it. Enemy fire used to take the colour of whoever fired it,
-   which put bullets in the player's own cyan and in the boss's own wash --
-   the two places they must never hide. Variety lives in shape now. */
-const THREAT = '#ff3b3b';
-const THREAT_HOT = '#ffd0c4';
-
 /* ------------------------------------------------------------ sprite cache */
 const _sprites = new Map();
 function makeCanvas(w, h) {
@@ -345,286 +338,6 @@ function neon(c, pathFn, color, opt = {}) {
     c.stroke();
   }
   c.restore();
-}
-
-/* =========================================================================
-   SURFACING
-   The planets look the way they do because they have a surface: a lit side,
-   noise at several scales, hot veins where the noise ridges, and a rim light.
-   Line art has none of that, which is why a boss drawn only in neon reads as
-   a sigil next to them. Everything below gives a 2D shape the same treatment,
-   baked once into the sprite cache, so it costs nothing per frame.
-   ========================================================================= */
-
-function hx(h) {
-  if (h[0] !== '#') { const m = h.match(/[\d.]+/g); return m ? [+m[0] | 0, +m[1] | 0, +m[2] | 0] : [255, 255, 255]; }
-  let s = h.slice(1);
-  if (s.length === 3) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
-  const n = parseInt(s, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-function mixC(a, b, t) {
-  const A = hx(a), B = hx(b);
-  return 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * t) + ',' + Math.round(A[1] + (B[1] - A[1]) * t) + ',' + Math.round(A[2] + (B[2] - A[2]) * t) + ')';
-}
-function shadeC(a, k) {
-  const A = hx(a);
-  return 'rgb(' + Math.round(A[0] * k) + ',' + Math.round(A[1] * k) + ',' + Math.round(A[2] * k) + ')';
-}
-function rgbaC(a, al) {
-  const A = hx(a);
-  return 'rgba(' + A[0] + ',' + A[1] + ',' + A[2] + ',' + al + ')';
-}
-
-/* One small tileable noise field, baked once and reused at several scales.
-   ridge=true folds it about the midpoint so the bright parts form veins. */
-function noiseTile(seed, size, ridge) {
-  const key = 'nt_' + seed + '_' + size + (ridge ? '_r' : '');
-  let t = _sprites.get(key);
-  if (t) return t;
-  t = makeCanvas(size, size);
-  const cx = t.getContext('2d');
-  const img = cx.createImageData(size, size);
-  const R = mulberry32(seed);
-  let cur = new Float32Array(size * size);
-  for (let i = 0; i < cur.length; i++) cur[i] = R();
-  for (let p = 0; p < 2; p++) {                       // wrap-sampled blur -> cloud, still tileable
-    const out = new Float32Array(size * size);
-    for (let y = 0; y < size; y++) {
-      const yn = ((y - 1 + size) % size) * size, yc = y * size, yp = ((y + 1) % size) * size;
-      for (let x = 0; x < size; x++) {
-        const xn = (x - 1 + size) % size, xp = (x + 1) % size;
-        out[yc + x] = (cur[yn + xn] + cur[yn + x] + cur[yn + xp] +
-                       cur[yc + xn] + cur[yc + x] * 2 + cur[yc + xp] +
-                       cur[yp + xn] + cur[yp + x] + cur[yp + xp]) / 10;
-      }
-    }
-    cur = out;
-  }
-  for (let i = 0; i < cur.length; i++) {
-    let v = (cur[i] - 0.36) / 0.28;                   // stretch the band the blur actually uses
-    v = v < 0 ? 0 : v > 1 ? 1 : v;
-    if (ridge) { v = 1 - Math.abs(v * 2 - 1); v = v * v; }   // veins, not speckle
-    const b = (v * 255) | 0, j = i * 4;
-    img.data[j] = img.data[j + 1] = img.data[j + 2] = b;
-    img.data[j + 3] = 255;
-  }
-  cx.putImageData(img, 0, 0);
-  _sprites.set(key, t);
-  return t;
-}
-function tintTile(t, col, key) {
-  let o = _sprites.get(key);
-  if (o) return o;
-  o = makeCanvas(t.width, t.height);
-  const c = o.getContext('2d');
-  c.drawImage(t, 0, 0);
-  c.globalCompositeOperation = 'multiply';
-  c.fillStyle = col;
-  c.fillRect(0, 0, t.width, t.height);
-  _sprites.set(key, o);
-  return o;
-}
-
-/* A neon shell with something inside it.
-   The arcade look is the constraint, so the line work stays the hero: the
-   interior is a dark tinted volume with a faint surface in it, never a
-   painted solid. That reads as depth without turning the sprite into an
-   illustration.
-   o: r (size), seed, lx/ly (light dir), fill (interior strength 0..1), grain,
-      vein, veinCol, veinA, edge, lw, blur, inner, deep, glow. */
-function body(c, pathFn, col, o) {
-  o = o || {};
-  const r = Math.max(1, o.r || 60);
-  const seed = o.seed || 11;
-  const fill = o.fill === undefined ? 1 : o.fill;
-  const lx = (o.lx === undefined ? -0.40 : o.lx) * r;
-  const ly = (o.ly === undefined ? -0.46 : o.ly) * r;
-  const R2 = r * 2.6;
-
-  c.save();
-  pathFn(c);
-  c.clip();
-
-  /* interior: dark, like the old flat core, but with the light falling
-     across it so the shape has a near side and a far side */
-  c.fillStyle = o.deep || 'rgba(6,5,14,0.94)';          // near-black, as the old cores were
-  c.fillRect(-R2, -R2, R2 * 2, R2 * 2);
-  const g = c.createRadialGradient(lx, ly, r * 0.03, lx * 0.25, ly * 0.25, r * 1.55);
-  g.addColorStop(0, rgbaC(o.inCol || col, 0.42 * fill));
-  g.addColorStop(0.36, rgbaC(shadeC(o.inCol || col, 0.6), 0.20 * fill));
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.globalCompositeOperation = 'lighter';
-  c.fillStyle = g;
-  c.fillRect(-R2, -R2, R2 * 2, R2 * 2);
-  c.globalCompositeOperation = 'source-over';
-
-  const grain = (o.grain === undefined ? 1 : o.grain) * fill;
-  if (grain > 0) {
-    /* two low-frequency octaves, kept faint -- this is meant to be felt,
-       not seen. Anything stronger and the neon stops being the subject. */
-    const pat = c.createPattern(noiseTile(seed, 128, false), 'repeat');
-    c.globalCompositeOperation = 'soft-light';   // overlay muddies a dark interior to brown
-    const sc = [r / 42, r / 88], al = [0.15, 0.09];   // felt, not seen: any more and it silts up
-    for (let i = 0; i < 2; i++) {
-      c.save();
-      c.globalAlpha = al[i] * grain;
-      c.scale(sc[i], sc[i]);
-      c.fillStyle = pat;
-      c.fillRect(-R2 / sc[i], -R2 / sc[i], R2 * 2 / sc[i], R2 * 2 / sc[i]);
-      c.restore();
-    }
-  }
-
-  /* veins: light coming from inside the shell, in the shell's own colour */
-  if (o.vein !== false && fill > 0) {
-    const vc = o.veinCol || mixC(col, '#ffffff', 0.45);
-    const rt = tintTile(noiseTile(seed + 91, 128, true), vc, 'vt_' + seed + '_' + vc);
-    const s = r / (o.veinScale || 44);
-    c.globalCompositeOperation = 'lighter';
-    c.save();
-    c.globalAlpha = (o.veinA === undefined ? 0.34 : o.veinA) * 0.34 * fill;
-    c.scale(s, s);
-    c.fillStyle = c.createPattern(rt, 'repeat');
-    c.fillRect(-R2 / s, -R2 / s, R2 * 2 / s, R2 * 2 / s);
-    c.restore();
-  }
-
-  /* the tube itself: the inside of the glass lights up near the edge */
-  c.globalCompositeOperation = 'lighter';
-  c.globalAlpha = 1;
-  pathFn(c);
-  c.strokeStyle = rgbaC(col, 0.26 * fill + 0.10);
-  c.lineWidth = Math.max(2, r * 0.14);
-  c.lineJoin = 'round';
-  c.stroke();
-  c.restore();
-
-  neon(c, pathFn, o.edge || col, {
-    lw: o.lw === undefined ? 2.6 : o.lw,
-    blur: o.blur === undefined ? 20 : o.blur,
-    core: null, inner: o.inner === undefined ? true : o.inner
-  });
-}
-
-/* soft interior light -- eyes, cores, furnaces */
-function glowBlob(c, x, y, r, col, a) {
-  if (!(r > 0)) return;
-  const g = c.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, rgbaC(col, a === undefined ? 0.95 : a));
-  g.addColorStop(0.45, rgbaC(col, (a === undefined ? 0.95 : a) * 0.38));
-  g.addColorStop(1, rgbaC(col, 0));
-  c.save();
-  c.globalCompositeOperation = 'lighter';
-  c.fillStyle = g;
-  c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
-  c.restore();
-}
-
-/* thin mechanical detail: no glow, no fill. Density, cheaply. */
-function etch(c, pathFn, col, lw, alpha) {
-  c.save();
-  pathFn(c);
-  c.globalAlpha = alpha === undefined ? 0.5 : alpha;
-  c.strokeStyle = col; c.lineWidth = lw || 1;
-  c.lineJoin = 'round'; c.lineCap = 'round';
-  c.stroke();
-  c.restore();
-}
-
-/* ------------------------------------------------------- structural shapes */
-
-/* a tapered limb along a quadratic spine: arms, legs, horns, tendrils, roots */
-function pathLimb(c, x0, y0, cx, cy, x1, y1, w0, w1) {
-  const steps = 16, L = [], Rr = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, u = 1 - t;
-    const x = u * u * x0 + 2 * u * t * cx + t * t * x1;
-    const y = u * u * y0 + 2 * u * t * cy + t * t * y1;
-    let dx = 2 * u * (cx - x0) + 2 * t * (x1 - cx);
-    let dy = 2 * u * (cy - y0) + 2 * t * (y1 - cy);
-    const m = Math.hypot(dx, dy) || 1;
-    const w = (w0 + (w1 - w0) * t) * 0.5;
-    L.push([x - dy / m * w, y + dx / m * w]);
-    Rr.push([x + dy / m * w, y - dx / m * w]);
-  }
-  c.beginPath();
-  c.moveTo(L[0][0], L[0][1]);
-  for (let i = 1; i < L.length; i++) c.lineTo(L[i][0], L[i][1]);
-  for (let i = Rr.length - 1; i >= 0; i--) c.lineTo(Rr[i][0], Rr[i][1]);
-  c.closePath();
-}
-
-/* hard-cornered closed path -- blades, plates, machined things */
-function pathSharp(c, pts) {
-  c.beginPath();
-  c.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
-  c.closePath();
-}
-
-/* a smooth closed hull through points -- irregular shells, plates, carapaces */
-function pathHull(c, pts) {
-  const n = pts.length;
-  c.beginPath();
-  c.moveTo((pts[0][0] + pts[n - 1][0]) / 2, (pts[0][1] + pts[n - 1][1]) / 2);
-  for (let i = 0; i < n; i++) {
-    const p = pts[i], q = pts[(i + 1) % n];
-    c.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
-  }
-  c.closePath();
-}
-
-/* an irregular hull swept round a centre -- asymmetric bodies from a seed */
-function hullPts(n, r, wob, seed, squash) {
-  const R = mulberry32(seed), pts = [];
-  for (let i = 0; i < n; i++) {
-    const a = i / n * TAU;
-    const rr = r * (1 - wob * 0.5 + R() * wob);
-    pts.push([Math.cos(a) * rr, Math.sin(a) * rr * (squash === undefined ? 1 : squash)]);
-  }
-  return pts;
-}
-
-/* jagged rim between two radii over an angular span -- teeth, shards, crowns */
-function pathTeeth(c, r0, r1, n, a0, a1, seed, close) {
-  const R = mulberry32(seed || 3);
-  c.beginPath();
-  for (let i = 0; i <= n * 2; i++) {
-    const t = i / (n * 2);
-    const a = a0 + (a1 - a0) * t;
-    const r = (i & 1) ? r1 * (0.74 + R() * 0.5) : r0;
-    const x = Math.cos(a) * r, y = Math.sin(a) * r;
-    i ? c.lineTo(x, y) : c.moveTo(x, y);
-  }
-  if (close) c.closePath();
-}
-
-/* a band between two radii over an angular span -- shells, arches, hoods */
-function pathBand(c, ri, ro, a0, a1) {
-  c.beginPath();
-  c.arc(0, 0, ro, a0, a1);
-  c.arc(0, 0, ri, a1, a0, true);
-  c.closePath();
-}
-
-/* fracture lines running out from a point -- cracks, splits, breaks */
-function pathCracks(c, x, y, r0, r1, n, seed) {
-  const R = mulberry32(seed || 5);
-  c.beginPath();
-  for (let i = 0; i < n; i++) {
-    const a = i / n * TAU + R() * 0.7;
-    let px = x + Math.cos(a) * r0, py = y + Math.sin(a) * r0;
-    c.moveTo(px, py);
-    let aa = a, rr = r0;
-    const segs = 3 + (R() * 3 | 0);
-    for (let s = 0; s < segs; s++) {
-      aa += (R() - 0.5) * 0.8;
-      rr += (r1 - r0) / segs;
-      px = x + Math.cos(aa) * rr; py = y + Math.sin(aa) * rr;
-      c.lineTo(px, py);
-    }
-  }
 }
 
 /* ------------------------------------------------------------------- text */
@@ -2267,8 +1980,7 @@ const ENEMY = {
 function enemySprite(def, hurt) {
   const key = 'e_' + def.id + (hurt ? '_h' : '');
   const R = def.r;
-  // bosses need room: the old flat 26px pad was clipping the big ones' limbs
-  const pad = def.bossKind === 'maw' ? R * 2.2 + 30 : ((def.boss || def.elite) ? R * 0.92 + 30 : 26);
+  const pad = def.bossKind === 'maw' ? R * 2.2 + 30 : 26;
   const S = (R + pad) * 2;
   const col = hurt ? '#ffffff' : def.col;
   const core = hurt ? 'rgba(255,255,255,0.9)' : 'rgba(8,6,20,0.78)';
@@ -2365,25 +2077,17 @@ function enemySprite(def, hurt) {
             cc.quadraticCurveTo(Math.cos(a + 0.4) * R * 1.1, Math.sin(a + 0.4) * R * 1.1,
                                 Math.cos(a + 0.26) * R * 0.34, Math.sin(a + 0.26) * R * 0.34);
             cc.closePath();
-          }, col, { r: R, seed: 1100 + i * 7, lw: 2.8, blur: 28, inCol: '#ffd166',
-            veinCol: '#ffd166', veinA: 0.3, deep: 'rgba(26,3,22,0.94)' });
+          }, col, { lw: 2.8, blur: 28, core: 'rgba(30,4,26,0.9)' });
         }
-        body(c, cc => pathStar(cc, 7, R * 0.8, R * 0.42, 0), '#ffd166',
-          { r: R * 0.8, seed: 1171, lw: 2.6, blur: 24, veinCol: '#fff0c4', veinA: 0.4, deep: 'rgba(22,4,20,0.96)' });
+        neon(c, cc => pathStar(cc, 7, R * 0.8, R * 0.42, 0), '#ffd166', { lw: 2.6, blur: 24, core: 'rgba(24,4,22,0.94)' });
         neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.26, 0, TAU); }, '#ffffff', { lw: 2.2, blur: 20, core: null, inner: false });
-        glowBlob(c, 0, 0, R * 0.5, '#ffd166', 0.5);
         break;
       }
       case 'witness': {
         // an eye that does not blink so much as close on you
-        body(c, cc => { cc.beginPath(); cc.ellipse(0, 0, R, R * 0.62, 0, 0, TAU); }, col,
-          { r: R, seed: 1201, lw: 3, blur: 28, inCol: '#63d4ff', veinCol: '#9ef7ff', veinA: 0.3,
-            deep: 'rgba(8,12,24,0.95)' });
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.4, 0, TAU); }, '#63d4ff',
-          { r: R * 0.4, seed: 1211, lw: 2.6, blur: 22, veinCol: '#dff2ff', veinA: 0.5,
-            deep: 'rgba(4,6,16,0.96)' });
+        neon(c, cc => { cc.beginPath(); cc.ellipse(0, 0, R, R * 0.62, 0, 0, TAU); }, col, { lw: 3, blur: 28, core: 'rgba(10,14,26,0.92)' });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.4, 0, TAU); }, col, { lw: 2.6, blur: 22, core: 'rgba(6,8,18,0.95)' });
         neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.15, 0, TAU); }, '#ffffff', { lw: 2, blur: 16, core: null, inner: false });
-        glowBlob(c, 0, 0, R * 0.44, '#9ef7ff', 0.5);
         for (let i = 0; i < 10; i++) {
           const a = i / 10 * TAU;
           neon(c, cc => {
@@ -2396,9 +2100,7 @@ function enemySprite(def, hurt) {
       }
       case 'tithe': {
         // scales, and a hand that has already taken something
-        body(c, cc => pathPoly(cc, 3, R, -Math.PI / 2), col,
-          { r: R, seed: 1801, lw: 3.2, blur: 28, inCol: '#63ffc9', veinCol: '#f0e0a8',
-            veinA: 0.3, deep: 'rgba(22,19,7,0.95)' });
+        neon(c, cc => pathPoly(cc, 3, R, -Math.PI / 2), col, { lw: 3.2, blur: 28, core: 'rgba(26,22,8,0.92)' });
         neon(c, cc => { cc.beginPath(); cc.moveTo(0, -R * 0.7); cc.lineTo(0, R * 0.44); cc.moveTo(-R * 0.62, -R * 0.12); cc.lineTo(R * 0.62, -R * 0.12); },
              col, { lw: 2.4, blur: 18, core: null, inner: false });
         for (const sx of [-1, 1]) {
@@ -2410,23 +2112,18 @@ function enemySprite(def, hurt) {
       }
       case 'aperture': {
         // a shutter. Closed almost always.
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R, 0, TAU); }, col,
-          { r: R, seed: 1301, lw: 3.4, blur: 30, inCol: '#ffb347', veinCol: '#ffd166', veinA: 0.28,
-            deep: 'rgba(10,3,26,0.96)' });
-        for (let i = 0; i < 6; i++) {                    // brass blades over a violet housing
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R, 0, TAU); }, col, { lw: 3.4, blur: 30, core: 'rgba(12,4,28,0.94)' });
+        for (let i = 0; i < 6; i++) {
           const a = i / 6 * TAU;
-          body(c, cc => {
+          neon(c, cc => {
             cc.beginPath();
             cc.moveTo(Math.cos(a) * R * 0.94, Math.sin(a) * R * 0.94);
             cc.lineTo(Math.cos(a + 1.05) * R * 0.34, Math.sin(a + 1.05) * R * 0.34);
             cc.lineTo(Math.cos(a + 1.05) * R * 0.9, Math.sin(a + 1.05) * R * 0.9);
             cc.closePath();
-          }, i & 1 ? mixC(col, '#ffb347', 0.55) : col,
-            { r: R * 0.7, seed: 1310 + i * 5, lw: 2, blur: 18, veinCol: '#ffd166', veinA: 0.3,
-              deep: 'rgba(14,5,32,0.94)' });
+          }, col, { lw: 2, blur: 18, core: 'rgba(18,6,38,0.9)' });
         }
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#ffd166', { lw: 2, blur: 18, core: 'rgba(6,2,16,0.96)' });
-        glowBlob(c, 0, 0, R * 0.34, '#ffb347', 0.55);
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#e9d8ff', { lw: 2, blur: 18, core: 'rgba(6,2,16,0.95)' });
         break;
       }
       case 'seedpod': {
@@ -2452,14 +2149,10 @@ function enemySprite(def, hurt) {
             cc.quadraticCurveTo(Math.cos(a + 0.52) * R * 1.02, Math.sin(a + 0.52) * R * 1.02,
                                 Math.cos(a + 0.30) * R * 0.42, Math.sin(a + 0.30) * R * 0.42);
             cc.closePath();
-          }, col, { r: R, seed: 1400 + i * 9, lw: 2.6, blur: 22, inCol: '#ff9a3c',
-            veinCol: '#eaffb0', veinA: 0.28, deep: 'rgba(14,26,5,0.94)' });
+          }, col, { lw: 2.6, blur: 22, core: 'rgba(16,30,6,0.88)' });
         }
-        body(c, cc => pathPoly(cc, 6, R * 0.56, Math.PI / 6), '#ff9a3c',
-          { r: R * 0.56, seed: 1451, lw: 3, blur: 26, veinCol: '#ffd166', veinA: 0.5,
-            deep: 'rgba(8,18,3,0.95)' });
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#fff0c4', { lw: 2, blur: 16, core: null, inner: false });
-        glowBlob(c, 0, 0, R * 0.42, '#ff9a3c', 0.6);
+        neon(c, cc => pathPoly(cc, 6, R * 0.56, Math.PI / 6), col, { lw: 3, blur: 26, core: 'rgba(10,22,4,0.92)' });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#f4ffd0', { lw: 2, blur: 16, core: null, inner: false });
         break;
       }
       case 'toll': {
@@ -2473,9 +2166,8 @@ function enemySprite(def, hurt) {
           cc.lineTo(R * 1.02, R * 0.84);
           cc.bezierCurveTo(R * 0.92, R * 0.2, R * 0.3, -R * 0.1, R * 0.22, -R * 0.86);
           cc.closePath();
-        }, col, { r: R, seed: 1501, lw: 3, blur: 26, inCol: '#4e947a', veinCol: '#72d9b0',
-          veinA: 0.34, ly: -0.6, deep: 'rgba(20,17,7,0.95)' });
-        neon(c, cc => { cc.beginPath(); cc.ellipse(0, R * 0.84, R * 1.02, R * 0.17, 0, 0, TAU); }, col, { lw: 2.2, blur: 16, core: 'rgba(12,10,4,0.94)' });
+        }, col, { lw: 3, blur: 26, core: 'rgba(24,20,8,0.9)' });
+        neon(c, cc => { cc.beginPath(); cc.ellipse(0, R * 0.84, R * 1.02, R * 0.17, 0, 0, TAU); }, col, { lw: 2.2, blur: 16, core: 'rgba(12,10,4,0.92)' });
         neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.4, R * 0.1); cc.lineTo(-R * 0.5, R * 0.78); cc.moveTo(R * 0.4, R * 0.1); cc.lineTo(R * 0.5, R * 0.78); },
              '#4e947a', { lw: 2, blur: 12, core: null, inner: false });
         neon(c, cc => { cc.beginPath(); cc.arc(0, R * 0.62, R * 0.16, 0, TAU); }, '#f0dcac', { lw: 1.8, blur: 12, core: 'rgba(30,24,10,0.9)' });
@@ -2491,15 +2183,10 @@ function enemySprite(def, hurt) {
             cc.lineTo(Math.cos(a) * len, Math.sin(a) * len);
             cc.lineTo(Math.cos(a + 0.14) * R * 0.6, Math.sin(a + 0.14) * R * 0.6);
             cc.closePath();
-          }, i % 3 === 1 ? mixC(col, '#c9a3ff', 0.45) : col,
-            { r: R * 0.9, seed: 1600 + i * 7, lw: 2.2, blur: 18, inCol: '#c9a3ff',
-              veinCol: '#e9e0ff', veinA: 0.3, deep: 'rgba(8,24,36,0.93)' });
+          }, col, { lw: 2.2, blur: 18, core: 'rgba(10,28,40,0.86)' });
         }
-        body(c, cc => pathPoly(cc, 6, R * 0.66, 0), col,
-          { r: R * 0.66, seed: 1661, lw: 3, blur: 26, inCol: '#c9a3ff', veinCol: '#ffffff',
-            veinA: 0.45, deep: 'rgba(6,20,32,0.95)' });
+        neon(c, cc => pathPoly(cc, 6, R * 0.66, 0), col, { lw: 3, blur: 26, core: 'rgba(8,24,36,0.92)' });
         neon(c, cc => pathPoly(cc, 6, R * 0.32, Math.PI / 6), '#ffffff', { lw: 1.8, blur: 14, core: null, inner: false });
-        glowBlob(c, 0, 0, R * 0.5, '#c9a3ff', 0.4);
         break;
       }
       case 'gyre': {
@@ -2516,11 +2203,8 @@ function enemySprite(def, hurt) {
             cc.lineTo(Math.cos(a) * R * 0.99, Math.sin(a) * R * 0.99);
           }, col, { lw: 3, blur: 10, core: null, inner: false });
         }
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.78, 0, TAU); }, col,
-          { r: R * 0.78, seed: 1701, fill: 0.55, lw: 3, blur: 26, veinCol: '#ffe3b0',
-            veinA: 0.3, deep: 'rgba(16,11,2,0.96)' });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.78, 0, TAU); }, col, { lw: 3, blur: 26, core: 'rgba(26,18,4,0.92)' });
         neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.34, 0, TAU); }, '#ffe9c0', { lw: 2, blur: 16, core: null, inner: false });
-        glowBlob(c, 0, 0, R * 0.40, '#ffe9c0', 0.5);
         break;
       }
       case 'maw': {
@@ -2542,157 +2226,89 @@ function enemySprite(def, hurt) {
         break;
       }
       case 'mirror': {
-        // a standing pane, cracked, with the reflection slipped out of register
-        c.save(); c.translate(R * 0.16, -R * 0.07); c.globalAlpha = 0.42;
-        body(c, cc => pathSharp(cc, [[-R * 0.86, -R * 1.02], [R * 0.86, -R * 0.88], [R * 0.80, R * 1.02], [-R * 0.92, R * 0.90]]),
-          mixC(col, '#7ee8ff', 0.55), { r: R, seed: 801, lw: 1.6, blur: 12, vein: false, rim: false });
-        c.restore();
-        const pane = cc => pathSharp(cc, [[-R * 0.88, -R * 1.00], [R * 0.84, -R * 0.90], [R * 0.78, R * 1.00], [-R * 0.94, R * 0.88]]);
-        body(c, pane, shadeC(col, 0.32), { r: R, seed: 811, lw: 2.6, blur: 22,
-          grain: 0.25, vein: false, hot: 0.22, lx: -0.55, ly: -0.42,
-          deep: 'rgb(4,7,16)', edge: mixC(col, '#dff2ff', 0.5) });
-        // a sheen sliding across the glass, not a texture
-        c.save(); pane(c); c.clip();
-        c.globalCompositeOperation = 'lighter';
-        const sg = c.createLinearGradient(-R, -R * 0.7, R * 0.5, R);
-        sg.addColorStop(0, 'rgba(255,255,255,0)');
-        sg.addColorStop(0.38, 'rgba(210,235,255,0.30)');
-        sg.addColorStop(0.46, 'rgba(255,255,255,0.10)');
-        sg.addColorStop(0.62, 'rgba(190,225,255,0.22)');
-        sg.addColorStop(1, 'rgba(255,255,255,0)');
-        c.fillStyle = sg; c.fillRect(-R * 1.2, -R * 1.2, R * 2.4, R * 2.4);
-        c.restore();
-        neon(c, cc => pathCracks(cc, R * 0.08, -R * 0.12, R * 0.10, R * 1.0, 6, 97), '#ffffff',
-          { lw: 1.5, blur: 14, core: null, inner: false });
-        glowBlob(c, R * 0.08, -R * 0.12, R * 0.44, '#ffffff', 0.75);
+        neon(c, cc => pathPoly(cc, 4, R, 0), col, { lw: 3.4, blur: 28, core: 'rgba(20,28,44,0.8)' });
+        neon(c, cc => pathPoly(cc, 4, R * 0.72, Math.PI / 4), '#ffffff', { lw: 2.2, blur: 18, core: null, inner: false });
+        // a fractured pane
+        neon(c, cc => {
+          cc.beginPath();
+          cc.moveTo(-R * 0.6, -R * 0.2); cc.lineTo(R * 0.1, R * 0.15); cc.lineTo(R * 0.55, -R * 0.5);
+          cc.moveTo(R * 0.1, R * 0.15); cc.lineTo(-R * 0.15, R * 0.65);
+        }, '#bcd8ff', { lw: 1.6, blur: 10, core: null, inner: false });
         break;
       }
       case 'crown': {
-        // knocked askew, and two of its points snapped off
-        c.save(); c.rotate(-0.26);
-        const CH = [1.02, 0.60, 1.36, 0.26, 0.88];
-        for (let i = 0; i < 5; i++) {
-          const a = Math.PI * (1.10 + i * 0.20), h = R * CH[i];
-          body(c, cc => pathSharp(cc, [
-            [Math.cos(a - 0.10) * R * 0.76, Math.sin(a - 0.10) * R * 0.76],
-            [Math.cos(a) * (R * 0.76 + h), Math.sin(a) * (R * 0.76 + h)],
-            [Math.cos(a + 0.10) * R * 0.76, Math.sin(a + 0.10) * R * 0.76]
-          ]), i === 3 ? shadeC(col, 0.52) : col,
-            { r: R * 0.8, seed: 310 + i * 9, lw: 2.2, blur: 17, veinA: 0.28,
-              veinCol: '#fff0c4', deep: 'rgb(22,14,0)' });
+        for (let i = 0; i < 7; i++) {
+          const a = i / 7 * TAU - Math.PI / 2;
+          const long = i % 2 === 0;
+          neon(c, cc => {
+            cc.beginPath();
+            cc.moveTo(Math.cos(a - 0.22) * R * 0.62, Math.sin(a - 0.22) * R * 0.62);
+            cc.lineTo(Math.cos(a) * R * (long ? 1.35 : 1.0), Math.sin(a) * R * (long ? 1.35 : 1.0));
+            cc.lineTo(Math.cos(a + 0.22) * R * 0.62, Math.sin(a + 0.22) * R * 0.62);
+            cc.closePath();
+          }, col, { lw: 2.6, blur: 22, core: 'rgba(34,26,2,0.85)' });
         }
-        body(c, cc => pathBand(cc, R * 0.50, R * 0.80, Math.PI * 1.02, Math.PI * 1.98), col,
-          { r: R, seed: 322, lw: 2.7, blur: 22, veinCol: '#fff0c4', veinA: 0.42, deep: 'rgb(24,15,0)' });
-        glowBlob(c, 0, -R * 0.22, R * 0.72, '#ffd166', 0.35);
-        c.restore();
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.6, 0, TAU); }, col, { lw: 3, blur: 24, core: 'rgba(28,20,2,0.9)' });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#fff', { lw: 2, blur: 14, core: null, inner: false });
         break;
       }
       case 'longnight': {
-        // an eclipse. The disc is the hole; the light only survives on one edge.
-        c.save();
-        c.globalCompositeOperation = 'lighter';
-        const cg = c.createRadialGradient(-R * 0.18, -R * 0.14, R * 0.74, -R * 0.14, -R * 0.10, R * 1.66);
-        cg.addColorStop(0, rgbaC(col, 0));
-        cg.addColorStop(0.09, rgbaC(mixC(col, '#ffffff', 0.55), 0.9));
-        cg.addColorStop(0.40, rgbaC(col, 0.22));
-        cg.addColorStop(1, rgbaC(col, 0));
-        c.fillStyle = cg;
-        c.beginPath(); c.arc(0, 0, R * 1.72, 0, TAU); c.fill();
-        c.restore();
-        for (let i = 0; i < 8; i++) {
-          const a = -Math.PI * 0.82 + i * 0.16;
-          etch(c, cc => {
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.86, 0, TAU); }, col, { lw: 3.6, blur: 30, core: 'rgba(2,0,14,0.96)' });
+        for (let i = 0; i < 12; i++) {
+          const a = i / 12 * TAU;
+          neon(c, cc => {
             cc.beginPath();
-            cc.moveTo(Math.cos(a) * R * 0.92, Math.sin(a) * R * 0.92);
-            cc.lineTo(Math.cos(a) * R * (1.28 + (i % 3) * 0.24), Math.sin(a) * R * (1.28 + (i % 3) * 0.24));
-          }, mixC(col, '#ffffff', 0.65), 1.7, 0.5);
+            cc.moveTo(Math.cos(a) * R * 0.9, Math.sin(a) * R * 0.9);
+            cc.lineTo(Math.cos(a) * R * 1.4, Math.sin(a) * R * 1.4);
+          }, col, { lw: 2, blur: 14, core: null, inner: false });
         }
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.88, 0, TAU); }, shadeC(col, 0.15),
-          { r: R * 0.88, seed: 401, lw: 2.2, blur: 20, hot: 0.08, veinA: 0.16, veinCol: col,
-            deep: 'rgb(2,1,8)', edge: mixC(col, '#ffffff', 0.35), rimCol: col });
-        glowBlob(c, -R * 0.60, -R * 0.54, R * 0.44, '#ffffff', 0.95);
+        neon(c, cc => pathStar(cc, 5, R * 0.4, R * 0.16, -Math.PI / 2), '#c8c0ff', { lw: 2, blur: 16, core: null, inner: false });
         break;
       }
       case 'antiphon': {
-        // a call and an answer. Two bodies, one larger, joined by a drawn thread.
         neon(c, cc => {
           cc.beginPath();
-          cc.moveTo(-R * 0.60, -R * 0.16);
-          cc.quadraticCurveTo(0, R * 0.62, R * 0.76, R * 0.30);
-        }, '#ffd6e8', { lw: 1.5, blur: 13, core: null, inner: false });
-        const voice = (vx, vy, vs, sd, vc) => {
-          c.save(); c.translate(vx, vy);
-          body(c, cc => pathHull(cc, hullPts(9, R * vs, 0.22, sd, 1.0)), vc,
-            { r: R * vs, seed: sd, lw: 2.5, blur: 21, veinCol: '#ffd6e8', veinA: 0.4, deep: 'rgb(24,2,14)' });
-          neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * vs * 0.32, 0, TAU); }, '#fff',
-            { lw: 1.6, blur: 13, core: 'rgba(16,0,8,0.9)', inner: false });
-          glowBlob(c, 0, 0, R * vs * 0.8, vc, 0.35);
-          c.restore();
-        };
-        voice(-R * 0.60, -R * 0.16, 0.76, 411, col);
-        voice(R * 0.76, R * 0.30, 0.50, 427, mixC(col, '#ffd166', 0.42));   // the answer, a shade off
+          cc.arc(-R * 0.3, 0, R * 0.66, 0, TAU);
+        }, col, { lw: 3.2, blur: 26, core: 'rgba(34,4,20,0.86)' });
+        neon(c, cc => {
+          cc.beginPath();
+          cc.arc(R * 0.3, 0, R * 0.66, 0, TAU);
+        }, '#ffb3d8', { lw: 2.6, blur: 20, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.3, 0); cc.lineTo(R * 0.3, 0); }, '#fff', { lw: 2, blur: 12, core: null, inner: false });
         break;
       }
       case 'loom': {
-        // a frame with the work still on it: taut warp, one shuttle mid-pass
-        const LW2 = R * 1.02, LH = R * 1.16;
-        const beam = (y0, y1, sd) => body(c, cc => pathSharp(cc, [[-LW2, y0], [LW2, y0], [LW2, y1], [-LW2, y1]]),
-          col, { r: R, seed: sd, lw: 2.3, blur: 18, veinA: 0.28, veinCol: '#dff2ff', deep: 'rgb(6,9,22)' });
-        beam(-LH, -LH + R * 0.20, 601);
-        beam(LH - R * 0.20, LH, 602);
-        for (let i = 0; i < 9; i++) {
-          const x = -LW2 * 0.84 + i * (LW2 * 1.68 / 8);
-          etch(c, cc => {
+        neon(c, cc => pathPoly(cc, 8, R * 0.62, 0), col, { lw: 3.2, blur: 26, core: 'rgba(10,14,30,0.86)' });
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU + Math.PI / 8;
+          neon(c, cc => {
             cc.beginPath();
-            cc.moveTo(x, -LH + R * 0.18);
-            cc.lineTo(x + (i - 4) * R * 0.045, LH - R * 0.18);
-          }, mixC(col, '#ffffff', 0.6), 1.3, 0.55);
+            cc.moveTo(Math.cos(a) * R * 0.55, Math.sin(a) * R * 0.55);
+            cc.quadraticCurveTo(Math.cos(a + 0.35) * R * 1.05, Math.sin(a + 0.35) * R * 1.05, Math.cos(a) * R * 1.45, Math.sin(a) * R * 1.45);
+          }, col, { lw: 2.2, blur: 14, core: null, inner: false });
         }
-        c.save(); c.translate(R * 0.26, R * 0.14); c.rotate(0.22);
-        body(c, cc => pathHull(cc, [[-R * 0.44, 0], [-R * 0.1, -R * 0.18], [R * 0.44, 0], [-R * 0.1, R * 0.18]]),
-          mixC(col, '#ffd166', 0.55), { r: R * 0.42, seed: 611, lw: 2.0, blur: 16, vein: false });
-        c.restore();
-        glowBlob(c, R * 0.26, R * 0.14, R * 0.52, '#ffd166', 0.4);
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.26, 0, TAU); }, '#fff', { lw: 2, blur: 14, core: null, inner: false });
         break;
       }
       case 'carrion': {
-        // picked apart: a ring that no longer closes, and heavier on one side
-        const CN = 9;
-        for (let i = 0; i < CN; i++) {
-          if (i === 3 || i === 4) continue;                  // the gap where it was torn open
-          const a = i / CN * TAU - 0.4;
-          const d = R * (0.84 + ((i * 7) % 5) * 0.08);
-          const s = R * (0.16 + ((i * 5) % 4) * 0.075) * (Math.sin(a) > 0 ? 1.3 : 0.82);
-          c.save(); c.translate(Math.cos(a) * d, Math.sin(a) * d); c.rotate(a * 1.7);
-          body(c, cc => pathSharp(cc, [[-s, -s * 0.5], [s * 0.8, -s], [s, s * 0.6], [-s * 0.4, s]]),
-            col, { r: s, seed: 500 + i * 11, fill: 0.45, lw: 2.0, blur: 15, veinA: 0.24,
-            veinCol: '#eaffb0', deep: 'rgba(6,11,0,0.95)' });
-          c.restore();
+        neon(c, cc => pathBlob(cc, R, 11, 0.22, 991), col, { lw: 3.4, blur: 28, core: 'rgba(18,28,4,0.88)' });
+        neon(c, cc => pathBlob(cc, R * 0.6, 9, 0.3, 313), '#ffe66d', { lw: 2.2, blur: 16, core: null, inner: false });
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * TAU - Math.PI / 2;
+          neon(c, cc => { cc.beginPath(); cc.arc(Math.cos(a) * R * 0.68, Math.sin(a) * R * 0.68, R * 0.13, 0, TAU); }, '#fff', { lw: 1.5, blur: 10, core: null, inner: false });
         }
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.32, 0, TAU); }, mixC(col, '#ffffff', 0.45),
-          { lw: 1.7, blur: 16, core: 'rgba(4,10,0,0.9)', inner: false });
-        glowBlob(c, 0, 0, R * 0.62, col, 0.35);
         break;
       }
       case 'orrery': {
-        // rings on three different planes, each carrying a body, core off-centre
-        const RG = [[1.36, 0.28, -0.52, 0.2], [1.02, 0.54, 0.86, 2.3], [0.72, 0.24, 2.10, 4.1]];
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.52, 0, TAU); }, col, { lw: 3.4, blur: 28, core: 'rgba(30,24,2,0.88)' });
         for (let i = 0; i < 3; i++) {
-          const rr = R * RG[i][0], sq = RG[i][1], tilt = RG[i][2], ph = RG[i][3];
-          c.save(); c.rotate(tilt);
-          neon(c, cc => { cc.beginPath(); cc.ellipse(0, 0, rr, rr * sq, 0, 0, TAU); },
-            i === 1 ? mixC(col, '#ffffff', 0.45) : col, { lw: 1.7 + i * 0.3, blur: 14, core: null, inner: false });
-          c.save(); c.translate(Math.cos(ph) * rr, Math.sin(ph) * rr * sq);
-          body(c, cc => { cc.beginPath(); cc.arc(0, 0, R * (0.21 - i * 0.04), 0, TAU); },
-            i === 0 ? mixC(col, '#ff9a3c', 0.55) : mixC(col, '#7ee8ff', 0.4),
-            { r: R * 0.21, seed: 700 + i * 17, lw: 1.6, blur: 13, veinA: 0.42 });
-          c.restore(); c.restore();
+          const rr = R * (0.75 + i * 0.28);
+          c.save(); c.rotate(i * 0.6);
+          c.globalAlpha = 1;
+          neon(c, cc => { cc.save(); cc.scale(1, 0.42); cc.beginPath(); cc.arc(0, 0, rr, 0, TAU); cc.restore(); }, col, { lw: 1.8, blur: 12, core: null, inner: false });
+          c.restore();
         }
-        c.save(); c.translate(-R * 0.16, R * 0.12);
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.36, 0, TAU); }, mixC(col, '#ffffff', 0.28),
-          { r: R * 0.36, seed: 733, lw: 2.2, blur: 20, veinCol: '#fff0c4', veinA: 0.55 });
-        c.restore();
-        glowBlob(c, -R * 0.16, R * 0.12, R * 0.72, col, 0.4);
+        neon(c, cc => pathStar(cc, 8, R * 0.36, R * 0.14, 0), '#fff', { lw: 1.8, blur: 14, core: null, inner: false });
         break;
       }
       case 'husk': {
@@ -2705,150 +2321,61 @@ function enemySprite(def, hurt) {
         break;
       }
       case 'howler':
-        neon(c, cc => pathStar(cc, 3, R * 1.25, R * 0.5, -Math.PI / 2), col, { lw: 2.6, blur: 16, core: core });
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.32, 0, TAU); }, '#ff5fa2', { lw: 1.7, blur: 11, core: 'rgba(24,8,0,0.9)', inner: false });
-        glowBlob(c, 0, 0, R * 0.5, '#ff5fa2', 0.4);      // the brood it is carrying
+        neon(c, cc => pathStar(cc, 3, R * 1.25, R * 0.5, -Math.PI / 2), col, o);
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.34, 0, TAU); }, '#fff', { lw: 1.6, blur: 10, core: null, inner: false });
         break;
-      case 'monolith':                                   // the heaviest line in the crowd
-        body(c, cc => { cc.beginPath(); cc.rect(-R * 0.62, -R, R * 1.24, R * 2); }, col,
-          { r: R, seed: 53, fill: 0.8, lw: 4.0, blur: 20, inCol: '#63d4ff',
-            veinCol: '#cfe9ff', veinA: 0.3, deep: 'rgba(4,6,20,0.95)' });
-        neon(c, cc => { cc.beginPath(); cc.rect(-R * 0.3, -R * 0.66, R * 0.6, R * 1.32); }, '#63d4ff', { lw: 1.8, blur: 9, core: null, inner: false });
-        neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.5, 0); cc.lineTo(R * 0.5, 0); }, '#fff', { lw: 1.6, blur: 8, core: null, inner: false });
+      case 'monolith':
+        neon(c, cc => { cc.beginPath(); cc.rect(-R * 0.62, -R, R * 1.24, R * 2); }, col, { lw: 3.2, blur: 20, core: core });
+        neon(c, cc => { cc.beginPath(); cc.rect(-R * 0.3, -R * 0.66, R * 0.6, R * 1.32); }, col, { lw: 1.8, blur: 9, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.5, 0); cc.lineTo(R * 0.5, 0); }, '#fff', { lw: 1.5, blur: 8, core: null, inner: false });
         break;
       case 'hexer':
-        neon(c, cc => pathPoly(cc, 6, R, 0), col, { lw: 2.7, blur: 16, core: core });
-        neon(c, cc => pathPoly(cc, 3, R * 0.55, Math.PI / 2), '#63ffc9', { lw: 1.8, blur: 10, core: null, inner: false });
-        neon(c, cc => pathPoly(cc, 3, R * 0.55, -Math.PI / 2), '#63ffc9', { lw: 1.8, blur: 10, core: null, inner: false });
+        neon(c, cc => pathPoly(cc, 6, R, 0), col, o);
+        neon(c, cc => pathPoly(cc, 3, R * 0.55, Math.PI / 2), col, { lw: 1.8, blur: 10, core: null, inner: false });
+        neon(c, cc => pathPoly(cc, 3, R * 0.55, -Math.PI / 2), col, { lw: 1.8, blur: 10, core: null, inner: false });
         break;
-      case 'lancer':                                     // all point, no body
-        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.7, 0); cc.lineTo(-R * 0.6, R * 0.6); cc.lineTo(-R * 0.25, 0); cc.lineTo(-R * 0.6, -R * 0.6); cc.closePath(); },
-          col, { lw: 2.1, blur: 14, core: core });
-        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.55, 0); cc.lineTo(-R * 0.2, 0); }, '#ffd166', { lw: 1.5, blur: 9, core: null, inner: false });
+      case 'lancer':
+        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.7, 0); cc.lineTo(-R * 0.6, R * 0.6); cc.lineTo(-R * 0.25, 0); cc.lineTo(-R * 0.6, -R * 0.6); cc.closePath(); }, col, o);
+        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.0, 0); cc.lineTo(-R * 0.3, 0); }, '#fff', { lw: 1.4, blur: 8, core: null, inner: false });
         break;
       case 'weaver':
-        neon(c, cc => pathStar(cc, 6, R * 1.15, R * 0.44, 0), col, { lw: 2.4, blur: 15, core: core });
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.44, 0, TAU); }, '#c9a3ff', { lw: 1.7, blur: 9, core: null, inner: false });
+        neon(c, cc => pathStar(cc, 6, R * 1.15, R * 0.44, 0), col, o);
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.46, 0, TAU); }, col, { lw: 1.6, blur: 8, core: null, inner: false });
         break;
       case 'harbinger': {
-        // a herald: bell body, a horn mouth, banners streaming back off it
-        for (let i = 0; i < 4; i++) {
-          const o = (i - 1.5) * 0.40;
-          c.save(); c.globalAlpha = 0.95 - i * 0.15;
-          body(c, cc => pathLimb(cc, -R * 0.30, -R * 0.10, -R * 1.15, -R * 0.92 + o * R,
-            -R * 1.88, -R * 0.24 + o * R * 1.9, R * 0.46, R * 0.05),
-            mixC(col, '#ffd166', 0.3), { r: R * 0.9, seed: 31 + i * 13, lw: 2.0, blur: 17,
-            veinA: 0.3, veinCol: '#fff0c4', rim: false, deep: 'rgb(20,8,0)' });
-          c.restore();
-        }
-        body(c, cc => pathHull(cc, [
-          [0, -R * 1.08], [R * 0.50, -R * 0.52], [R * 0.84, R * 0.48], [R * 0.98, R * 0.96],
-          [0, R * 0.72], [-R * 0.98, R * 0.96], [-R * 0.84, R * 0.48], [-R * 0.50, -R * 0.52]
-        ]), col, { r: R, seed: 52, lw: 2.8, blur: 24, veinCol: '#fff0c4', veinA: 0.45,
-          deep: 'rgb(22,8,0)' });
-        neon(c, cc => { cc.beginPath(); cc.ellipse(0, R * 0.88, R * 0.92, R * 0.22, 0, 0, TAU); },
-          '#ffd166', { lw: 2.2, blur: 18, core: 'rgba(24,10,0,0.92)', inner: false });
-        glowBlob(c, 0, R * 0.88, R * 0.82, '#ffd166', 0.55);
-        neon(c, cc => { cc.beginPath(); cc.arc(0, -R * 0.36, R * 0.19, 0, TAU); }, '#fff',
-          { lw: 1.8, blur: 14, core: null, inner: false });
+        neon(c, cc => pathStar(cc, 7, R, R * 0.5, -Math.PI / 2), col, { lw: 3.2, blur: 26, core: 'rgba(28,10,2,0.85)' });
+        neon(c, cc => pathPoly(cc, 7, R * 0.6, 0), '#ffd166', { lw: 2, blur: 14, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.26, 0, TAU); }, '#fff', { lw: 2, blur: 12, core: null, inner: false });
         break;
       }
       case 'sentinel': {
-        // a tower that watches: stacked lens drums over a tapering base
-        body(c, cc => pathHull(cc, [
-          [-R * 0.36, R * 1.34], [R * 0.36, R * 1.34], [R * 0.54, R * 0.22],
-          [R * 0.40, -R * 0.72], [0, -R * 1.14], [-R * 0.40, -R * 0.72], [-R * 0.54, R * 0.22]
-        ]), shadeC(col, 0.74), { r: R, seed: 61, lw: 2.5, blur: 19, veinCol: '#a8dfff', veinA: 0.42 });
-        for (let i = 0; i < 3; i++) {
-          const y = -R * 0.44 + i * R * 0.46, w = R * (0.48 - i * 0.055);
-          neon(c, cc => { cc.beginPath(); cc.ellipse(0, y, w, w * 0.30, 0, 0, TAU); },
-            i === 0 ? '#cfe9ff' : col, { lw: 1.9, blur: 13, core: 'rgba(2,10,26,0.9)', inner: false });
-        }
-        neon(c, cc => { cc.beginPath(); cc.ellipse(0, -R * 0.88, R * 0.42, R * 0.27, 0, 0, TAU); },
-          '#dff2ff', { lw: 2.4, blur: 20, core: 'rgba(2,10,26,0.95)', inner: false });
-        glowBlob(c, 0, -R * 0.88, R * 0.66, '#7ee8ff', 0.75);
-        neon(c, cc => { cc.beginPath(); cc.arc(0, -R * 0.88, R * 0.12, 0, TAU); }, '#fff',
-          { lw: 1.7, blur: 12, core: null, inner: false });
-        etch(c, cc => { cc.beginPath(); for (let i = 0; i < 5; i++) { const y = R * 0.36 + i * R * 0.20; cc.moveTo(-R * 0.47, y); cc.lineTo(R * 0.47, y); } },
-          '#a8dfff', 1.1, 0.32);
+        neon(c, cc => pathPoly(cc, 4, R, 0), col, { lw: 3.4, blur: 26, core: 'rgba(2,14,32,0.85)' });
+        neon(c, cc => pathPoly(cc, 4, R * 0.72, Math.PI / 4), '#a8dfff', { lw: 2.2, blur: 15, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.3, 0, TAU); }, '#fff', { lw: 2.2, blur: 14, core: null, inner: false });
         break;
       }
       case 'carver': {
-        // two blades on one spine, the trailing one a beat behind the lead
-        c.save(); c.rotate(0.26); c.globalAlpha = 0.5;
-        body(c, cc => pathSharp(cc, [[R * 1.48, 0], [-R * 0.30, R * 0.84], [-R * 0.80, 0], [-R * 0.30, -R * 0.84]]),
-          shadeC(col, 0.55), { r: R, seed: 70, lw: 1.7, blur: 12, vein: false, rim: false });
-        c.restore();
-        body(c, cc => pathSharp(cc, [
-          [R * 1.70, 0], [R * 0.16, R * 0.46], [-R * 0.38, R * 1.02],
-          [-R * 0.94, R * 0.16], [-R * 0.58, -R * 0.46], [R * 0.10, -R * 0.92]
-        ]), col, { r: R, seed: 88, lw: 2.9, blur: 24, veinCol: '#eaffb0', veinA: 0.45,
-          lx: 0.34, ly: -0.48, deep: 'rgb(6,14,2)' });
-        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.58, 0); cc.lineTo(R * 0.06, -R * 0.84); }, '#fff',
-          { lw: 2.2, blur: 16, core: null, inner: false });
-        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.92, 0); cc.lineTo(-R * 0.54, 0); }, '#eaffb0',
-          { lw: 1.6, blur: 10, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.6, 0); cc.lineTo(-R * 0.4, R * 1.05); cc.lineTo(-R * 0.9, 0); cc.lineTo(-R * 0.4, -R * 1.05); cc.closePath(); }, col, { lw: 3.2, blur: 24, core: 'rgba(16,26,2,0.85)' });
+        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.9, 0); cc.lineTo(-R * 0.5, 0); }, '#fff', { lw: 2, blur: 12, core: null, inner: false });
         break;
       }
       case 'choir': {
-        // a crowd of open mouths, clustered, all different -- not a ring
-        const MO = [[-0.94, -0.40, 0.38, 11], [0.18, -1.00, 0.29, 23], [0.96, -0.18, 0.45, 37],
-                    [0.50, 0.80, 0.25, 51], [-0.58, 0.74, 0.33, 67], [-0.08, 0.14, 0.60, 83]];
-        for (let i = 0; i < MO.length; i++) {
-          const mx = MO[i][0] * R, my = MO[i][1] * R, ms = MO[i][2], sd = MO[i][3];
-          c.save(); c.translate(mx, my); c.rotate((sd % 7) * 0.22);
-          body(c, cc => pathHull(cc, hullPts(7, R * ms, 0.44, sd, 1.28)), shadeC(col, 0.6),
-            { r: R * ms, seed: sd, lw: 2.0, blur: 15, veinA: 0.3, edge: '#cfe9ff', deep: 'rgb(2,8,20)' });
-          neon(c, cc => { cc.beginPath(); cc.ellipse(0, 0, R * ms * 0.44, R * ms * 0.66, 0, 0, TAU); },
-            '#dff2ff', { lw: 1.6, blur: 12, core: 'rgba(0,4,14,0.95)', inner: false });
-          glowBlob(c, 0, 0, R * ms * 0.92, '#7ee8ff', 0.42);
-          c.restore();
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.6, 0, TAU); }, col, { lw: 3.4, blur: 28, core: 'rgba(4,16,34,0.86)' });
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * TAU - Math.PI / 2;
+          neon(c, cc => { cc.beginPath(); cc.arc(Math.cos(a) * R * 1.15, Math.sin(a) * R * 1.15, R * 0.3, 0, TAU); }, '#cfe9ff', { lw: 2.2, blur: 16, core: null, inner: false });
         }
+        neon(c, cc => pathStar(cc, 5, R * 0.44, R * 0.18, -Math.PI / 2), '#fff', { lw: 2, blur: 14, core: null, inner: false });
         break;
       }
       case 'gravewalker': {
-        // a hunched thing on two long back-bent legs, head slung low in front
-        /* legs: thigh kicks up and out, shin drops in. Thick enough to read. */
-        const leg = (sx, sp, sd) => {
-          const hx2 = sx * R * 0.50, hy = R * 0.18;
-          const kx2 = sx * R * (1.30 + sp), ky = -R * 0.10;      // knee above the hip, insect-style
-          const fx = sx * R * (1.02 + sp * 1.5), fy = R * 1.52;
-          body(c, cc => pathSharp(cc, [
-            [hx2 - sx * R * 0.10, hy - R * 0.26], [hx2 + sx * R * 0.26, hy + R * 0.12],
-            [kx2 + sx * R * 0.18, ky + R * 0.20], [kx2 - sx * R * 0.16, ky - R * 0.16]
-          ]), col, { r: R * 0.7, seed: sd, lw: 2.4, blur: 15, veinA: 0.2, deep: 'rgba(14,5,0,0.94)' });
-          body(c, cc => pathSharp(cc, [
-            [kx2 - sx * R * 0.17, ky - R * 0.10], [kx2 + sx * R * 0.17, ky + R * 0.16],
-            [fx + sx * R * 0.10, fy], [fx - sx * R * 0.12, fy - R * 0.06]
-          ]), shadeC(col, 0.82), { r: R * 0.7, seed: sd + 3, lw: 2.2, blur: 13, veinA: 0.18,
-            deep: 'rgba(12,4,0,0.94)' });
-          neon(c, cc => { cc.beginPath(); cc.arc(kx2, ky + R * 0.02, R * 0.13, 0, TAU); }, '#ffd166',
-            { lw: 1.6, blur: 12, core: 'rgba(12,3,0,0.9)', inner: false });
-          neon(c, cc => { cc.beginPath(); cc.moveTo(fx - R * 0.22, fy); cc.lineTo(fx + R * 0.24, fy + R * 0.06); },
-            col, { lw: 2.0, blur: 11, core: null, inner: false });
-        };
-        leg(-1, 0.06, 121); leg(1, -0.20, 137);
-        /* carapace: angular, hunched, heavier at the back than the front */
-        body(c, cc => pathSharp(cc, [
-          [-R * 1.02, -R * 0.10], [-R * 0.66, -R * 0.72], [R * 0.22, -R * 0.80],
-          [R * 0.86, -R * 0.34], [R * 0.94, R * 0.24], [R * 0.30, R * 0.54], [-R * 0.64, R * 0.42]
-        ]), col, { r: R, seed: 131, lw: 3.0, blur: 25, veinCol: '#ffd166', veinA: 0.32,
-          ly: -0.72, deep: 'rgba(16,6,0,0.95)' });
-        etch(c, cc => {
-          cc.beginPath();
-          for (let i = 0; i < 4; i++) {
-            const x = -R * 0.56 + i * R * 0.38;
-            cc.moveTo(x, -R * 0.66); cc.lineTo(x + R * 0.14, R * 0.40);
-          }
-        }, '#ffd166', 1.3, 0.3);
-        /* head, slung low and forward off the front edge */
-        body(c, cc => pathSharp(cc, [
-          [R * 0.74, R * 0.16], [R * 1.30, R * 0.44], [R * 1.24, R * 0.86], [R * 0.66, R * 0.72]
-        ]), shadeC(col, 0.9), { r: R * 0.4, seed: 155, lw: 2.2, blur: 16, vein: false,
-          deep: 'rgba(14,4,0,0.95)' });
-        neon(c, cc => { cc.beginPath(); cc.ellipse(R * 0.98, R * 0.54, R * 0.20, R * 0.08, 0.28, 0, TAU); },
-          '#ffd166', { lw: 1.6, blur: 14, core: 'rgba(12,3,0,0.92)', inner: false });
-        glowBlob(c, R * 0.98, R * 0.54, R * 0.44, '#ff7a45', 0.55);
+        neon(c, cc => pathPoly(cc, 5, R, -Math.PI / 2), col, { lw: 3.6, blur: 28, core: 'rgba(30,16,2,0.88)' });
+        neon(c, cc => pathPoly(cc, 5, R * 0.7, Math.PI / 5 - Math.PI / 2), '#ff7a45', { lw: 2.4, blur: 18, core: null, inner: false });
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * TAU - Math.PI / 2;
+          neon(c, cc => { cc.beginPath(); cc.moveTo(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7); cc.lineTo(Math.cos(a) * R * 1.35, Math.sin(a) * R * 1.35); }, col, { lw: 2.6, blur: 14, core: null, inner: false });
+        }
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.3, 0, TAU); }, '#fff', { lw: 2.2, blur: 14, core: null, inner: false });
         break;
       }
       case 'weep': {
@@ -2864,504 +2391,89 @@ function enemySprite(def, hurt) {
         break;
       }
       case 'nullarch': {
-        // an arch with nothing under it, and the keystone gone
-        const PIx = Math.PI;
-        c.save(); c.translate(0, R * 0.22);
-        // the void it stands over, first, so the stone reads in front of it
-        const vg = c.createRadialGradient(0, -R * 0.30, 0, 0, -R * 0.30, R * 0.92);
-        vg.addColorStop(0, 'rgba(0,0,0,1)');
-        vg.addColorStop(0.66, 'rgba(6,0,14,0.92)');
-        vg.addColorStop(1, 'rgba(6,0,14,0)');
-        c.fillStyle = vg;
-        c.beginPath(); c.arc(0, -R * 0.30, R * 0.92, 0, TAU); c.fill();
-        neon(c, cc => { cc.beginPath(); cc.arc(0, -R * 0.30, R * 0.46, 0, TAU); }, '#e9b8ff',
-          { lw: 1.5, blur: 18, core: null, inner: false });
-        const span = (a0, a1, sd) => body(c, cc => pathBand(cc, R * 0.74, R * 1.14, a0, a1), col,
-          { r: R, seed: sd, lw: 2.6, blur: 22, veinCol: '#e9b8ff', veinA: 0.38, deep: 'rgb(12,2,22)' });
-        span(PIx * 1.02, PIx * 1.42, 201);          // left half of the arch
-        span(PIx * 1.58, PIx * 1.98, 202);          // right half; the keystone is missing
-        const leg = sx => body(c, cc => pathSharp(cc, [
-          [sx * R * 0.72, -R * 0.04], [sx * R * 1.16, 0],
-          [sx * R * (1.08 - 0.04 * sx), R * 1.14], [sx * R * 0.76, R * 1.10]
-        ]), shadeC(col, 0.72), { r: R, seed: 203 + (sx > 0 ? 1 : 0), lw: 2.3, blur: 16,
-          veinA: 0.28, veinCol: '#e9b8ff', deep: 'rgb(10,2,18)' });
-        leg(-1); leg(1);
-        c.restore();
+        neon(c, cc => pathPoly(cc, 3, R * 1.25, -Math.PI / 2), col, { lw: 3.4, blur: 28, core: 'rgba(20,4,36,0.88)' });
+        neon(c, cc => pathPoly(cc, 3, R * 1.25, Math.PI / 2), col, { lw: 3.0, blur: 24, core: null, inner: false });
+        neon(c, cc => pathPoly(cc, 6, R * 0.62, 0), '#e9b8ff', { lw: 2.2, blur: 16, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.24, 0, TAU); }, '#fff', { lw: 2.4, blur: 14, core: null, inner: false });
         break;
       }
       case 'voidheart': {
-        // an organ, not a flower: two chambers and the vessels leaving them
-        /* three great vessels leaving the top, thick where they join */
-        const VS = [[-0.62, -1.44, -0.86], [0.06, -1.62, 0.12], [0.70, -1.30, 0.94]];
-        for (let i = 0; i < 3; i++) {
-          body(c, cc => pathLimb(cc, VS[i][2] * R * 0.34, -R * 0.42,
-            VS[i][0] * R * 1.05, -R * 1.02, VS[i][0] * R, VS[i][1] * R, R * 0.40, R * 0.13),
-            shadeC(col, 0.58), { r: R * 0.9, seed: 900 + i * 13, lw: 2.1, blur: 16,
-            veinA: 0.22, rim: false, deep: 'rgb(24,0,8)' });
-          neon(c, cc => { cc.beginPath(); cc.ellipse(VS[i][0] * R, VS[i][1] * R, R * 0.13, R * 0.06, 0, 0, TAU); },
-            '#ff8fae', { lw: 1.4, blur: 12, core: 'rgba(20,0,6,0.9)', inner: false });
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU;
+          c.save(); c.rotate(a);
+          neon(c, cc => {
+            cc.beginPath();
+            cc.moveTo(R * 0.34, 0);
+            cc.quadraticCurveTo(R * 0.9, -R * 0.44, R * 1.5, 0);
+            cc.quadraticCurveTo(R * 0.9, R * 0.44, R * 0.34, 0);
+            cc.closePath();
+          }, col, { lw: 2.8, blur: 26, core: 'rgba(34,0,12,0.85)' });
+          c.restore();
         }
-        /* one mass, notched at the top into two lobes -- a heart, not two fruit */
-        body(c, cc => {
+        neon(c, cc => {
           cc.beginPath();
-          cc.moveTo(0, -R * 0.20);
-          cc.bezierCurveTo(-R * 0.36, -R * 0.86, -R * 1.16, -R * 0.60, -R * 1.02, R * 0.16);
-          cc.bezierCurveTo(-R * 0.92, R * 0.84, -R * 0.30, R * 1.06, R * 0.04, R * 1.24);
-          cc.bezierCurveTo(R * 0.44, R * 1.00, R * 1.00, R * 0.74, R * 1.04, R * 0.10);
-          cc.bezierCurveTo(R * 1.08, -R * 0.58, R * 0.34, -R * 0.82, 0, -R * 0.20);
+          cc.moveTo(0, R * 0.72);
+          cc.bezierCurveTo(-R * 1.1, -R * 0.06, -R * 0.5, -R * 0.85, 0, -R * 0.26);
+          cc.bezierCurveTo(R * 0.5, -R * 0.85, R * 1.1, -R * 0.06, 0, R * 0.72);
           cc.closePath();
-        }, col, { r: R, seed: 921, lw: 3.0, blur: 26, veinCol: '#ff8fae', veinA: 0.4,
-          ly: -0.56, deep: 'rgba(26,0,9,0.95)' });
-        /* the wall dividing the chambers, and the two ventricles either side */
-        etch(c, cc => {
-          cc.beginPath();
-          cc.moveTo(R * 0.02, -R * 0.22);
-          cc.quadraticCurveTo(R * 0.20, R * 0.40, R * 0.06, R * 1.18);
-        }, '#ff8fae', 2.2, 0.5);
-        neon(c, cc => { cc.beginPath(); cc.ellipse(-R * 0.44, R * 0.30, R * 0.28, R * 0.40, -0.16, 0, TAU); },
-          '#ff8fae', { lw: 1.5, blur: 13, core: null, inner: false });
-        neon(c, cc => { cc.beginPath(); cc.ellipse(R * 0.48, R * 0.34, R * 0.22, R * 0.32, 0.18, 0, TAU); },
-          '#ff8fae', { lw: 1.4, blur: 12, core: null, inner: false });
-        glowBlob(c, -R * 0.30, R * 0.26, R * 0.82, '#ff4d6d', 0.45);
-        neon(c, cc => { cc.beginPath(); cc.arc(-R * 0.44, R * 0.30, R * 0.13, 0, TAU); }, '#fff',
-          { lw: 1.7, blur: 14, core: null, inner: false });
+        }, '#ff8fae', { lw: 3, blur: 28, core: 'rgba(40,0,16,0.9)' });
+        neon(c, cc => pathStar(cc, 8, R * 0.4, R * 0.16, 0), '#fff', { lw: 2, blur: 16, core: null, inner: false });
         break;
       }
-      /* Rank and file. Line weight carries threat: a swarmer is a thin fast
-         scratch, a bulwark is a heavy filled slab. At 10-25px that difference
-         is the only thing the player can actually read in a crowd. */
       case 'drifter':
-        neon(c, cc => pathPoly(cc, 4, R, 0), col, { lw: 2.4, blur: 15, core: core });
-        neon(c, cc => pathPoly(cc, 4, R * 0.45, 0), '#e9d8ff', { lw: 1.5, blur: 8, core: null, inner: false });
+        neon(c, cc => pathPoly(cc, 4, R, 0), col, o);
+        neon(c, cc => pathPoly(cc, 4, R * 0.45, 0), col, { lw: 1.6, blur: 8, core: null, inner: false });
         break;
-      case 'swarmer':                                   // thinnest line in the game
-        neon(c, cc => pathPoly(cc, 3, R * 1.15, -Math.PI / 2), col, { lw: 1.7, blur: 11, core: core });
-        neon(c, cc => { cc.beginPath(); cc.arc(0, R * 0.2, R * 0.16, 0, TAU); }, '#ffffff', { lw: 1.1, blur: 7, core: null, inner: false });
+      case 'swarmer':
+        neon(c, cc => pathPoly(cc, 3, R * 1.15, -Math.PI / 2), col, { lw: 2.2, blur: 13, core: core });
         break;
-      case 'bulwark':                                   // filled, so mass reads instantly
-        body(c, cc => pathPoly(cc, 6, R, 0), col,
-          { r: R, seed: 41, fill: 0.8, lw: 3.6, blur: 17, inCol: '#ffd166',
-            veinCol: '#ffd166', veinA: 0.3, deep: 'rgba(14,6,0,0.94)' });
-        neon(c, cc => pathPoly(cc, 6, R * 0.58, Math.PI / 6), '#ffd166', { lw: 1.8, blur: 9, core: null, inner: false });
-        neon(c, cc => pathPoly(cc, 6, R * 0.24, 0), '#fff', { lw: 1.4, blur: 8, core: null, inner: false });
+      case 'bulwark':
+        neon(c, cc => pathPoly(cc, 6, R, 0), col, o);
+        neon(c, cc => pathPoly(cc, 6, R * 0.62, Math.PI / 6), col, { lw: 1.8, blur: 9, core: null, inner: false });
+        neon(c, cc => pathPoly(cc, 6, R * 0.26, 0), '#fff', { lw: 1.4, blur: 8, core: null, inner: false });
         break;
       case 'spitter':
-        neon(c, cc => pathStar(cc, 5, R * 1.2, R * 0.52, -Math.PI / 2), col, { lw: 2.5, blur: 15, core: core });
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.30, 0, TAU); }, '#ffd166', { lw: 1.7, blur: 11, core: 'rgba(20,2,10,0.9)', inner: false });
-        glowBlob(c, 0, 0, R * 0.42, '#ffd166', 0.45);    // the loaded shot shows
+        neon(c, cc => pathStar(cc, 5, R * 1.2, R * 0.52, -Math.PI / 2), col, o);
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.3, 0, TAU); }, '#fff', { lw: 1.6, blur: 10, core: null, inner: false });
         break;
       case 'splitter':
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R, 0, TAU); }, col,
-          { r: R, seed: 47, fill: 0.55, lw: 2.8, blur: 15, veinCol: '#eaffb0', veinA: 0.26,
-            deep: 'rgba(10,16,0,0.94)' });
-        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.56, 0, TAU); }, '#eaffb0', { lw: 1.6, blur: 8, core: null, inner: false });
-        // the seam it will come apart along
-        neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.84, 0); cc.lineTo(R * 0.84, 0); }, '#ffffff', { lw: 1.5, blur: 7, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R, 0, TAU); }, col, o);
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.58, 0, TAU); }, col, { lw: 1.8, blur: 8, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.8, 0); cc.lineTo(R * 0.8, 0); }, col, { lw: 1.4, blur: 6, core: null, inner: false });
         break;
-      case 'wraith':                                    // thin, pale, hard to hold onto
+      case 'wraith':
         neon(c, cc => {
           cc.beginPath();
           cc.moveTo(R * 1.5, 0); cc.lineTo(-R * 0.5, R * 0.85);
           cc.lineTo(-R * 0.1, 0); cc.lineTo(-R * 0.5, -R * 0.85);
           cc.closePath();
-        }, col, { lw: 1.9, blur: 16, core: 'rgba(8,12,22,0.55)' });
-        neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.1, 0); cc.lineTo(-R * 0.2, 0); }, '#63d4ff', { lw: 1.3, blur: 9, core: null, inner: false });
+        }, col, o);
         break;
       case 'warden': {
-        // a gate that walks. Head plate, two uneven pauldrons, one visor slit.
-        const pauldron = (px, py, sc, sd, sk) => {
-          c.save(); c.translate(px, py); c.rotate(sk);
-          body(c, cc => pathSharp(cc, [
-            [-R * sc, -R * sc * 0.62], [R * sc * 0.86, -R * sc], [R * sc, R * sc * 0.5],
-            [R * sc * 0.2, R * sc], [-R * sc * 0.9, R * sc * 0.54]
-          ]), shadeC(col, 0.66), { r: R * sc, seed: sd, lw: 2.2, blur: 15, veinA: 0.26,
-            edge: mixC(col, '#ffb347', 0.45), deep: 'rgb(10,2,4)' });
-          c.restore();
-        };
-        pauldron(-R * 1.00, R * 0.34, 0.52, 41, -0.22);
-        pauldron(R * 1.08, R * 0.12, 0.64, 77, 0.16);
-        body(c, cc => pathSharp(cc, [
-          [0, -R * 1.06], [R * 0.70, -R * 0.68], [R * 0.84, R * 0.22],
-          [R * 0.42, R * 1.08], [-R * 0.42, R * 1.08], [-R * 0.84, R * 0.22],
-          [-R * 0.70, -R * 0.68]
-        ]), col, { r: R, seed: 23, lw: 3.0, blur: 26, veinCol: '#ffb347', veinA: 0.42,
-          deep: 'rgb(12,2,5)' });
-        neon(c, cc => { cc.beginPath(); cc.rect(-R * 0.60, -R * 0.24, R * 1.20, R * 0.21); },
-          '#ffd166', { lw: 2, blur: 18, core: 'rgba(10,2,2,0.95)', inner: false });
-        glowBlob(c, 0, -R * 0.13, R * 0.52, '#ff9a3c', 0.5);
-        etch(c, cc => { cc.beginPath(); for (let i = -2; i <= 2; i++) { cc.moveTo(i * R * 0.21, R * 0.30); cc.lineTo(i * R * 0.21, R * 0.94); } },
-          '#ffb347', 1.4, 0.38);
+        neon(c, cc => pathPoly(cc, 8, R, Math.PI / 8), col, { lw: 3.4, blur: 26, core: 'rgba(20,2,8,0.85)' });
+        neon(c, cc => pathPoly(cc, 8, R * 0.74, 0), '#ffb347', { lw: 2, blur: 14, core: null, inner: false });
+        neon(c, cc => pathPoly(cc, 3, R * 0.42, -Math.PI / 2), '#fff', { lw: 2, blur: 12, core: null, inner: false });
         break;
       }
       case 'bloom': {
-        /* the finale. Two rows of petals so it has a back and a front, each
-           one a little different, over a core that is clearly a furnace. */
-        const petal = (ang, len, wid, pc, sd, lit) => {
-          c.save(); c.rotate(ang);
-          body(c, cc => {
+        for (let i = 0; i < 6; i++) {
+          const a = i / 6 * TAU;
+          c.save(); c.rotate(a);
+          neon(c, cc => {
             cc.beginPath();
-            cc.moveTo(R * 0.26, 0);
-            cc.quadraticCurveTo(R * len * 0.58, -R * wid, R * len, 0);
-            cc.quadraticCurveTo(R * len * 0.58, R * wid, R * 0.26, 0);
+            cc.moveTo(R * 0.28, 0);
+            cc.quadraticCurveTo(R * 0.95, -R * 0.62, R * 1.55, 0);
+            cc.quadraticCurveTo(R * 0.95, R * 0.62, R * 0.28, 0);
             cc.closePath();
-          }, pc, { r: R * len, seed: sd, lw: lit ? 3 : 2.2, blur: lit ? 26 : 16,
-            fill: lit ? 1 : 0.55, inCol: '#ffd166', veinCol: '#ffd166', veinA: lit ? 0.34 : 0.2,
-            lx: -0.5, ly: -0.3, deep: 'rgba(22,1,18,0.95)' });
+          }, col, { lw: 3, blur: 24, core: 'rgba(30,2,24,0.8)' });
           c.restore();
-        };
-        for (let i = 0; i < 7; i++)                        // back row: darker, wider, offset
-          petal(i / 7 * TAU + 0.22, 1.62 + (i % 3) * 0.07, 0.50, shadeC(col, 0.62), 1900 + i * 11, false);
-        for (let i = 0; i < 6; i++)                        // front row: lit
-          petal(i / 6 * TAU, 1.46 + (i % 2) * 0.10, 0.64, col, 1950 + i * 13, true);
-        body(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.58, 0, TAU); }, '#ff9a3c',
-          { r: R * 0.58, seed: 1991, lw: 3, blur: 28, inCol: '#ffd166', veinCol: '#fff0c4',
-            veinA: 0.55, deep: 'rgba(34,3,24,0.95)' });
+        }
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.55, 0, TAU); }, '#ffd166', { lw: 3, blur: 26, core: 'rgba(40,4,30,0.9)' });
         neon(c, cc => pathStar(cc, 6, R * 0.44, R * 0.2, 0), '#fff', { lw: 1.8, blur: 14, core: null, inner: false });
-        glowBlob(c, 0, 0, R * 0.8, '#ffd166', 0.55);
         break;
       }
     }
   });
-}
-
-/* =========================================================================
-   LIVE PARTS
-   enemySprite() bakes the silhouette; anything that has to move lives here
-   and is composited over it each frame. A single static outline is a
-   placeholder, so every boss below gets a breath and one moving part, in a
-   second colour that is not a tint of the first.
-   ========================================================================= */
-
-/* the accent each boss answers its own colour with */
-const BOSS_ACCENT = {
-  warden: '#7ee8ff', harbinger: '#9ef7ff', sentinel: '#ffb347', carver: '#eaffb0',
-  gravewalker: '#7ee8ff', nullarch: '#63ffc9', choir: '#ffd166', crown: '#9ef7ff',
-  longnight: '#ffd166', antiphon: '#ffd166', carrion: '#9ef7ff', loom: '#ffd166',
-  orrery: '#7ee8ff', mirror: '#ff5fa2', voidheart: '#9ef7ff',
-  bloom: '#ffd166', underbloom: '#ffd166', cultivar: '#ff9a3c', aperture: '#ffb347',
-  witness: '#9ef7ff', hoarfrost: '#c9a3ff', tithe: '#63ffc9'
-};
-
-/* scale multiplier: everything alive breathes, and the heart has a pulse */
-function bossBreath(id, t, ph) {
-  if (id === 'voidheart') {
-    const b = (t * 1.15) % 1;                       // lub .. dub .. rest
-    return 1 + (Math.exp(-b * 15) * 0.075 + Math.exp(-Math.max(0, b - 0.21) * 17) * 0.045);
-  }
-  if (id === 'gravewalker') return 1 + Math.sin(t * 3.1 + ph) * 0.012;
-  return 1 + Math.sin(t * 1.25 + ph) * 0.018;
-}
-
-function bossMotion(c, e, sc) {
-  const d = e.def, id = d.id, ac = BOSS_ACCENT[id];
-  if (!ac || G.quality < 0) return;
-  /* the spawn-in curve runs negative for a boss with a long entrance, and a
-     radial gradient will not take a negative radius -- clamp before use */
-  const R = Math.max(3, d.r * Math.abs(sc || 1));
-  const t = G.time, ph = e.ph || 0;
-  c.save();
-  c.translate(e.x, e.y);
-  c.rotate(e.bodyRot());
-  c.globalCompositeOperation = 'lighter';
-  switch (id) {
-    case 'warden': {                                 // the visor scans for you
-      const k = Math.sin(t * 1.5 + ph), vx = k * R * 0.42;
-      const g = c.createRadialGradient(vx, -R * 0.13, 0, vx, -R * 0.13, R * 0.34);
-      g.addColorStop(0, rgbaC(ac, 0.95)); g.addColorStop(1, rgbaC(ac, 0));
-      c.fillStyle = g; c.fillRect(-R * 0.60, -R * 0.25, R * 1.20, R * 0.23);
-      c.globalAlpha = 0.45 + 0.45 * Math.abs(k);
-      c.strokeStyle = ac; c.lineWidth = Math.max(1.4, R * 0.035);
-      c.beginPath(); c.moveTo(vx, -R * 0.23); c.lineTo(vx, -R * 0.05); c.stroke();
-      break;
-    }
-    case 'harbinger': {                              // embers leaving the horn
-      for (let i = 0; i < 5; i++) {
-        const k = ((t * 0.55 + i * 0.2 + ph) % 1);
-        const ex = Math.sin(i * 2.1 + t * 0.9) * R * 0.5 * k;
-        const ey = R * 0.88 + k * R * 0.9;
-        c.globalAlpha = (1 - k) * 0.75;
-        c.fillStyle = i & 1 ? ac : '#ffd166';
-        c.beginPath(); c.arc(ex, ey, R * 0.055 * (1 - k * 0.5), 0, TAU); c.fill();
-      }
-      break;
-    }
-    case 'sentinel': {                               // the iris breathes, then a beam sweeps
-      const ir = R * (0.13 + Math.sin(t * 1.9 + ph) * 0.045);
-      c.globalAlpha = 0.9;
-      c.fillStyle = '#dff2ff';
-      c.beginPath(); c.arc(0, -R * 0.88, ir, 0, TAU); c.fill();
-      // a searchlight out of the lens, sweeping ahead of the tower
-      const sw = Math.sin(t * 0.6 + ph);
-      c.save();
-      c.translate(0, -R * 0.88);
-      c.rotate(sw * 0.42 - Math.PI * 0.5);
-      /* the beam stays the tower's own cold colour -- a warm accent at low
-         alpha over black turns brown, which is how this read the first time */
-      const bg = c.createLinearGradient(0, 0, R * 3.0, 0);
-      bg.addColorStop(0, rgbaC('#dff2ff', 0.55));
-      bg.addColorStop(0.25, rgbaC('#5ec8ff', 0.22));
-      bg.addColorStop(1, rgbaC('#5ec8ff', 0));
-      c.globalAlpha = 0.5 + 0.22 * Math.cos(t * 0.6 + ph);
-      c.fillStyle = bg;
-      c.beginPath(); c.moveTo(0, 0);
-      c.lineTo(R * 3.0, -R * 0.40); c.lineTo(R * 3.0, R * 0.40); c.closePath(); c.fill();
-      // and the amber only where it is bright enough to stay amber
-      c.globalAlpha = 0.85;
-      c.strokeStyle = ac; c.lineWidth = Math.max(1.3, R * 0.03);
-      c.beginPath(); c.moveTo(R * 0.30, 0); c.lineTo(R * 1.05, 0); c.stroke();
-      c.restore();
-      break;
-    }
-    case 'carver': {                                 // the cutting edge flickers hot
-      c.globalAlpha = 0.35 + Math.abs(Math.sin(t * 7 + ph)) * 0.5;
-      c.strokeStyle = ac; c.lineWidth = Math.max(1.6, R * 0.05);
-      c.beginPath(); c.moveTo(R * 1.62, 0); c.lineTo(R * 0.06, -R * 0.86); c.stroke();
-      break;
-    }
-    case 'gravewalker': {                            // it walks: the legs take turns
-      for (let i = 0; i < 2; i++) {
-        const sx = i ? 1 : -1, k = Math.sin(t * 3.1 + ph + i * Math.PI);
-        c.globalAlpha = 0.28 + Math.max(0, k) * 0.5;
-        const fx = sx * R * (1.02 + (i ? -0.30 : 0.09)), fy = R * 1.52 + Math.max(0, k) * R * 0.1;
-        const g = c.createRadialGradient(fx, fy, 0, fx, fy, R * 0.34);
-        g.addColorStop(0, rgbaC(ac, 0.8)); g.addColorStop(1, rgbaC(ac, 0));
-        c.fillStyle = g; c.beginPath(); c.arc(fx, fy, R * 0.34, 0, TAU); c.fill();
-      }
-      break;
-    }
-    case 'nullarch': {                               // the void turns, the keystone floats
-      c.save(); c.translate(0, R * 0.22 - R * 0.30); c.rotate(t * 0.5 + ph);
-      for (let i = 0; i < 3; i++) {
-        c.globalAlpha = 0.30 - i * 0.07;
-        c.strokeStyle = i & 1 ? ac : '#e9b8ff';
-        c.lineWidth = Math.max(1.2, R * 0.03);
-        c.beginPath(); c.arc(0, 0, R * (0.22 + i * 0.13), i * 1.1, i * 1.1 + 2.1); c.stroke();
-      }
-      c.restore();
-      const ky = -R * 0.96 + Math.sin(t * 1.1 + ph) * R * 0.09;
-      c.save(); c.translate(0, ky + R * 0.22); c.rotate(Math.sin(t * 0.7) * 0.3);
-      c.globalAlpha = 0.85; c.strokeStyle = ac; c.lineWidth = Math.max(1.5, R * 0.035);
-      c.beginPath(); c.moveTo(-R * 0.16, R * 0.10); c.lineTo(0, -R * 0.12); c.lineTo(R * 0.16, R * 0.10); c.closePath(); c.stroke();
-      c.restore();
-      break;
-    }
-    case 'choir': {                                  // each voice comes in on its own beat
-      const MO = [[-0.94, -0.40, 0.38], [0.18, -1.00, 0.29], [0.96, -0.18, 0.45],
-                  [0.50, 0.80, 0.25], [-0.58, 0.74, 0.33], [-0.08, 0.14, 0.60]];
-      for (let i = 0; i < MO.length; i++) {
-        const k = 0.5 + 0.5 * Math.sin(t * 2.1 + ph + i * 1.05);
-        const mx = MO[i][0] * R, my = MO[i][1] * R, ms = MO[i][2] * R;
-        c.globalAlpha = 0.10 + k * 0.34;
-        const g = c.createRadialGradient(mx, my, 0, mx, my, ms * 0.92);
-        g.addColorStop(0, rgbaC(i === 5 ? ac : '#dff2ff', 0.8));
-        g.addColorStop(0.5, rgbaC(ac, 0.22));
-        g.addColorStop(1, rgbaC(ac, 0));
-        c.fillStyle = g; c.beginPath(); c.arc(mx, my, ms * 0.92, 0, TAU); c.fill();
-      }
-      break;
-    }
-    case 'crown': {                                  // the snapped point still sparks
-      c.save(); c.rotate(-0.26);
-      const a = Math.PI * (1.10 + 3 * 0.20);
-      const px = Math.cos(a) * R * 1.02, py = Math.sin(a) * R * 1.02;
-      const f = Math.max(0, Math.sin(t * 13 + ph)) * Math.max(0, Math.sin(t * 2.3));
-      c.globalAlpha = f * 0.95;
-      const g = c.createRadialGradient(px, py, 0, px, py, R * 0.30);
-      g.addColorStop(0, rgbaC(ac, 1)); g.addColorStop(1, rgbaC(ac, 0));
-      c.fillStyle = g; c.beginPath(); c.arc(px, py, R * 0.30, 0, TAU); c.fill();
-      c.restore();
-      break;
-    }
-    case 'longnight': {                              // the bead travels the limb
-      const a = -Math.PI * 0.72 + Math.sin(t * 0.34 + ph) * 0.85;
-      const bx = Math.cos(a) * R * 0.86, by = Math.sin(a) * R * 0.86;
-      const g = c.createRadialGradient(bx, by, 0, bx, by, R * 0.50);
-      g.addColorStop(0, 'rgba(255,255,255,0.98)');
-      g.addColorStop(0.35, rgbaC(ac, 0.55));
-      g.addColorStop(1, rgbaC(ac, 0));
-      c.fillStyle = g; c.beginPath(); c.arc(bx, by, R * 0.50, 0, TAU); c.fill();
-      c.globalAlpha = 0.35 + Math.sin(t * 0.8) * 0.12;
-      c.strokeStyle = ac; c.lineWidth = Math.max(1.2, R * 0.022);
-      c.beginPath(); c.arc(0, 0, R * 0.94, a - 0.9, a + 0.9); c.stroke();
-      break;
-    }
-    case 'antiphon': {                               // call, then answer
-      const call = Math.max(0, Math.sin(t * 1.5 + ph));
-      const ans = Math.max(0, Math.sin(t * 1.5 + ph - 1.15));
-      const puff = (px, py, pr, k, pc) => {
-        if (k <= 0.01) return;
-        c.globalAlpha = k * 0.75;
-        const g = c.createRadialGradient(px, py, 0, px, py, pr);
-        g.addColorStop(0, rgbaC(pc, 0.9)); g.addColorStop(1, rgbaC(pc, 0));
-        c.fillStyle = g; c.beginPath(); c.arc(px, py, pr, 0, TAU); c.fill();
-      };
-      puff(-R * 0.60, -R * 0.16, R * 0.98 * (0.78 + call * 0.30), call * 0.42, d.col);
-      puff(R * 0.76, R * 0.30, R * 0.68 * (0.78 + ans * 0.30), ans * 0.42, ac);
-      break;
-    }
-    case 'carrion': {                                // the scraps keep drifting
-      for (let i = 0; i < 6; i++) {
-        const a = t * (0.22 + i * 0.03) + i * 1.4 + ph;
-        const dd = R * (0.60 + Math.sin(t * 0.6 + i) * 0.08);
-        const mx = Math.cos(a) * dd, my = Math.sin(a) * dd;
-        c.globalAlpha = 0.45 + 0.35 * Math.sin(t * 1.7 + i);
-        // a short trail behind each scrap, so the drift is legible
-        c.strokeStyle = rgbaC(i & 1 ? ac : d.col, 0.5);
-        c.lineWidth = Math.max(1.2, R * 0.028);
-        c.beginPath(); c.arc(0, 0, dd, a - 0.22, a); c.stroke();
-        const g = c.createRadialGradient(mx, my, 0, mx, my, R * 0.13);
-        g.addColorStop(0, rgbaC(i & 1 ? ac : d.col, 0.95)); g.addColorStop(1, rgbaC(ac, 0));
-        c.fillStyle = g; c.beginPath(); c.arc(mx, my, R * 0.13, 0, TAU); c.fill();
-      }
-      break;
-    }
-    case 'loom': {                                   // the shuttle runs, the warp shivers
-      const k = Math.sin(t * 0.9 + ph);
-      const sx2 = k * R * 0.72, sy2 = R * 0.14;
-      c.globalAlpha = 0.85;
-      const g = c.createRadialGradient(sx2, sy2, 0, sx2, sy2, R * 0.42);
-      g.addColorStop(0, rgbaC(ac, 0.95)); g.addColorStop(1, rgbaC(ac, 0));
-      c.fillStyle = g; c.beginPath(); c.arc(sx2, sy2, R * 0.42, 0, TAU); c.fill();
-      c.globalAlpha = 0.30;
-      c.strokeStyle = '#dff2ff'; c.lineWidth = 1.2;
-      c.beginPath();
-      for (let i = 0; i < 9; i++) {
-        const wx = -R * 0.86 + i * (R * 1.72 / 8);
-        const bend = Math.sin(t * 5 + i * 0.8 + ph) * R * 0.03 * (1 - Math.abs(wx - sx2) / (R * 1.2));
-        c.moveTo(wx, -R * 0.98); c.lineTo(wx + bend, R * 0.98);
-      }
-      c.stroke();
-      break;
-    }
-    case 'orrery': {                                 // the bodies keep their orbits
-      const RG = [[1.36, 0.28, -0.52, 0.40], [1.02, 0.54, 0.86, -0.62], [0.72, 0.24, 2.10, 0.95]];
-      for (let i = 0; i < 3; i++) {
-        const rr = R * RG[i][0], sq = RG[i][1], tilt = RG[i][2];
-        const a = t * RG[i][3] + i * 2.1 + ph;
-        c.save(); c.rotate(tilt);
-        const bx = Math.cos(a) * rr, by = Math.sin(a) * rr * sq;
-        c.globalAlpha = 0.55 + 0.3 * Math.sin(a);
-        const g = c.createRadialGradient(bx, by, 0, bx, by, R * 0.28);
-        g.addColorStop(0, rgbaC(i === 0 ? '#ff9a3c' : ac, 0.9)); g.addColorStop(1, rgbaC(ac, 0));
-        c.fillStyle = g; c.beginPath(); c.arc(bx, by, R * 0.28, 0, TAU); c.fill();
-        c.restore();
-      }
-      break;
-    }
-    case 'mirror': {                                 // the reflection lags, the cracks catch light
-      const k = Math.sin(t * 0.8 + ph);
-      c.globalAlpha = 0.12 + 0.10 * Math.abs(k);
-      const g = c.createLinearGradient(-R + k * R * 0.5, -R, R * 0.5 + k * R * 0.5, R);
-      g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(0.45, rgbaC('#dff2ff', 0.85));
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = g; c.fillRect(-R * 0.94, -R, R * 1.9, R * 2);
-      const f = Math.max(0, Math.sin(t * 9 + ph)) * Math.max(0, Math.sin(t * 1.9 + 1));
-      c.globalAlpha = f * 0.8;
-      c.strokeStyle = ac; c.lineWidth = 1.4;
-      pathCracks(c, R * 0.08, -R * 0.12, R * 0.10, R * 0.9, 5, 97);
-      c.stroke();
-      break;
-    }
-    case 'bloom': case 'underbloom': case 'cultivar': {   // the furnace in the middle flares
-      const k = 0.5 + 0.5 * Math.sin(t * 1.7 + ph);
-      const rr = R * (id === 'cultivar' ? 0.46 : 0.72) * (0.86 + k * 0.3);
-      const g = c.createRadialGradient(0, 0, 0, 0, 0, rr);
-      g.addColorStop(0, rgbaC('#ffffff', 0.55 + k * 0.3));
-      g.addColorStop(0.30, rgbaC(ac, 0.55));
-      g.addColorStop(1, rgbaC(ac, 0));
-      c.globalAlpha = 0.75;
-      c.fillStyle = g; c.beginPath(); c.arc(0, 0, rr, 0, TAU); c.fill();
-      // pollen leaving the flower
-      for (let i = 0; i < 5; i++) {
-        const a = t * 0.5 + i * 1.27 + ph, dd = R * (0.9 + ((t * 0.35 + i * 0.2) % 1) * 0.8);
-        c.globalAlpha = 0.5 * (1 - ((t * 0.35 + i * 0.2) % 1));
-        c.fillStyle = ac;
-        c.beginPath(); c.arc(Math.cos(a) * dd, Math.sin(a) * dd, R * 0.035, 0, TAU); c.fill();
-      }
-      break;
-    }
-    case 'aperture': {                               // the shutter breathes open, never far
-      const k = 0.5 + 0.5 * Math.sin(t * 0.9 + ph);
-      const rr = R * (0.10 + k * 0.20);
-      c.globalAlpha = 0.9;
-      const g = c.createRadialGradient(0, 0, 0, 0, 0, rr * 2.1);
-      g.addColorStop(0, rgbaC('#ffffff', 0.95));
-      g.addColorStop(0.35, rgbaC(ac, 0.7));
-      g.addColorStop(1, rgbaC(ac, 0));
-      c.fillStyle = g; c.beginPath(); c.arc(0, 0, rr * 2.1, 0, TAU); c.fill();
-      c.globalAlpha = 0.55 + k * 0.35;
-      c.strokeStyle = ac; c.lineWidth = Math.max(1.4, R * 0.03);
-      c.beginPath(); c.arc(0, 0, rr, 0, TAU); c.stroke();
-      c.save(); c.rotate(t * 0.35 + ph);
-      c.globalAlpha = 0.3;
-      for (let i = 0; i < 6; i++) {
-        const a = i / 6 * TAU;
-        c.beginPath();
-        c.moveTo(Math.cos(a) * R * 0.36, Math.sin(a) * R * 0.36);
-        c.lineTo(Math.cos(a) * R * 0.92, Math.sin(a) * R * 0.92);
-        c.stroke();
-      }
-      c.restore();
-      break;
-    }
-    case 'witness': {                                // the pupil finds you and holds
-      const px = Math.sin(t * 0.55 + ph) * R * 0.46, py = Math.sin(t * 0.37 + ph * 2) * R * 0.16;
-      const g = c.createRadialGradient(px, py, 0, px, py, R * 0.34);
-      g.addColorStop(0, 'rgba(255,255,255,0.95)');
-      g.addColorStop(0.4, rgbaC(ac, 0.5));
-      g.addColorStop(1, rgbaC(ac, 0));
-      c.fillStyle = g; c.beginPath(); c.arc(px, py, R * 0.34, 0, TAU); c.fill();
-      break;
-    }
-    case 'hoarfrost': {                              // frost creeping out along the spines
-      for (let i = 0; i < 9; i++) {
-        const a = i / 9 * TAU;
-        const k = Math.max(0, Math.sin(t * 1.3 + i * 0.7 + ph));
-        const len = R * (1.12 + (i % 3) * 0.3) * (0.9 + k * 0.14);
-        c.globalAlpha = 0.2 + k * 0.55;
-        c.strokeStyle = i % 3 === 1 ? ac : '#dff2ff';
-        c.lineWidth = Math.max(1.2, R * 0.024);
-        c.beginPath();
-        c.moveTo(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7);
-        c.lineTo(Math.cos(a) * len, Math.sin(a) * len);
-        c.stroke();
-      }
-      break;
-    }
-    case 'tithe': {                                  // the scales never quite settle
-      const k = Math.sin(t * 0.9 + ph) * 0.10;
-      for (const sx of [-1, 1]) {
-        const yy = R * 0.16 + sx * k * R * 1.4;
-        c.globalAlpha = 0.30 + 0.35 * (sx * k > 0 ? 1 : 0.3);
-        const g = c.createRadialGradient(sx * R * 0.62, yy, 0, sx * R * 0.62, yy, R * 0.24);
-        g.addColorStop(0, rgbaC(sx > 0 ? ac : '#fff6d0', 0.85));
-        g.addColorStop(1, rgbaC(sx > 0 ? ac : '#fff6d0', 0));
-        c.fillStyle = g; c.beginPath(); c.arc(sx * R * 0.62, yy, R * 0.24, 0, TAU); c.fill();
-      }
-      break;
-    }
-    case 'voidheart': {                              // the beat runs out along the vessels
-      const b = (t * 1.15) % 1;
-      const pump = Math.exp(-b * 9) + Math.exp(-Math.max(0, b - 0.21) * 11) * 0.6;
-      const VS = [[-0.62, -1.44], [0.06, -1.62], [0.70, -1.30]];
-      for (let i = 0; i < 3; i++) {
-        const k = Math.max(0, pump - i * 0.14);
-        if (k <= 0.02) continue;
-        const vx = VS[i][0] * R, vy = VS[i][1] * R;
-        c.globalAlpha = Math.min(0.9, k * 0.8);
-        const g = c.createRadialGradient(vx, vy, 0, vx, vy, R * 0.30);
-        g.addColorStop(0, rgbaC(i === 1 ? ac : '#ff8fae', 0.95)); g.addColorStop(1, rgbaC('#ff8fae', 0));
-        c.fillStyle = g; c.beginPath(); c.arc(vx, vy, R * 0.30, 0, TAU); c.fill();
-      }
-      c.globalAlpha = Math.min(0.7, pump * 0.5);
-      const cg = c.createRadialGradient(-R * 0.30, R * 0.26, 0, -R * 0.30, R * 0.26, R * 0.9);
-      cg.addColorStop(0, rgbaC('#ff4d6d', 0.8)); cg.addColorStop(1, rgbaC('#ff4d6d', 0));
-      c.fillStyle = cg; c.beginPath(); c.arc(-R * 0.30, R * 0.26, R * 0.9, 0, TAU); c.fill();
-      break;
-    }
-  }
-  c.restore();
 }
 
 /* --------------------------------------------------------------- UI icons */
@@ -5601,9 +4713,6 @@ class Enemy {
   }
   update(dt) {
     const p = G.player;
-    // remember the longest spawn time seen, so the entrance curve can be
-    // normalised however long this particular arrival was given
-    if (this.spawnT > (this.spawnT0 || 0)) this.spawnT0 = this.spawnT;
     this.spawnT = Math.max(0, this.spawnT - dt);
     this.hurt = Math.max(0, this.hurt - dt * 6.5);
     this.stun = Math.max(0, this.stun - dt);
@@ -7061,14 +6170,7 @@ class Enemy {
   }
 
   draw(c) {
-    /* The old curve ran negative for anything with a spawnT past 0.28 -- a
-       boss with a long entrance came in inside-out and nearly invisible.
-       Clamped, and eased, so an arrival is something you can watch. */
-    let sc = 1;
-    if (this.spawnT > 0) {
-      const k = Math.max(0, Math.min(1, 1 - this.spawnT / Math.max(0.28, this.spawnT0 || 0.28)));
-      sc = 0.35 + (k * k * (3 - 2 * k)) * 0.65;
-    }
+    const sc = this.spawnT > 0 ? 0.4 + (1 - this.spawnT / 0.28) * 0.6 : 1;
     if (this.boss) {
       c.save();
       c.globalCompositeOperation = 'lighter';
@@ -7099,14 +6201,8 @@ class Enemy {
       c.beginPath(); c.arc(this.x, this.y, this.r + 22, 0, TAU); c.stroke(); c.restore();
     }
     const s = enemySprite(this.def, false);
-    // nothing alive holds perfectly still. Bosses get a real breath; the rank
-    // and file get a cheap one -- a sine per enemy, no extra draw calls.
-    const bsc = (this.boss || this.elite)
-      ? sc * bossBreath(this.def.id, G.time, this.ph || 0)
-      : sc * (1 + Math.sin(G.time * 2.6 + (this.ph || 0)) * 0.028);
-    drawSprite(c, s, this.x, this.y, this.bodyRot(), bsc, this.spawnT > 0 ? 0.6 : 1);
+    drawSprite(c, s, this.x, this.y, this.bodyRot(), sc, this.spawnT > 0 ? 0.6 : 1);
     this.bossArt(c, sc);
-    if (this.boss || this.elite) bossMotion(c, this, bsc);
     if (this.hurt > 0.02) {
       c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = Math.min(0.7, this.hurt * 0.7);
       drawSprite(c, enemySprite(this.def, true), this.x, this.y, this.bodyRot(), sc, 1);
@@ -7257,11 +6353,7 @@ class Shot {
 class EBullet {
   constructor(x, y, vx, vy, dmg, col, o) {
     this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.dmg = dmg;
-    // whoever fired it, it reads as threat. The source colour survives only
-    // in the burst when it dies, so the shooter still feels like itself.
-    this.src = col || '#ff5fa2';
-    this.col = THREAT;
-    this.r = 7; this.life = 7; this.dead = false;
+    this.col = col || '#ff5fa2'; this.r = 7; this.life = 7; this.dead = false;
     if (o) {
       if (o.turn) this.turn = o.turn;     // radians per second
       if (o.acc) this.acc = o.acc;        // speed multiplier per second
@@ -7287,51 +6379,18 @@ class EBullet {
     if (!p.dead && dist2(this.x, this.y, p.x, p.y) < (this.r + p.r) * (this.r + p.r)) {
       p.damage(this.dmg);
       this.dead = true;
-      Particles.burst(this.x, this.y, 8, this.src, { spd1: 200 });
+      Particles.burst(this.x, this.y, 8, this.col, { spd1: 200 });
     }
   }
   draw(c) {
-    const r = this.r;
-    /* A dark separation ring first, in source-over. Enemy fire has to stay
-       readable against a lit sky and against the boss's own bloom -- without
-       this, a magenta bullet over a magenta wash simply disappears. */
-    c.save();
-    c.globalAlpha = 0.55;
-    c.strokeStyle = 'rgba(3,2,10,1)';
-    c.lineWidth = 3.4;
-    c.beginPath(); c.arc(this.x, this.y, r + 1.4, 0, TAU); c.stroke();
-    c.restore();
-
     c.save();
     c.globalCompositeOperation = 'lighter';
-    c.drawImage(glowSprite(this.col), this.x - 20, this.y - 20, 40, 40);
-    /* shape carries what the bullet will do, so a wall of them is readable
-       even though they share a hue: ring = straight, chevron = homing,
-       teardrop = accelerating */
-    c.strokeStyle = this.col;
-    c.lineWidth = 2;
-    if (this.turn) {
-      const a = Math.atan2(this.vy, this.vx);
-      c.save(); c.translate(this.x, this.y); c.rotate(a);
-      c.beginPath();
-      c.moveTo(r * 1.25, 0); c.lineTo(-r * 0.55, r * 0.95);
-      c.lineTo(-r * 0.05, 0); c.lineTo(-r * 0.55, -r * 0.95);
-      c.closePath(); c.stroke();
-      c.restore();
-    } else if (this.acc) {
-      const a = Math.atan2(this.vy, this.vx);
-      c.save(); c.translate(this.x, this.y); c.rotate(a);
-      c.beginPath();
-      c.moveTo(r * 1.15, 0);
-      c.quadraticCurveTo(0, r * 0.92, -r * 1.35, 0);
-      c.quadraticCurveTo(0, -r * 0.92, r * 1.15, 0);
-      c.closePath(); c.stroke();
-      c.restore();
-    } else {
-      c.beginPath(); c.arc(this.x, this.y, r, 0, TAU); c.stroke();
-    }
-    c.fillStyle = THREAT_HOT;
+    const g = glowSprite(this.col);
+    c.drawImage(g, this.x - 20, this.y - 20, 40, 40);
+    c.fillStyle = '#fff';
     c.beginPath(); c.arc(this.x, this.y, 3, 0, TAU); c.fill();
+    c.strokeStyle = this.col; c.lineWidth = 2;
+    c.beginPath(); c.arc(this.x, this.y, this.r, 0, TAU); c.stroke();
     c.restore();
   }
 }
@@ -11575,7 +10634,6 @@ uniform vec3  uHeroCol;
 uniform float uHeroLit;      // 1 once the world has been taken
 uniform float uDeep;         // 0 galaxy page, 1 dossier -- darkens the field
 uniform float uQual;         // 1 full, 0.5 reduced
-uniform float uScale;        // device pixels per css pixel
 
 const float TAU = 6.2831853;
 
@@ -11630,14 +10688,11 @@ vec3 deepField(vec2 uv, vec2 px){
   float band = exp(-pow((uv.y*1.18 + uv.x*0.30) * 2.35, 2.0));
   col += vec3(0.15, 0.19, 0.42) * band * (0.34 + 0.42*fbm3(vec3(uv*3.4, t*2.0)));
 
-  // four star layers, near ones bigger and slower to twinkle.
-  // pxc is css pixels: sizing the grid in render-target pixels made the
-  // stars grow and shrink with the adaptive resolution.
-  vec2 pxc = px / max(uScale, 0.0001);
+  // four star layers, near ones bigger and slower to twinkle
   for(int L=0; L<4; L++){
     float fl = float(L);
     float cell = 17.0 + fl*26.0;
-    vec2 gp = pxc / cell;
+    vec2 gp = px / cell;
     vec2 gi = floor(gp), gf = fract(gp);
     float h = h21(gi + fl*57.3);
     float cut = 0.885 - fl*0.045;
@@ -12126,7 +11181,7 @@ const Cosmos = {
       this.u = { res: U('uRes'), time: U('uTime'), pos: U('uPos'), col: U('uCol'),
                  type: U('uType'), taken: U('uTaken'), sel: U('uSel'),
                  hero: U('uHero'), heroCol: U('uHeroCol'), heroLit: U('uHeroLit'),
-                 deep: U('uDeep'), qual: U('uQual'), scale: U('uScale') };
+                 deep: U('uDeep'), qual: U('uQual') };
       this._pos = new Float32Array(36); this._col = new Float32Array(36);
       this._ty = new Float32Array(12); this._tk = new Float32Array(12);
       // the arena sky shares this context
@@ -12151,31 +11206,16 @@ const Cosmos = {
     return true;
   },
   hide() { if (this.on && this.cv) { this.cv.classList.remove('on'); this.on = false; } },
-  // Fixed rungs, not a continuous slide. Every change of scale resizes the
-  // canvas, and resizing reallocates the drawing buffer, so a smooth ramp is
-  // actually a burst of stalls -- which is what the starfield hitching was.
-  steps: [0.45, 0.60, 0.78, 1.00],
-  stepI: 3,
-  coolT: 0,
   adapt(fps) {
     if (!this.ok || !this.on) return;
-    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if (now < this.coolT) return;                 // one rung per 1.2s, at most
     if (fps < 44) {
-      this.slow++; this.fast = 0;
+      this.slow++;
       if (this.slow > 3) {
         this.slow = 0;
-        if (this.stepI > 0) {
-          this.stepI--; this.scale = this.steps[this.stepI]; this.coolT = now + 1200;
-        } else if (++this.give > 3) { Settings.cosmos = 0; this.hide(); }
+        if (this.scale > 0.40) this.scale = Math.max(0.40, this.scale - 0.15);
+        else if (++this.give > 3) { Settings.cosmos = 0; this.hide(); }
       }
-    } else if (fps > 57) {
-      this.fast = (this.fast || 0) + 1; this.slow = 0;
-      if (this.fast > 40 && this.stepI < this.steps.length - 1) {
-        this.fast = 0;
-        this.stepI++; this.scale = this.steps[this.stepI]; this.coolT = now + 1200;
-      }
-    } else { this.slow = 0; this.fast = 0; }
+    } else if (fps > 57 && this.scale < 1) { this.scale = Math.min(1, this.scale + 0.06); }
   },
   // the in-run sky. Cheap on purpose: this one runs sixty times a second
   // while the game is being played.
@@ -12261,7 +11301,6 @@ const Cosmos = {
       gl.uniform3f(this.u.heroCol, 0, 0, 0);
       gl.uniform1f(this.u.heroLit, 0);
     }
-    gl.uniform1f(this.u.scale, dpr);
     gl.uniform1f(this.u.deep, deep ? 1 : 0);
     gl.uniform1f(this.u.qual, G.quality > 0 ? 1 : 0.5);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -12846,21 +11885,6 @@ const UI = {
     G.drawSilence(c);
     Particles.draw(c);
     if (!G.player.dead || G.state === 'win') G.player.draw(c);
-    /* Last thing in the arena, and deliberately not additive: a boss aura or
-       a dense volley can out-glow the player and then you cannot find
-       yourself. This ring always survives on top of both. */
-    if (!G.player.dead) {
-      const p = G.player;
-      c.save();
-      c.strokeStyle = 'rgba(4,3,12,0.85)';
-      c.lineWidth = 3.2;
-      c.beginPath(); c.arc(p.x, p.y, p.r + 5.2, 0, TAU); c.stroke();
-      c.strokeStyle = PAL.playerCore;
-      c.globalAlpha = 0.9;
-      c.lineWidth = 1.6;
-      c.beginPath(); c.arc(p.x, p.y, p.r + 5.2, 0, TAU); c.stroke();
-      c.restore();
-    }
     Pops.draw(c);
 
     // off-screen boss / elite markers
