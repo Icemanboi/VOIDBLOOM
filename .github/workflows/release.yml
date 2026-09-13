@@ -146,6 +146,11 @@ jobs:
           else
             echo "No signing certificate - building unsigned. This is the free path."
             echo "Players will need to clear the quarantine flag once; see README."
+            # Actions sets missing secrets to empty strings. If CSC_LINK is set
+            # (even empty), electron-builder treats it as a cert file path and
+            # blows up with "<repo path> not a file". Unset signing vars for
+            # the unsigned path so electron-builder truly skips certificate use.
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             # Stop electron-builder rummaging in the runner keychain for an
             # identity that is not there, which otherwise turns a clean
             # unsigned build into a confusing failure.
