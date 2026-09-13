@@ -59,7 +59,12 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     title: 'VOIDBLOOM',
-    icon: path.join(__dirname, 'build', 'icon.ico'),
+    // Windows and Linux take the icon from the window; macOS takes it from
+    // the .app bundle that electron-builder assembles, and passing a .ico
+    // here would just be ignored.
+    ...(process.platform === 'darwin'
+      ? {}
+      : { icon: path.join(__dirname, 'build', 'icon.ico') }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -70,7 +75,36 @@ function createWindow() {
   });
 
   // It's a game, not an editor: no File/Edit/View menu.
-  Menu.setApplicationMenu(null);
+  //
+  // macOS is the exception. There the menu bar belongs to the OS, not the
+  // window: with no menu at all the player loses Cmd+Q, Cmd+W, Cmd+M and
+  // Hide, and the only way out of the app is Force Quit. So on mac we put
+  // back the smallest menu that restores those, and nothing else.
+  if (process.platform === 'darwin') {
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      {
+        label: app.name,
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' }
+        ]
+      },
+      {
+        label: 'Window',
+        submenu: [
+          { role: 'minimize' },
+          { role: 'close' },
+          { type: 'separator' },
+          { role: 'togglefullscreen' }
+        ]
+      }
+    ]));
+  } else {
+    Menu.setApplicationMenu(null);
+  }
 
   win.once('ready-to-show', () => { win.show(); });
 
@@ -79,9 +113,12 @@ function createWindow() {
     win.webContents.setVisualZoomLevelLimits(1, 1);
   });
 
-  // F11 fullscreen; everything else belongs to the game.
+  // F11 fullscreen (Ctrl+Cmd+F as well on mac, which is where mac players
+  // will reach for it); everything else belongs to the game.
   win.webContents.on('before-input-event', (e, input) => {
-    if (input.type === 'keyDown' && input.key === 'F11') {
+    const macFull = process.platform === 'darwin' &&
+      input.control && input.meta && (input.key === 'f' || input.key === 'F');
+    if (input.type === 'keyDown' && (input.key === 'F11' || macFull)) {
       e.preventDefault();
       win.setFullScreen(!win.isFullScreen());
     }
@@ -157,7 +194,12 @@ app.whenReady().then(() => {
   setupUpdates();
 });
 
-app.on('window-all-closed', () => { app.quit(); });
+// On macOS closing the window is not quitting: the app stays in the Dock and
+// the green button / Cmd+W are expected to leave it running. Everywhere else,
+// the last window closing means the player is done.
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
 
 /* ------------------------------------------------------------------ *
  *  Updates
@@ -176,6 +218,11 @@ function setupUpdates() {
   // In a dev checkout there is no installer to replace, so don't try.
   if (!app.isPackaged) return;
 
+  // macOS will only apply an update to a validly signed app -- Apple's
+  // updater verifies the signature before swapping the bundle. While the mac
+  // build is unsigned the check below fails, gets logged, and the player
+  // never sees anything. Nothing here needs changing on the day it is signed:
+  // it starts working on its own.
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
