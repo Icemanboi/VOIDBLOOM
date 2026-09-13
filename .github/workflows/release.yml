@@ -1,0 +1,81 @@
+name: Build and release
+
+# Runs when you push a tag that looks like v1.0.1
+# (and can be run by hand from the Actions tab for a dry run).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to create the Release and upload the installer
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Make sure the tag matches the version in package.json
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag is v$TAG but package.json says $PKG."
+            echo "Bump the version in package.json, commit it, then re-tag."
+            exit 1
+          fi
+          echo "version $PKG"
+
+      # Cheap checks that catch the mistakes that actually happen: copying the
+      # wrong file in, or copying the instrumented test build by accident.
+      # Deliberately not a full Electron run -- a flaky test that blocks a
+      # release is worse than no test. Run `npm test` locally for that.
+      - name: Sanity-check the game file
+        shell: bash
+        run: |
+          F=game/VOIDBLOOM.html
+          test -f "$F" || { echo "::error::$F is missing"; exit 1; }
+          SIZE=$(wc -c < "$F")
+          echo "game file: $SIZE bytes"
+          [ "$SIZE" -gt 100000 ] || { echo "::error::$F is only $SIZE bytes - wrong file?"; exit 1; }
+          grep -q "boot();" "$F" || { echo "::error::$F has no boot() call - not a playable build"; exit 1; }
+          if grep -q "__VB" "$F"; then
+            echo "::error::$F contains the __VB debug hook. That is TEST_BUILD.html, not the shipping file."
+            exit 1
+          fi
+          # publish target must be filled in, or updates silently never arrive
+          OWNER=$(node -p "require('./package.json').build.publish[0].owner")
+          if [ "$OWNER" = "REPLACE_WITH_YOUR_GITHUB_USERNAME" ]; then
+            echo "::error::Set your GitHub username in package.json -> build.publish[0].owner, or auto-update will never find releases."
+            exit 1
+          fi
+          echo "publishing to $OWNER"
+
+      - name: Build the installer and publish it to Releases
+        run: npx electron-builder --win --publish always
+        env:
+          # Provided automatically by Actions. Nothing to create yourself.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Keep a copy on the run itself
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOIDBLOOM-windows
+          path: |
+            dist/*.exe
+            dist/latest.yml
+          if-no-files-found: error

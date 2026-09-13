@@ -1,0 +1,67 @@
+{
+  "name": "voidbloom",
+  "productName": "VOIDBLOOM",
+  "version": "1.0.0",
+  "description": "A bullet-heaven in a garden at the bottom of the dark.",
+  "author": "Isaac Leung",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish never",
+    "release": "electron-builder --publish always",
+    "test": "xvfb-run -a node test/smoke.js",
+    "test:win": "node test/smoke.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.isaacleung.voidbloom",
+    "productName": "VOIDBLOOM",
+    "copyright": "Copyright © 2026 Isaac Leung",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "game/**/*",
+      "build/icon.ico",
+      "!test/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "VOIDBLOOM-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VOIDBLOOM",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Icemanboi",
+        "repo": "VOIDBLOOM"
+      }
+    ]
+  }
+}
