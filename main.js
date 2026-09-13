@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, protocol, net, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, protocol, net, shell, ipcMain } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { autoUpdater } = require('electron-updater');
@@ -64,6 +64,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
       backgroundThrottling: false  // keep running at full rate when unfocused
     }
   });
@@ -167,30 +168,23 @@ app.on('window-all-closed', () => { app.quit(); });
  *  background and installs on restart, so it never interrupts a run.
  * ------------------------------------------------------------------ */
 function setupUpdates() {
+  ipcMain.on('vb-update-restart', () => {
+    setImmediate(() => autoUpdater.quitAndInstall());
+  });
+  ipcMain.on('vb-update-dismiss', () => { /* installs on quit anyway */ });
+
   // In a dev checkout there is no installer to replace, so don't try.
   if (!app.isPackaged) return;
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('update-downloaded', async (info) => {
-    if (!win) return;
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'info',
-      buttons: ['Restart now', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'VOIDBLOOM',
-      message: 'Version ' + info.version + ' is ready.',
-      detail: 'Your saves, skins and codes are kept. It will also install by itself next time you close the game.'
-    });
-    if (response === 0) {
-      setImmediate(() => autoUpdater.quitAndInstall());
-    }
+  autoUpdater.on('update-downloaded', (info) => {
+    if (win) showUpdateToast(win, info.version);
   });
 
-  // No internet, a private repo, no releases yet — all normal. Never
-  // pop a dialog at the player for any of it.
+  // No internet, no releases yet, GitHub having a bad day — all normal.
+  // Never put any of it in front of the player.
   autoUpdater.on('error', (err) => {
     console.log('[update] ' + (err && err.message ? err.message : err));
   });
@@ -200,5 +194,98 @@ function setupUpdates() {
     autoUpdater.checkForUpdates().catch(() => {});
   }, 8000);
 }
+
+/* ------------------------------------------------------------------ *
+ *  The update notice
+ *
+ *  Deliberately NOT a modal dialog. An update lands whenever it lands,
+ *  and a system dialog stealing focus four minutes into a boss fight is
+ *  the worst possible moment for it. Instead: a small bar at the bottom
+ *  of the window that waits as long as it needs to, and installs on quit
+ *  regardless of whether the player ever touches it.
+ *
+ *  Injected from here rather than built into the game, so VOIDBLOOM.html
+ *  stays the same file that ships to CrazyGames and itch.
+ * ------------------------------------------------------------------ */
+function showUpdateToast(w, version) {
+  const js = `(function (v) {
+    if (document.getElementById('vb-update')) return;
+
+    var css = document.createElement('style');
+    css.textContent = [
+      /* No entrance animation, on purpose -- see the note in the JS below.
+         The only thing that moves is the dot, which can stall harmlessly. */
+      '#vb-update{position:fixed;left:50%;bottom:14px;transform:translate(-50%,0);opacity:1;',
+      'z-index:2147483647;display:flex;align-items:center;gap:11px;',
+      'padding:8px 10px 8px 13px;border-radius:10px;',
+      'background:linear-gradient(180deg,rgba(14,17,38,.93),rgba(7,9,22,.96));',
+      'border:1px solid rgba(158,247,255,.34);',
+      'box-shadow:0 0 22px rgba(158,247,255,.16),0 8px 26px -10px #000,inset 0 1px 0 rgba(255,255,255,.05);',
+      'font:700 11px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;',
+      'color:#dfe7ff;',
+      'pointer-events:auto;user-select:none;-webkit-user-select:none}',
+      '#vb-update .dot{width:7px;height:7px;border-radius:50%;background:#8dff6b;',
+      'box-shadow:0 0 8px #8dff6b;animation:vbp 1.9s ease-in-out infinite;flex:none}',
+      '@keyframes vbp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}',
+      '#vb-update b{color:#9ef7ff;font-weight:900;letter-spacing:.16em}',
+      '#vb-update .go{cursor:pointer;padding:6px 12px;border-radius:7px;',
+      'background:linear-gradient(180deg,#2a2352,#171037);color:#ffd166;',
+      'border:1px solid rgba(255,209,102,.42);letter-spacing:.16em;font-weight:900}',
+      '#vb-update .go:hover{background:linear-gradient(180deg,#3a2e6d,#22174a);color:#fff}',
+      '#vb-update .x{cursor:pointer;padding:5px 8px;color:#7d86ab;font-size:13px;line-height:1}',
+      '#vb-update .x:hover{color:#dfe7ff}'
+    ].join('');
+    document.head.appendChild(css);
+
+    var el = document.createElement('div');
+    el.id = 'vb-update';
+    el.innerHTML =
+      '<span class="dot"></span>' +
+      '<span>VERSION <b></b> READY</span>' +
+      '<span class="go">RESTART</span>' +
+      '<span class="x" title="Later">&#10005;</span>';
+    el.querySelector('b').textContent = v;
+    document.body.appendChild(el);
+
+    /* It appears instantly, with no entrance animation. That is a
+       deliberate trade, not an oversight.
+
+       The game owns the frame loop and can starve it -- a heavy shader, a
+       weak GPU, three hundred bullets on screen. Anything frame-driven
+       (rAF, a CSS transition, a keyframe animation) then holds at its
+       starting value, and a bar that starts at opacity 0 stays invisible:
+       the player is never told there is an update at all. Measured here on
+       a software renderer: nine frames in four seconds, and even a 700ms
+       setTimeout fired 1750ms late. Those are the exact conditions -- a
+       struggling machine mid-fight -- where the notice matters most.
+
+       So the toast simply exists, already visible. The only moving part is
+       the dot, which can stall without hiding anything. */
+
+    var close = function () {
+      el.style.transition = 'opacity .3s ease, transform .3s ease';
+      el.style.opacity = '0';
+      el.style.transform = 'translate(-50%,26px)';
+      // removal is on a timer, not on transitionend, for the same reason
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 350);
+    };
+    el.querySelector('.go').addEventListener('click', function () {
+      try { window.vbUpdate.restart(); } catch (e) {}
+    });
+    el.querySelector('.x').addEventListener('click', function () {
+      close();
+      try { window.vbUpdate.dismiss(); } catch (e) {}
+    });
+
+    // Keep the game's keyboard handling untouched: swallow nothing, and
+    // never let a click on the bar reach the canvas underneath.
+    el.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  })(${JSON.stringify(String(version))});`;
+
+  w.webContents.executeJavaScript(js).catch(() => {});
+}
+
+// so the toast can be exercised in a test without faking a whole release
+global.__showToast = showUpdateToast;
 
 }

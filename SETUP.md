@@ -95,43 +95,54 @@ people up front or they'll think it's a virus.
 
 # Shipping an update
 
-The part you'll do over and over.
+## Double-click `UPDATE GAME.bat`
 
-1. **Copy the new game file in** — your updated `VOIDBLOOM.html` over
-   `desktop\game\VOIDBLOOM.html`.
+That's the whole thing. It sits in the `desktop` folder and does every step
+for you:
 
-2. **Bump the version** in `package.json`:
+1. Copies the newest `VOIDBLOOM.html` from the folder above into `game\`
+2. Runs the same checks the build runs — right size, has a `boot()` call, and
+   isn't `TEST_BUILD.html` with the debug hook in it
+3. Shows the current version and suggests the next one. Press **Enter** to
+   accept `1.0.1`, or type your own
+4. Asks what changed, in a few words
+5. Shows you exactly what it's about to do and waits for one more Enter
+6. Commits, tags, pushes — and offers to open the Actions page
 
-   ```json
-   "version": "1.0.1",
-   ```
+If anything is wrong it stops and tells you what, in plain words, before
+touching a single file. Close the window at the confirm step and nothing has
+happened.
 
-   It must go **up**. `1.0.1` for fixes, `1.1.0` for new content, `2.0.0` for
-   something huge. Auto-update compares these; it won't install anything that
-   isn't higher than what's already there.
+Three to five minutes later there's a new release, and anyone with the app
+installed sees a small bar at the bottom of the game window next time they
+open it:
 
-3. **Push it, tagged to match:**
+> ● VERSION 1.0.1 READY   **RESTART**   ✕
 
-   ```powershell
-   git add .
-   git commit -m "Pets redrawn, DAY ZERO skin"
-   git push
-   git tag v1.0.1
-   git push origin v1.0.1
-   ```
+It's deliberately not a pop-up dialog — an update can land four minutes into
+a boss fight, and a window stealing focus right then would be miserable. They
+click RESTART when they feel like it, or dismiss it and it installs quietly
+when they next close the game. Saves are kept either way.
 
-   Tag and version must agree — `v1.0.1` for `1.0.1`. The build checks and
-   stops with a clear error if they don't, so a mismatch costs a minute, not
-   a broken release.
+---
 
-Three to five minutes later there's a new release. Anyone with the app gets a
-dialog next time they open it:
+### Doing it by hand
 
-> **Version 1.0.1 is ready.**
-> Your saves, skins and codes are kept. It will also install by itself next
-> time you close the game.
+If you'd rather, or if the script chokes on something:
 
-They click **Restart now**, or ignore it and it installs when they quit.
+```powershell
+git add .
+git commit -m "Pets redrawn, DAY ZERO skin"
+git push
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+Bump `"version"` in `package.json` first, and make the tag match — `v1.0.1`
+for `1.0.1`. It must go **up**: `1.0.1` for fixes, `1.1.0` for new content,
+`2.0.0` for something huge. Auto-update won't install anything that isn't
+higher than what's already there. The build checks the tag against the
+version and stops with a clear error if they disagree.
 
 ---
 

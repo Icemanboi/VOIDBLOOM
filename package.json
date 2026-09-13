@@ -1,7 +1,7 @@
 {
   "name": "voidbloom",
   "productName": "VOIDBLOOM",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A bullet-heaven in a garden at the bottom of the dark.",
   "author": "Isaac Leung",
   "license": "UNLICENSED",
@@ -24,13 +24,14 @@
   "build": {
     "appId": "com.isaacleung.voidbloom",
     "productName": "VOIDBLOOM",
-    "copyright": "Copyright © 2026 Isaac Leung",
+    "copyright": "Copyright (c) 2026 Isaac Leung",
     "directories": {
       "output": "dist",
       "buildResources": "build"
     },
     "files": [
       "main.js",
+      "preload.js",
       "game/**/*",
       "build/icon.ico",
       "!test/**"

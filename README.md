@@ -13,14 +13,8 @@ installer isn't code-signed. Click *More info* → *Run anyway*.
 
 ## For me, later
 
-**Ship an update:** copy the new `VOIDBLOOM.html` into `game/`, bump
-`version` in `package.json`, then:
-
-```powershell
-git add . && git commit -m "what changed" && git push
-git tag v1.0.1 && git push origin v1.0.1
-```
-
+**Ship an update:** double-click `UPDATE GAME.bat`. It copies the newest
+`VOIDBLOOM.html` in, checks it, bumps the version, commits, tags and pushes.
 GitHub builds it and everyone's copy updates itself. Full walkthrough in
 [SETUP.md](SETUP.md).
 
@@ -41,6 +35,9 @@ nothing leaves the machine.
 | `build/icon.ico` | App icon, with separate drawings for the small sizes |
 | `make_icon.py` | Regenerates that icon |
 | `.github/workflows/release.yml` | Builds and publishes when a `v*` tag is pushed |
+| `UPDATE GAME.bat` | Double-click to ship an update |
+| `tools/update.ps1` | What that actually runs |
+| `preload.js` | The two-function bridge for the update bar |
 | `test/` | The smoke test |
 
 **The one thing not to break:** the game is served over `voidbloom://app`
