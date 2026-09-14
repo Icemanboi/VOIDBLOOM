@@ -146,9 +146,20 @@ jobs:
           else
             echo "No signing certificate - building unsigned. This is the free path."
             echo "Players will need to clear the quarantine flag once; see README."
-            # Stop electron-builder rummaging in the runner keychain for an
-            # identity that is not there, which otherwise turns a clean
-            # unsigned build into a confusing failure.
+            # A secret that does not exist arrives as an EMPTY STRING, not as
+            # an unset variable -- and electron-builder treats an empty
+            # CSC_LINK as "a certificate path was given" (its getCscLink is
+            # literally commented "allow to specify as empty string", and its
+            # chooseNotNull only skips null/undefined, never ""). It then
+            # tries to resolve "" as a file, lands on the checkout directory
+            # and dies with "<repo path> not a file".
+            #
+            # So these have to be removed from the environment, not just left
+            # blank, before electron-builder is invoked.
+            unset CSC_LINK CSC_KEY_PASSWORD
+            unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            # and stop it hunting the runner keychain for an identity that
+            # is not there
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             npx electron-builder --mac --publish always
           fi
