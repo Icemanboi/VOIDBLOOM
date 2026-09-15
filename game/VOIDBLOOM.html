@@ -947,20 +947,15 @@ const Particles = {
   draw(c) {
     c.save();
     c.globalCompositeOperation = 'lighter';
-    // puffs first (soft)
-    for (const p of this.live) {
-      if (p.t !== 'puff') continue;
-      const k = p.life / p.max;
-      const s = glowSprite(p.col);
-      c.globalAlpha = p.alpha * k * k;
-      const sc = p.r / 48;
-      c.drawImage(s, p.x - 64 * sc, p.y - 64 * sc, 128 * sc, 128 * sc);
-    }
-    c.globalAlpha = 1;
     c.lineCap = 'round';
     for (const p of this.live) {
       const k = p.life / p.max;
-      if (p.t === 'spark') {
+      if (p.t === 'puff') {
+        const s = glowSprite(p.col);
+        c.globalAlpha = p.alpha * k * k;
+        const sc = p.r / 48;
+        c.drawImage(s, p.x - 64 * sc, p.y - 64 * sc, 128 * sc, 128 * sc);
+      } else if (p.t === 'spark') {
         c.globalAlpha = k;
         c.strokeStyle = p.col;
         c.lineWidth = p.w * (0.35 + k * 0.65);
@@ -8032,13 +8027,12 @@ const Weapons = {
         c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(h.x, h.y); c.stroke();
         c.globalAlpha = 0.28;
         c.drawImage(glowSprite(col), h.x - 40, h.y - 40, 80, 80);
-        c.restore(); c.save();
         c.translate(h.x, h.y);
         c.rotate(h.a);
         neon(c, cc => pathPoly(cc, 6, 17, 0), col, { lw: 3, blur: 18, core: 'rgba(10,12,34,0.8)' });
         neon(c, cc => pathPoly(cc, 6, 8, Math.PI / 6), '#fff', { lw: 1.6, blur: 10, core: null, inner: false });
-        c.restore(); c.save();
-        c.globalCompositeOperation = 'lighter';
+        c.rotate(-h.a);
+        c.translate(-h.x, -h.y);
       }
       c.restore();
     }
@@ -8550,18 +8544,19 @@ const Weapons = {
         c.globalAlpha = fade * 0.9;
         c.strokeStyle = f.col; c.shadowColor = f.col; c.shadowBlur = 18; c.lineWidth = 2.2;
         const spikes = 7;
+        c.beginPath();
         for (let i = 0; i < spikes; i++) {
           const a = i / spikes * TAU + (f.seed % 100) * 0.06;
           const h = f.r * (0.7 + ((f.seed >> i) & 3) * 0.12) * grow;
           const bw = f.r * 0.22;
-          c.beginPath();
-          c.moveTo(Math.cos(a) * f.r * 0.2, Math.sin(a) * f.r * 0.2);
-          c.lineTo(Math.cos(a) * h - Math.sin(a) * bw, Math.sin(a) * h + Math.cos(a) * bw);
-          c.lineTo(Math.cos(a) * (h + f.r * 0.3), Math.sin(a) * (h + f.r * 0.3));
-          c.lineTo(Math.cos(a) * h + Math.sin(a) * bw, Math.sin(a) * h - Math.cos(a) * bw);
+          const ca = Math.cos(a), sa = Math.sin(a);
+          c.moveTo(ca * f.r * 0.2, sa * f.r * 0.2);
+          c.lineTo(ca * h - sa * bw, sa * h + ca * bw);
+          c.lineTo(ca * (h + f.r * 0.3), sa * (h + f.r * 0.3));
+          c.lineTo(ca * h + sa * bw, sa * h - ca * bw);
           c.closePath();
-          c.stroke();
         }
+        c.stroke();
         c.globalAlpha = fade * 0.16;
         c.fillStyle = f.col;
         c.beginPath(); c.arc(0, 0, f.r * grow, 0, TAU); c.fill();
@@ -11260,26 +11255,31 @@ vec3 deepField(vec2 uv, vec2 px){
     float cell = 17.0 + fl*26.0;
     vec2 gp = px / cell;
     vec2 gi = floor(gp), gf = fract(gp);
-    float h = h21(gi + fl*57.3);
-    float cut = 0.885 - fl*0.045;
-    if(h > cut){
-      vec2 c2 = vec2(h21(gi+11.7+fl), h21(gi+23.9+fl));
-      vec2 dv = gf - c2;
-      float d = length(dv);
-      float mag = (h - cut) / (1.0 - cut);            // 0..1 brightness
-      float tw = 0.58 + 0.42*sin(uTime*(0.8 + h*3.4) + h*61.0);
-      float core = smoothstep(0.15 - fl*0.022, 0.0, d) * (0.35 + mag*1.15) * tw;
-      // colour temperature
-      float ct = h21(gi + 5.1 + fl);
-      vec3 sc = ct < 0.18 ? vec3(1.00,0.72,0.52)      // orange
-              : ct > 0.86 ? vec3(0.70,0.82,1.00)      // blue
-                          : vec3(0.92,0.95,1.00);
-      col += sc * core * (0.55 + fl*0.34);
-      // the brightest few get diffraction spikes
-      if(mag > 0.82 && L < 2){
-        float sp = max(0.0, 1.0 - abs(dv.x)*13.0) * max(0.0, 1.0 - abs(dv.y)*2.2)
-                 + max(0.0, 1.0 - abs(dv.y)*13.0) * max(0.0, 1.0 - abs(dv.x)*2.2);
-        col += sc * sp * 0.30 * tw;
+    // check this cell and 8 neighbors to prevent star clipping at edges
+    for(int ox=-1; ox<=1; ox++){
+      for(int oy=-1; oy<=1; oy++){
+        vec2 ngi = gi + vec2(float(ox), float(oy));
+        float h = h21(ngi + fl*57.3);
+        float cut = 0.885 - fl*0.045;
+        if(h > cut){
+          vec2 c2 = vec2(h21(ngi+11.7+fl), h21(ngi+23.9+fl));
+          vec2 dv = (gf - vec2(float(ox), float(oy))) - c2;
+          float d = length(dv);
+          float mag = (h - cut) / (1.0 - cut);
+          float tw = 0.58 + 0.42*sin(uTime*(0.8 + h*3.4) + h*61.0);
+          // smaller inner radius (0.08 -> 0.03) for sharper, smaller stars
+          float core = smoothstep(0.08 - fl*0.015, 0.0, d) * (0.25 + mag*0.8) * tw;
+          float ct = h21(ngi + 5.1 + fl);
+          vec3 sc = ct < 0.18 ? vec3(1.00,0.72,0.52)
+                  : ct > 0.86 ? vec3(0.70,0.82,1.00)
+                              : vec3(0.92,0.95,1.00);
+          col += sc * core * (0.45 + fl*0.25);
+          if(mag > 0.82 && L < 2){
+            float sp = max(0.0, 1.0 - abs(dv.x)*20.0) * max(0.0, 1.0 - abs(dv.y)*3.0)
+                     + max(0.0, 1.0 - abs(dv.y)*20.0) * max(0.0, 1.0 - abs(dv.x)*3.0);
+            col += sc * sp * 0.20 * tw;
+          }
+        }
       }
     }
   }
@@ -11774,12 +11774,15 @@ const Cosmos = {
   hide() { if (this.on && this.cv) { this.cv.classList.remove('on'); this.on = false; } },
   adapt(fps) {
     if (!this.ok || !this.on) return;
+    if (!this._warmup) { this._warmup = 0; }
+    this._warmup = Math.min(180, this._warmup + 1);
+    if (this._warmup < 180) return;
     if (fps < 44) {
       this.slow++;
       if (this.slow > 3) {
         this.slow = 0;
         if (this.scale > 0.40) this.scale = Math.max(0.40, this.scale - 0.15);
-        else if (++this.give > 3) { Settings.cosmos = 0; this.hide(); }
+        else if (++this.give > 8) { Settings.cosmos = 0; this.hide(); }
       }
     } else if (fps > 57 && this.scale < 1) { this.scale = Math.min(1, this.scale + 0.06); }
   },
@@ -12409,11 +12412,20 @@ const UI = {
 
     const vx0 = Cam.x - VW / 2 / Cam.zoom - 140, vx1 = Cam.x + VW / 2 / Cam.zoom + 140;
     const vy0 = Cam.y - VH / 2 / Cam.zoom - 140, vy1 = Cam.y + VH / 2 / Cam.zoom + 140;
-    const vis = o => o.x > vx0 && o.x < vx1 && o.y > vy0 && o.y < vy1;
+    const inView = o => o.x > vx0 && o.x < vx1 && o.y > vy0 && o.y < vy1;
 
-    for (const p of G.pools) if (vis(p)) p.draw(c);
-    for (const g of G.gadgets) if (g.kind !== 'chain' && vis(g)) g.draw(c);
-    for (const p of G.pickups) if (vis(p)) p.draw(c);
+    // pre-filter large arrays once per frame
+    const visPools = [], visGadgets = [], visPickups = [], visEnemies = [], visShots = [], visEBullets = [];
+    for (const p of G.pools) if (inView(p)) visPools.push(p);
+    for (const g of G.gadgets) if (g.kind !== 'chain' && inView(g)) visGadgets.push(g);
+    for (const p of G.pickups) if (inView(p)) visPickups.push(p);
+    for (const e of G.enemies) if (inView(e)) visEnemies.push(e);
+    for (const s of G.shots) if (inView(s)) visShots.push(s);
+    for (const b of G.ebullets) if (inView(b)) visEBullets.push(b);
+
+    for (const p of visPools) p.draw(c);
+    for (const g of visGadgets) g.draw(c);
+    for (const p of visPickups) p.draw(c);
     if (G.state !== 'title') Pet.draw(c);
 
     // boss telegraph beams under enemies
@@ -12437,10 +12449,10 @@ const UI = {
       c.restore();
     }
 
-    for (const e of G.enemies) if (vis(e)) e.draw(c);
+    for (const e of visEnemies) e.draw(c);
     Weapons.drawFx(c);
-    for (const s of G.shots) if (vis(s)) s.draw(c);
-    for (const b of G.ebullets) if (vis(b)) b.draw(c);
+    for (const s of visShots) s.draw(c);
+    for (const b of visEBullets) b.draw(c);
     Weapons.drawThirst(c);
     Weapons.drawSiphon(c);
     Weapons.drawPendulum(c);
@@ -12455,7 +12467,7 @@ const UI = {
 
     // off-screen boss / elite markers
     for (const e of G.enemies) {
-      if (!(e.elite || e.boss) || vis(e)) continue;
+      if (!(e.elite || e.boss) || inView(e)) continue;
       const a = Math.atan2(e.y - Cam.y, e.x - Cam.x);
       const rx = (VW / 2 - 40) / Cam.zoom, ry = (VH / 2 - 40) / Cam.zoom;
       const mx = Cam.x + Math.cos(a) * Math.min(rx, ry) * 0.98;
@@ -13031,7 +13043,7 @@ const UI = {
     const t = G.uiT, X = mapXform();
     if (this.sels.conq === undefined) this.sels.conq = 0;
 
-    const cos = Cosmos.on;
+    const cos = Cosmos.show();
     c.save();
     if (!cos) { c.fillStyle = 'rgba(4,5,12,0.72)'; c.fillRect(0, 0, VW, VH); }
 
@@ -13210,7 +13222,7 @@ const UI = {
     const pl = PLANETS[Math.min(this.sels.conq || 0, PLANETS.length - 1)];
     const taken = Conquest.taken(pl.id);
 
-    const cos = Cosmos.on;
+    const cos = Cosmos.show();
     c.save();
     if (!cos) { c.fillStyle = 'rgba(4,5,12,0.93)'; c.fillRect(0, 0, VW, VH); }
 
@@ -13331,7 +13343,7 @@ const UI = {
     const pl = EVENTIDE;
     const whole = Conquest.keyWhole();
     const done = Conquest.holeDone();
-    const cos = Cosmos.on;
+    const cos = Cosmos.show();
 
     c.save();
     if (!cos) { c.fillStyle = 'rgba(3,3,10,0.94)'; c.fillRect(0, 0, VW, VH); }
