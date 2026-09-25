@@ -42,6 +42,28 @@ macOS. If it does, you can skip the Terminal line.)*
 **Don't want to touch Terminal?** [Play it in the browser instead](https://icemanboi.itch.io/voidbloom)
 — same game, nothing to install, works on any Mac.
 
+### Online extras (desktop app only)
+
+- **Cloud save.** SETTINGS → CLOUD SAVE → CREATE MY SAVE CODE gives you a code
+  like `VB-7K2M-QX9P-4TRA`. Write it down. From then on your save backs itself
+  up after every run and when you quit. New PC, or reinstalled? CLOUD SAVE →
+  RESTORE FROM A CODE brings everything back. No account, no email.
+- **Leaderboards.** Skirmish at every difficulty (this week and all time),
+  Endless, and today's Daily Challenge. Pick a name to show up on them, or
+  don't — you'll still see where you'd rank.
+- **News and events** on the title screen, like double-shard weekends.
+
+### Play stats
+
+The desktop app sends anonymous play statistics and error reports — how long
+you play, how your runs end, which planets and weapons, your OS and graphics
+card, and what went wrong if the game hits an error — to help balance the game
+and fix bugs. Each install gets a random ID; no callsigns or personal details
+are sent. Your cloud save and leaderboard name are stored only if you choose to
+use them. To switch off stats and error reports, set the environment variable
+`VOIDBLOOM_NO_STATS=1` (your runs then don't reach the leaderboards). The
+browser version sends nothing.
+
 ---
 
 ## For me, later
@@ -55,7 +77,11 @@ release. Full walkthrough in [SETUP.md](SETUP.md).
 
 **Test it properly:** `npm test` — boots the real app and checks the game
 reaches its title screen, that localStorage survives a reload, and that
-nothing leaves the machine.
+nothing leaves the machine. (A dev checkout never sends stats.)
+`npm run test:stats` plays a scripted session against a local stand-in for
+Supabase and checks every run and heartbeat that would have been sent.
+The online screens only appear in the app: the game draws them when
+`window.vbCloud` exists, so the itch and CrazyGames builds are unchanged.
 
 ---
 
@@ -64,6 +90,8 @@ nothing leaves the machine.
 | File | What it does |
 |---|---|
 | `main.js` | The app: window, custom `voidbloom://` scheme, auto-update |
+| `stats.js` | Anonymous play stats and error reports to Supabase, and the connection `cloud.js` uses |
+| `cloud.js` | Cloud save codes, leaderboards, names, news and events |
 | `game/VOIDBLOOM.html` | The whole game. One file, no assets. |
 | `build/icon.ico` | Windows icon, with separate drawings for the small sizes |
 | `build/icon.png` | 1024px master; electron-builder makes the mac `.icns` from it |
@@ -72,8 +100,8 @@ nothing leaves the machine.
 | `.github/workflows/release.yml` | Builds Windows + macOS and publishes on a `v*` tag |
 | `UPDATE GAME.bat` | Double-click to ship an update |
 | `tools/update.ps1` | What that actually runs |
-| `preload.js` | The two-function bridge for the update bar |
-| `test/` | The smoke test |
+| `preload.js` | The bridge: two update-bar buttons, a send-only stats outbox, and `vbCloud.call` for a fixed list of online actions |
+| `test/` | The smoke test, and `statsrun.js` for the play stats |
 
 **The one thing not to break:** the game is served over `voidbloom://app`
 rather than loaded as a file. That gives it a fixed origin, which is what

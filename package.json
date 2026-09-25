@@ -1,7 +1,7 @@
 {
   "name": "voidbloom",
   "productName": "VOIDBLOOM",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "A bullet-heaven in a garden at the bottom of the dark.",
   "author": "Isaac Leung",
   "license": "UNLICENSED",
@@ -14,7 +14,8 @@
     "test": "xvfb-run -a node test/smoke.js",
     "test:win": "node test/smoke.js",
     "dist:mac": "electron-builder --mac --publish never",
-    "test:mac": "node test/smoke.js"
+    "test:mac": "node test/smoke.js",
+    "test:stats": "xvfb-run -a node test/statsrun.js"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -34,6 +35,8 @@
     "files": [
       "main.js",
       "preload.js",
+      "stats.js",
+      "cloud.js",
       "game/**/*",
       "build/icon.ico",
       "build/icon.png",

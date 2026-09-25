@@ -4,6 +4,8 @@ const { app, BrowserWindow, Menu, protocol, net, shell, ipcMain } = require('ele
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { autoUpdater } = require('electron-updater');
+const stats = require('./stats');
+const cloud = require('./cloud');
 
 const GAME_DIR = path.join(__dirname, 'game');
 const START = 'voidbloom://app/VOIDBLOOM.html';
@@ -31,7 +33,9 @@ protocol.registerSchemesAsPrivileged([{
    hostname check that our own scheme can't satisfy. But Chromium phones home
    on its own for component updates, which on a plane or a school network is
    just a stalled socket and a log full of TLS errors. Turn it off; the only
-   traffic this app should ever make is the update check below. */
+   traffic this app should ever make is the update check below and the
+   anonymous play stats in stats.js (main process only -- the page itself
+   still can't reach anything but the co-op server). */
 app.commandLine.appendSwitch('disable-component-update');
 app.commandLine.appendSwitch('disable-background-networking');
 
@@ -111,6 +115,9 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     // ctrl+scroll and pinch would scale the canvas and wreck the layout
     win.webContents.setVisualZoomLevelLimits(1, 1);
+    // play stats: the tracker is injected like the update bar, so the game
+    // file itself never changes (see stats.js)
+    stats.inject(win.webContents);
   });
 
   // F11 fullscreen (Ctrl+Cmd+F as well on mac, which is where mac players
@@ -138,6 +145,7 @@ function createWindow() {
     }
   });
 
+  stats.watchWindow(win);
   win.on('closed', () => { win = null; });
 
   win.loadURL(START);
@@ -190,6 +198,10 @@ app.whenReady().then(() => {
     return new Response(res.body, { status: res.status, headers });
   });
 
+  // before the window, so the stats and cloud bridges are listening when the page boots
+  stats.start(() => win);
+  cloud.start();
+
   createWindow();
 
   app.on('activate', () => {
@@ -216,6 +228,7 @@ app.on('window-all-closed', () => {
  * ------------------------------------------------------------------ */
 function setupUpdates() {
   ipcMain.on('vb-update-restart', () => {
+    stats.quickQuit();   // never hold up the installer for a heartbeat
     setImmediate(() => autoUpdater.quitAndInstall());
   });
   ipcMain.on('vb-update-dismiss', () => { /* installs on quit anyway */ });

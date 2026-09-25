@@ -5,6 +5,33 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#04050d">
 <title>VOIDBLOOM</title>
+<!-- Sentry (browser Loader Script). Errors only: no tracing, no replay -- the
+     game is a canvas/WebGL loop and every extra observer costs frame time.
+     It is injected only on a real hosted page (itch, CrazyGames, a web host):
+     never on file:// or the desktop app's voidbloom:// scheme, never on
+     localhost, and never under an automated browser, so double-click play and
+     the test harness make zero off-site requests. -->
+<script>
+(function(){
+  var h = location.hostname || '';
+  if (!/^https?:$/.test(location.protocol) || !h || h === 'localhost' || h === '127.0.0.1' || navigator.webdriver) return;
+  window.SENTRY_RELEASE = { id: 'voidbloom@3.0' };
+  window.sentryOnLoad = function () {
+    Sentry.init({
+      environment: /crazygames\./i.test(h) ? 'crazygames' : /itch\.(io|zone)$/i.test(h) ? 'itch' : 'web',
+      tracesSampleRate: 0,
+      replaysSessionSampleRate: 0,
+      replaysOnErrorSampleRate: 0,
+      ignoreErrors: ['ResizeObserver loop limit exceeded', 'ResizeObserver loop completed with undisturbed notifications'],
+      denyUrls: [/^chrome-extension:/i, /^moz-extension:/i, /^safari-extension:/i]
+    });
+  };
+  var s = document.createElement('script');
+  s.src = 'https://js.sentry-cdn.com/e0ea41b574939b0457470fd01f1dec3d.min.js';
+  s.crossOrigin = 'anonymous';
+  document.head.appendChild(s);
+})();
+</script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#04050d;
@@ -600,7 +627,7 @@ const Save = {
     if (this.data.petMode === undefined) this.data.petMode = 1;
     if (!this.data.petStats) this.data.petStats = {};
   },
-  save() { try { localStorage.setItem(this.key, JSON.stringify(this.data)); } catch (e) { } }
+  save() { if (window.__restoringSave) return; try { localStorage.setItem(this.key, JSON.stringify(this.data)); } catch (e) { } }
 };
 
 /* ========================================================================
@@ -12247,7 +12274,8 @@ const Game = {
     }
     Ach.sweepMeta();
 
-    const earned = Math.round(shardsFor(sc, win, this.tide) * (this.D.shardMul || 1)) + firstOfDay;
+    this.lastMul = Cloud.shardMul();
+    const earned = Math.round(shardsFor(sc, win, this.tide) * (this.D.shardMul || 1) * this.lastMul) + firstOfDay;
     d.shards = (d.shards || 0) + earned;
     this.lastEarned = earned;
     if (!d.owned) d.owned = ['seed'];
@@ -14394,6 +14422,156 @@ function mapXform() {
   return X;
 }
 
+/* ========================================================================
+   ONLINE  --  cloud save, leaderboards, names, news and events.
+   Desktop app only: the Electron app hands the page window.vbCloud, and a
+   browser never has it -- so on itch and CrazyGames none of this draws and
+   none of it runs. The page never touches the network itself; every call
+   goes through the app (desktop/cloud.js), which answers with plain data.
+   ======================================================================== */
+const BOARD_IDS = ['skirmish', 'daily', 'endless'];
+const BOARD_NAMES = { skirmish: 'SKIRMISH', daily: 'DAILY', endless: 'ENDLESS' };
+const BOARD_DIFFS = ['easy', 'medium', 'hard', 'impossible', 'hardcore'];
+const NAME_RE = /^[A-Z0-9][A-Z0-9 _-]{1,10}[A-Z0-9]$/;
+const NAME_ERR = {
+  format: '3 TO 12 LETTERS OR NUMBERS', rude: 'THAT NAME ISN’T ALLOWED', reserved: 'THAT NAME IS RESERVED',
+  taken: 'SOMEONE ALREADY HAS THAT NAME', slow: 'WAIT A FEW SECONDS, THEN TRY AGAIN',
+  banned: 'YOU CAN’T SET A NAME', offline: 'OFFLINE — TRY AGAIN WHEN YOU’RE CONNECTED'
+};
+const Cloud = {
+  status: null, live: null, boards: Object.create(null),
+
+  on() { return !!(window.vbCloud && typeof window.vbCloud.call === 'function'); },
+  call(op, args) {
+    if (!this.on()) return Promise.resolve({ ok: false, error: 'off' });
+    let p;
+    try { p = window.vbCloud.call(op, args || {}); } catch (e) { return Promise.resolve({ ok: false, error: 'client' }); }
+    return Promise.resolve(p).then(r => (r && typeof r === 'object') ? r : { ok: false, error: 'client' },
+                                   () => ({ ok: false, error: 'offline' }));
+  },
+  init() {
+    if (!this.on()) return;
+    this.refresh();
+    this.pullLive();
+    setInterval(() => this.pullLive(), 5 * 60 * 1000);
+  },
+  refresh() { return this.call('status').then(r => { if (r.ok) this.status = r; return r; }); },
+  pullLive() { return this.call('live').then(r => { if (r.ok && r.live) this.live = r.live; }); },
+
+  /* the live shard event, if there is one right now */
+  event() {
+    const L = this.live;
+    if (!L || !Array.isArray(L.events)) return null;
+    const now = Date.now();
+    let best = null;
+    for (const e of L.events) {
+      if (!e || e.kind !== 'shards' || !(e.mult > 1)) continue;
+      const end = e.ends_at ? Date.parse(e.ends_at) : 0;
+      if (end && end <= now) continue;
+      if (!best || e.mult > best.mult) best = e;
+    }
+    return best;
+  },
+  shardMul() { const e = this.event(); return e ? clamp(+e.mult || 1, 1, 5) : 1; },
+
+  /* the save as the cloud keeps it: every voidbloom.* key but the two that
+     only mean something on this machine */
+  snapshot() {
+    const data = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf('voidbloom.') !== 0 || k === 'voidbloom.server' || k === 'voidbloom.wake') continue;
+        data[k] = localStorage.getItem(k);
+      }
+    } catch (e) { }
+    return data;
+  },
+  summary() {
+    const d = Save.data, n = o => { let c = 0; if (o && typeof o === 'object') for (const k in o) if (o[k]) c++; return c; };
+    return { runs: d.runs || 0, wins: d.wins || 0, shards: d.shards || 0, best: d.best || 0,
+             skins: (d.owned || []).length, pets: (d.pets || []).length, achs: n(d.achs),
+             planets: n(d.conquest && d.conquest.conquered) };
+  },
+  backup() {
+    Save.save();
+    return this.call('backup', { data: this.snapshot(), summary: this.summary() }).then(r => {
+      if (r.ok) this.status = Object.assign(this.status || {}, { code: r.code, savedAt: r.savedAt });
+      else if (r.error === 'lost' && this.status) { this.status.code = null; this.status.savedAt = null; }
+      return r;
+    });
+  },
+  /* a restored save goes in place, and the game starts again on it */
+  apply(found) {
+    try {
+      const drop = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('voidbloom.') === 0 && k !== 'voidbloom.server' && k !== 'voidbloom.wake') drop.push(k);
+      }
+      window.__restoringSave = true;
+      for (const k of drop) localStorage.removeItem(k);
+      for (const k in found.data) {
+        if (k.indexOf('voidbloom.') === 0 && typeof found.data[k] === 'string') localStorage.setItem(k, found.data[k]);
+      }
+    } catch (e) { return false; }
+    setTimeout(() => location.reload(), 1100);
+    return true;
+  },
+
+  /* leaderboards: one cached answer per board / difficulty / period */
+  board(b, d, p, fresh) {
+    const k = b + '|' + (b === 'skirmish' ? d : '-') + '|' + (b === 'daily' ? 'day' : p);
+    let e = this.boards[k];
+    const now = performance.now();
+    if (!e || (!e.loading && (fresh || now - e.at > 45000))) {
+      e = this.boards[k] = { loading: true, at: now, data: e ? e.data : null, error: null };
+      this.call('board', { board: b, diff: d, period: p, limit: 12 }).then(r => {
+        e.loading = false; e.at = performance.now();
+        if (r.ok) { e.data = r; e.error = null; } else e.error = r.error || 'offline';
+      });
+    }
+    return e;
+  },
+  /* the board the run that just ended counts on, if any */
+  runBoard() {
+    if (G.coop || G.planet) return null;
+    if (G.D && G.D.daily) return { b: 'daily', d: '', p: 'day', label: 'TODAY', what: 'DAILY' };
+    if (G.endless) return { b: 'endless', d: '', p: 'week', label: 'THIS WEEK', what: 'ENDLESS' };
+    if (BOARD_DIFFS.indexOf(G.diff) >= 0) return { b: 'skirmish', d: G.diff, p: 'week', label: 'THIS WEEK', what: DIFFS[G.diff].name };
+    return null;
+  },
+  setName(nm) {
+    return this.call('name', { name: nm }).then(r => {
+      if (r.ok) { this.status = Object.assign(this.status || {}, { name: r.name, hidden: false }); this.boards = Object.create(null); }
+      return r;
+    });
+  },
+  hide(h) {
+    return this.call('hide', { hidden: !!h }).then(r => {
+      if (r.ok) { this.status = Object.assign(this.status || {}, { hidden: !!r.hidden }); this.boards = Object.create(null); }
+      return r;
+    });
+  }
+};
+
+function agoText(iso) {
+  const t = Date.parse(iso || '');
+  if (!t) return '';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  if (s < 86400) return Math.round(s / 3600) + ' h ago';
+  const d = Math.round(s / 86400);
+  return d + (d === 1 ? ' day ago' : ' days ago');
+}
+function leftText(ms) {
+  const m = Math.max(0, Math.floor(ms / 60000));
+  if (m >= 1440) return Math.floor(m / 1440) + 'D ' + Math.floor(m % 1440 / 60) + 'H LEFT';
+  if (m >= 60) return Math.floor(m / 60) + 'H ' + (m % 60) + 'M LEFT';
+  return Math.max(1, m) + 'M LEFT';
+}
+
 const UI = {
   sels: Object.create(null), hoverIdx: -1, lastState: '', lockT: 0,
   // the fade between menu screens keeps its own record of where we were;
@@ -14403,7 +14581,12 @@ const UI = {
     if (st === 'settings') return this.settingsFrom !== 'paused';
     return st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' ||
            st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' ||
-           st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby';
+           st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' ||
+           st === 'boards' || st === 'cloud';
+  },
+  /* true while an online screen owns the keyboard for typing */
+  typing() {
+    return !!(this.nameEntry && (G.state === this.nameEntry.st)) || (G.state === 'cloud' && this.cloudMode === 'restore');
   },
   panelPulse: 0,
 
@@ -14964,6 +15147,7 @@ const UI = {
       { label: 'RECORDS', color: PAL.gold, act: () => { G.state = 'records'; UI.lastState = ''; } },
       { label: 'SETTINGS', color: '#8dff6b', act: () => { Sound.resume(); UI.settingsFrom = 'title'; G.state = 'settings'; UI.lastState = ''; } }
     ];
+    if (Cloud.on()) items.splice(2, 0, { label: 'LEADERBOARDS', color: '#ff7ae6', act: () => { Sound.resume(); UI.openBoards(null, 'title'); } });
     // the menu has to fit whatever window it is handed -- an itch embed is
     // often only six hundred pixels tall, and the old floor pushed SETTINGS
     // off the bottom of it
@@ -14978,6 +15162,643 @@ const UI = {
     }
     if ((d.shards || 0) > 0 || d.runs > 0) this.shardBadge(c, VW - 24, 40, VW < 520 ? 17 : 21);
     text(c, 'v3.0', VW - 22, VH - 20, { size: 11, color: 'rgba(120,130,170,0.5)', align: 'right' });
+    if (!passive && Cloud.on()) this.onlineTitle(c, (d.shards || 0) > 0 || d.runs > 0);
+  },
+
+  /* ------------------------------------------------------- online glyphs */
+  /* a turning eight-point star with a counter-turning four-point heart */
+  starGlyph(c, x, y, r, t, col, col2) {
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.26 + 0.08 * Math.sin(t * 2.2);
+    c.drawImage(glowSprite(col), x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2);
+    c.restore();
+    c.save();
+    c.translate(x, y);
+    c.rotate(t * 0.6);
+    neon(c, cc => pathStar(cc, 8, r, r * 0.52), col, { lw: 1.6, blur: 9, core: 'rgba(12,8,26,0.9)', inner: false });
+    c.rotate(-t * 1.5);
+    neon(c, cc => pathStar(cc, 4, r * 0.5, r * 0.16), col2, { lw: 1.2, blur: 6, core: null, inner: false });
+    c.restore();
+  },
+  /* a ring with a satellite: the cloud-save mark, and the wait spinner */
+  orbitGlyph(c, x, y, r, t, col, col2) {
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.24 + 0.06 * Math.sin(t * 1.9);
+    c.drawImage(glowSprite(col), x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2);
+    c.restore();
+    neon(c, cc => { cc.beginPath(); cc.arc(x, y, r, 0, TAU); }, col, { lw: 1.6, blur: 9, core: 'rgba(8,10,24,0.88)', inner: false });
+    c.save();
+    c.lineCap = 'round';
+    c.strokeStyle = col2; c.shadowColor = col2; c.shadowBlur = 7; c.lineWidth = 1.5;
+    const a = -t * 2.1;
+    c.beginPath(); c.arc(x, y, r * 0.52, a, a + 2.3); c.stroke();
+    const b = t * 1.6;
+    c.fillStyle = '#ffffff'; c.shadowColor = col2; c.shadowBlur = 10;
+    c.beginPath(); c.arc(x + Math.cos(b) * r, y + Math.sin(b) * r, Math.max(1.8, r * 0.2), 0, TAU); c.fill();
+    c.restore();
+  },
+  /* the podium mark for ranks 1-3: a fat star that turns slowly inside a
+     counter-turning broken ring, the number sitting on its dark core */
+  medal(c, x, y, r, rank, t) {
+    const cols = [['#ffd166', '#fff3c4'], ['#cfe3ff', '#9ef7ff'], ['#ff9a5c', '#ffcf9e']][rank - 1];
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.22 + 0.06 * Math.sin(t * 2 + rank);
+    c.drawImage(glowSprite(cols[0]), x - r * 2.4, y - r * 2.4, r * 4.8, r * 4.8);
+    c.restore();
+    c.save();
+    c.translate(x, y);
+    c.rotate(t * 0.35 + rank);
+    neon(c, cc => pathStar(cc, 8, r, r * 0.74), cols[0], { lw: 1.5, blur: 8, core: 'rgba(14,10,26,0.94)', inner: false });
+    c.rotate(-t * 1.1 - rank * 2);
+    c.strokeStyle = cols[1]; c.lineWidth = 1.1; c.globalAlpha = 0.8; c.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(0, 0, r * 1.28, i * TAU / 3, i * TAU / 3 + 1.2); c.stroke(); }
+    c.restore();
+    text(c, String(rank), x, y + r * 0.36, { size: r * 0.95, weight: 900, align: 'center', color: '#ffffff', glow: cols[0], blur: 8 });
+  },
+  /* a pill: dark bed, neon rim when it's the chosen one; true when clicked */
+  chip(c, cx, cy, w, h, label, col, on, size) {
+    const hov = Input.mx > cx - w / 2 && Input.mx < cx + w / 2 && Input.my > cy - h / 2 && Input.my < cy + h / 2;
+    c.save();
+    c.fillStyle = on ? 'rgba(10,12,30,0.96)' : 'rgba(8,10,22,0.72)';
+    roundRect(c, cx - w / 2, cy - h / 2, w, h, h / 2); c.fill();
+    c.lineWidth = on ? 1.6 : 1;
+    c.strokeStyle = on ? col : (hov ? 'rgba(200,210,255,0.6)' : 'rgba(125,134,171,0.38)');
+    if (on) { c.shadowColor = col; c.shadowBlur = 11 + 4 * Math.sin(G.uiT * 4); }
+    c.stroke();
+    c.restore();
+    if (on) {
+      c.save();
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = 0.5;
+      const g = c.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g;
+      c.fillRect(cx - w / 2 + 10, cy + h / 2 - 3.5, w - 20, 1.6);
+      c.restore();
+    }
+    tracked(c, label, cx, cy + size * 0.36, { size: size, weight: on ? 900 : 700, align: 'center',
+      color: on ? '#ffffff' : (hov ? PAL.text : PAL.dim), glow: on ? col : null, blur: 10, track: size * 0.16 });
+    return hov && Input.mclick && this.lockT <= 0;
+  },
+
+  /* ---------------------------------------------- title: news + events */
+  onlineTitle(c, hasBadge) {
+    const t = G.uiT, L = Cloud.live, ev = Cloud.event();
+    if (ev) {
+      const left = ev.ends_at ? Date.parse(ev.ends_at) - Date.now() : 0;
+      const head = (ev.title || 'SHARD EVENT').toUpperCase();
+      const sub2 = '\u00d7' + (Math.round(ev.mult * 100) / 100) + ' SHARDS ON EVERY RUN' + (left > 0 ? '  \u00b7  ' + leftText(left) : '');
+      const size = VW < 520 ? 10.5 : 12;
+      const w1 = tracked(c, head, 0, 0, { size: size + 1, weight: 900, track: 2.2, measureOnly: true });
+      const w2 = tracked(c, sub2, 0, 0, { size: size - 1, weight: 800, track: 1.2, measureOnly: true });
+      const pw = Math.max(w1, w2) + 58, ph = size * 3.3;
+      let px = VW - 20 - pw, py = hasBadge ? 70 : 20;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+      // a short window: the full pill would sit on the wordmark, so it folds to one line
+      const logoTop = VH * 0.29 - Math.min(76, VW * 0.075) * 0.8;
+      if (py + ph + 8 > logoTop) {
+        const s3 = '×' + (Math.round(ev.mult * 100) / 100) + ' SHARDS' + (left > 0 ? '  ·  ' + leftText(left) : '');
+        const cwid = tracked(c, s3, 0, 0, { size: 10.5, weight: 900, track: 1.4, measureOnly: true }) + 44, ch = 28;
+        const bsz = VW < 520 ? 17 : 21;
+        const bw = hasBadge ? tracked(c, fmtNum(Save.data.shards || 0), 0, 0, { size: bsz, weight: 900, track: 1, mono: true, measureOnly: true }) + bsz * 1.4 + 16 : 0;
+        const newsR = L && L.news && L.news.title ? 20 + clamp(VW * 0.34, 210, 400) + 12 : 0;
+        px = VW - 24 - bw - cwid; py = 25;
+        if (px < newsR) { px = VW - 20 - cwid; py = hasBadge ? 66 : 20; }
+        c.save();
+        c.fillStyle = 'rgba(12,8,28,0.92)';
+        roundRect(c, px, py, cwid, ch, 8); c.fill();
+        c.strokeStyle = '#ffd166'; c.lineWidth = 1.3; c.shadowColor = '#ffd166'; c.shadowBlur = 8 + 8 * pulse;
+        c.stroke();
+        c.restore();
+        this.shardGem(c, px + 17, py + ch / 2, 7, t);
+        tracked(c, s3, px + 31, py + ch / 2 + 3.8, { size: 10.5, weight: 900, color: '#ffd166', glow: '#ffd166', blur: 8, track: 1.4 });
+      } else {
+      c.save();
+      c.fillStyle = 'rgba(12,8,28,0.92)';
+      roundRect(c, px, py, pw, ph, 9); c.fill();
+      c.strokeStyle = '#ffd166'; c.lineWidth = 1.4; c.shadowColor = '#ffd166'; c.shadowBlur = 10 + 8 * pulse;
+      c.stroke();
+      c.restore();
+      this.shardGem(c, px + 22, py + ph / 2, size * 0.72, t);
+      tracked(c, head, px + 40, py + ph * 0.44, { size: size + 1, weight: 900, color: '#ffd166', glow: '#ffd166', blur: 10, track: 2.2 });
+      tracked(c, sub2, px + 40, py + ph * 0.8, { size: size - 1, weight: 800, color: '#c9a3ff', track: 1.2 });
+      }
+    }
+    const N = L && L.news;
+    if (N && N.title) {
+      const col = N.color || '#9ef7ff';
+      const w = clamp(VW * 0.34, 210, 400);
+      const x = 20, y = 20;
+      setFont(c, 12, 600);
+      const words = String(N.body || '').split(' ');
+      const lines = []; let line = '';
+      for (const wd of words) {
+        const tt = line ? line + ' ' + wd : wd;
+        if (c.measureText(tt).width > w - 36 && line) { lines.push(line); line = wd; if (lines.length === 2) break; } else line = tt;
+      }
+      if (line && lines.length < 2) lines.push(line);
+      const h = 44 + lines.length * 16;
+      c.save();
+      c.fillStyle = 'rgba(8,10,24,0.86)';
+      roundRect(c, x, y, w, h, 10); c.fill();
+      c.strokeStyle = col; c.globalAlpha = 0.55; c.lineWidth = 1.2; c.shadowColor = col; c.shadowBlur = 12;
+      c.stroke();
+      c.restore();
+      // a live dot that breathes, then the headline
+      const pr = 3.2 + Math.sin(t * 4) * 0.8;
+      c.save();
+      c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 10;
+      c.beginPath(); c.arc(x + 17, y + 20, pr, 0, TAU); c.fill();
+      c.globalAlpha = 0.35 * (1 - (t % 1.6) / 1.6);
+      c.strokeStyle = col; c.lineWidth = 1;
+      c.beginPath(); c.arc(x + 17, y + 20, pr + 6 * ((t % 1.6) / 1.6), 0, TAU); c.stroke();
+      c.restore();
+      tracked(c, String(N.title).toUpperCase(), x + 30, y + 24, { size: 12.5, weight: 900, color: '#ffffff', glow: col, blur: 10, track: 1.8 });
+      for (let i = 0; i < lines.length; i++) text(c, lines[i], x + 30, y + 44 + i * 16, { size: 12, weight: 600, color: PAL.text, alpha: 0.86 });
+    }
+  },
+
+  /* --------------------------------------------------------- leaderboards */
+  openBoards(board, from) {
+    const ld = Save.data.lastDiff;
+    const bs = this.bstate || { b: 'skirmish', d: BOARD_DIFFS.indexOf(ld) >= 0 ? ld : 'medium', p: 'week' };
+    if (board) bs.b = board;
+    this.bstate = bs;
+    this.boardsFrom = from || 'title';
+    this.nameEntry = null;
+    G.state = 'boards'; this.lastState = '';
+    Cloud.refresh();
+  },
+  leaveBoards() {
+    this.nameEntry = null;
+    G.state = this.boardsFrom || 'title'; this.lastState = ''; Sound.ui(false);
+  },
+  boards(c) {
+    this.begin('boards');
+    this.dim(c, 0.8);
+    const t = G.uiT, S = Cloud.status || {};
+    const bs = this.bstate || (this.bstate = { b: 'skirmish', d: 'medium', p: 'week' });
+    const w = Math.min(820, VW - 28), h = Math.min(668, VH - 20);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
+    const short = h < 560;           // the smallest windows: a tighter header, so the table keeps its rows
+    this.panel(c, x, y, w, h, 'rgba(255,209,102,0.30)');
+    if (this.nameEntry) { this.nameBox(c); return; }
+
+    // the title between two turning stars
+    const ts = Math.min(26, w * 0.042);
+    const tw = tracked(c, 'LEADERBOARDS', 0, 0, { size: ts, weight: 900, track: 7, measureOnly: true });
+    const ty = y + (short ? 34 : 42);
+    tracked(c, 'LEADERBOARDS', VW / 2, ty, { size: ts, weight: 900, align: 'center', color: '#ffd166', glow: '#ffd166', blur: 18, track: 7 });
+    this.starGlyph(c, VW / 2 - tw / 2 - 26, ty - 8, 10, t, '#ffd166', '#ff7ae6');
+    this.starGlyph(c, VW / 2 + tw / 2 + 26, ty - 8, 10, -t, '#ffd166', '#9ef7ff');
+    let sub2 = 'each player\u2019s best run counts once';
+    if (bs.b === 'daily') {
+      const ms = 86400000 - (Date.now() % 86400000);
+      sub2 = dailyKey() + '  \u00b7  the same run for everyone  \u00b7  resets in ' + Math.floor(ms / 3600000) + 'h ' + Math.floor(ms % 3600000 / 60000) + 'm';
+    } else if (bs.b === 'endless') sub2 = 'ranked by the deepest tide, then score';
+    text(c, sub2, VW / 2, ty + (short ? 20 : 22), { size: 11.5, weight: 600, align: 'center', color: PAL.dim });
+
+    // board tabs
+    const tabW = Math.min(150, (w - 80) / 3), tabY = y + (short ? 80 : 94);
+    for (let i = 0; i < BOARD_IDS.length; i++) {
+      const id = BOARD_IDS[i];
+      const cx = VW / 2 + (i - 1) * (tabW + 10);
+      if (this.chip(c, cx, tabY, tabW, short ? 27 : 30, BOARD_NAMES[id], '#ffd166', bs.b === id, short ? 12 : 13) && bs.b !== id) { bs.b = id; Sound.ui(false); }
+    }
+    let rowY = tabY + (short ? 33 : 40);
+    if (bs.b === 'skirmish') {
+      const cw = Math.min(118, (w - 60) / 5 - 6);
+      for (let i = 0; i < BOARD_DIFFS.length; i++) {
+        const id = BOARD_DIFFS[i];
+        const cx = VW / 2 + (i - 2) * (cw + 6);
+        if (this.chip(c, cx, rowY, cw, short ? 22 : 24, DIFFS[id].name, DIFFS[id].color, bs.d === id, 10.5) && bs.d !== id) { bs.d = id; Sound.ui(false); }
+      }
+      rowY += short ? 28 : 32;
+    }
+    if (bs.b !== 'daily') {
+      if (this.chip(c, VW / 2 - 58, rowY, 108, 22, 'THIS WEEK', '#9ef7ff', bs.p === 'week', 10) && bs.p !== 'week') { bs.p = 'week'; Sound.ui(false); }
+      if (this.chip(c, VW / 2 + 58, rowY, 108, 22, 'ALL TIME', '#9ef7ff', bs.p === 'all', 10) && bs.p !== 'all') { bs.p = 'all'; Sound.ui(false); }
+      rowY += short ? 27 : 30;
+    }
+
+    // the menu along the bottom
+    const cycle = (arr, cur, d) => arr[(arr.indexOf(cur) + d + arr.length) % arr.length];
+    const items = [
+      { label: () => 'BOARD:  ' + BOARD_NAMES[bs.b], color: '#ffd166',
+        act: () => { bs.b = cycle(BOARD_IDS, bs.b, 1); }, adj: d => { bs.b = cycle(BOARD_IDS, bs.b, d); return true; } }
+    ];
+    if (bs.b === 'skirmish') items.push({ label: () => 'DIFFICULTY:  ' + DIFFS[bs.d].name, color: DIFFS[bs.d].color,
+      act: () => { bs.d = cycle(BOARD_DIFFS, bs.d, 1); }, adj: d => { bs.d = cycle(BOARD_DIFFS, bs.d, d); return true; } });
+    if (bs.b !== 'daily') items.push({ label: () => 'SHOWING:  ' + (bs.p === 'week' ? 'THIS WEEK' : 'ALL TIME'), color: '#9ef7ff',
+      act: () => { bs.p = bs.p === 'week' ? 'all' : 'week'; }, adj: () => { bs.p = bs.p === 'week' ? 'all' : 'week'; return true; } });
+    items.push({ label: () => S.name ? 'YOUR NAME:  ' + S.name : 'SET YOUR NAME', color: '#ff7ae6', act: () => this.openName('boards') });
+    if (S.name) items.push({ label: () => S.hidden ? 'SHOW ME ON THE BOARDS' : 'HIDE ME FROM THE BOARDS', color: '#c9a3ff',
+      act: () => { Cloud.hide(!S.hidden); } });
+    items.push({ label: 'BACK', color: PAL.dim, act: () => this.leaveBoards() });
+    const mGap = clamp(h * (short ? 0.22 : 0.26) / items.length, short ? 19 : 21, 30);
+    const mTop = y + h - 22 - (items.length - 1) * mGap - mGap * 0.5;
+
+    // the table
+    const e = Cloud.board(bs.b, bs.d, bs.p, false);
+    const data = e.data && e.data.board === bs.b ? e.data : null;
+    const statusY = mTop - mGap * 0.9;
+    const tTop = rowY + 4, tBot = statusY - 22;
+    const narrow = w < 560;
+    const colName = x + 84, colA = x + w * (narrow ? 0.72 : 0.62), colB = x + w * (narrow ? 0.94 : 0.8), colC = x + w - 34;
+    const isEnd = bs.b === 'endless';
+    const hd = { size: 9.5, weight: 800, color: PAL.dim, track: 2.4 };
+    tracked(c, 'RANK', x + 40, tTop + 8, Object.assign({ align: 'center' }, hd));
+    tracked(c, 'NAME', colName, tTop + 8, hd);
+    tracked(c, isEnd ? 'TIDE' : 'SCORE', colA, tTop + 8, Object.assign({ align: 'right' }, hd));
+    tracked(c, isEnd ? 'SCORE' : 'TIME', colB, tTop + 8, Object.assign({ align: 'right' }, hd));
+    if (!narrow) tracked(c, 'LEVEL', colC, tTop + 8, Object.assign({ align: 'right' }, hd));
+    c.save(); c.globalAlpha = 0.14; c.strokeStyle = '#fff'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x + 22, tTop + 16); c.lineTo(x + w - 22, tTop + 16); c.stroke(); c.restore();
+
+    const rh = short ? 27 : 30, top = tTop + 22;
+    const maxRows = Math.max(1, Math.floor((tBot - top) / rh));
+    const rowsAll = data ? data.rows || [] : [];
+    const me = data && data.me;
+    const meShown = me && rowsAll.some(r => r.me) && rowsAll.findIndex(r => r.me) < maxRows;
+    const room = me && !meShown ? Math.floor(maxRows - 1.5) : maxRows;
+    const rows = rowsAll.slice(0, Math.max(0, room));
+    const drawRow = (r, ry, mine) => {
+      if (mine) {
+        c.save();
+        c.globalCompositeOperation = 'lighter';
+        c.globalAlpha = 0.12 + 0.05 * Math.sin(t * 4);
+        c.fillStyle = '#9ef7ff';
+        roundRect(c, x + 18, ry - rh / 2 + 2, w - 36, rh - 4, 8); c.fill();
+        c.restore();
+        c.save(); c.fillStyle = '#9ef7ff'; c.shadowColor = '#9ef7ff'; c.shadowBlur = 10;
+        c.fillRect(x + 18, ry - rh / 2 + 5, 2.5, rh - 10); c.restore();
+      }
+      if (r.rank <= 3) this.medal(c, x + 40, ry, 10, r.rank, t);
+      else text(c, '#' + r.rank, x + 40, ry + 4.5, { size: 12.5, weight: 800, align: 'center', color: mine ? '#9ef7ff' : PAL.dim, mono: true });
+      const nm = r.name || (mine ? (me.hidden ? 'YOU  \u00b7  HIDDEN' : 'YOU  \u00b7  NO NAME YET') : '\u2014');
+      tracked(c, nm, colName, ry + 5, { size: 14, weight: 800, color: mine ? '#ffffff' : PAL.text, glow: mine ? '#9ef7ff' : null, blur: 10, track: 1.6 });
+      const sc = fmtNum(r.score || 0);
+      if (isEnd) {
+        text(c, '\u00d7' + (r.tide || 0), colA, ry + 5, { size: 15, weight: 900, align: 'right', color: r.rank === 1 ? '#ffd166' : '#ffffff', mono: true });
+        text(c, sc, colB, ry + 5, { size: 13, weight: 700, align: 'right', color: PAL.text, alpha: 0.8, mono: true });
+      } else {
+        text(c, sc, colA, ry + 5, { size: 15, weight: 900, align: 'right', color: r.rank === 1 ? '#ffd166' : '#ffffff', mono: true });
+        text(c, fmtTime(r.seconds || 0), colB, ry + 5, { size: 13, weight: 700, align: 'right', color: PAL.text, alpha: 0.8, mono: true });
+      }
+      if (!narrow) text(c, String(r.level || 0), colC, ry + 5, { size: 13, weight: 700, align: 'right', color: PAL.dim, mono: true });
+    };
+    for (let i = 0; i < rows.length; i++) {
+      const ry = top + i * rh + rh / 2;
+      if (i % 2 && !rows[i].me) { c.save(); c.fillStyle = 'rgba(255,255,255,0.025)'; c.fillRect(x + 18, ry - rh / 2 + 2, w - 36, rh - 4); c.restore(); }
+      drawRow(rows[i], ry, !!rows[i].me);
+    }
+    if (me && !meShown) {
+      const gapY = top + rows.length * rh + rh * 0.25;
+      const ry = gapY + rh * 0.25 + rh / 2;
+      if (rows.length) {
+        // the rows between them and you, folded away
+        c.save(); c.fillStyle = PAL.dim;
+        for (let k = -1; k <= 1; k++) { c.globalAlpha = 0.5 + 0.3 * Math.sin(t * 3 + k); c.beginPath(); c.arc(x + 40 + k * 6, gapY, 1.4, 0, TAU); c.fill(); }
+        c.globalAlpha = 0.12; c.fillRect(x + 60, gapY - 0.5, w - 80, 1);
+        c.restore();
+      }
+      drawRow({ rank: me.rank, name: me.hidden ? null : me.name, score: me.score, tide: me.tide, seconds: me.seconds, level: me.level }, ry, true);
+    }
+    if (!rowsAll.length && !me) {
+      const cy = (top + tBot) / 2;
+      if (e.loading || (!data && !e.error)) {
+        this.orbitGlyph(c, VW / 2, cy - 14, 14, t * 2.2, '#ffd166', '#9ef7ff');
+        text(c, 'REACHING THE BOARDS\u2026', VW / 2, cy + 22, { size: 12, weight: 800, align: 'center', color: PAL.dim });
+      } else if (e.error && !data) {
+        tracked(c, 'OFFLINE', VW / 2, cy - 4, { size: 16, weight: 900, align: 'center', color: PAL.hp, glow: PAL.hp, blur: 12, track: 4 });
+        text(c, 'the leaderboards need an internet connection', VW / 2, cy + 18, { size: 12, weight: 600, align: 'center', color: PAL.dim });
+      } else {
+        tracked(c, 'NOBODY HAS CLAIMED THIS BOARD YET', VW / 2, cy - 4, { size: 14, weight: 900, align: 'center', color: '#ffd166', glow: '#ffd166', blur: 12, track: 2.6 });
+        text(c, 'the first name on it could be yours', VW / 2, cy + 18, { size: 12, weight: 600, align: 'center', color: PAL.dim });
+      }
+    }
+
+    // where you stand
+    let st2 = '', stCol = PAL.dim;
+    if (me) {
+      st2 = 'YOU\u2019RE #' + me.rank + ' OF ' + Math.max(data.players || 0, me.rank) + (bs.b === 'daily' ? ' TODAY' : bs.p === 'week' ? ' THIS WEEK' : '');
+      stCol = '#9ef7ff';
+      if (!me.name && !me.hidden) { st2 += '  \u00b7  SET A NAME TO APPEAR'; stCol = '#ff7ae6'; }
+    } else if (data) {
+      st2 = bs.b === 'skirmish' ? 'PLAY A ' + DIFFS[bs.d].name + ' SKIRMISH TO GET ON THIS BOARD'
+          : bs.b === 'daily' ? 'PLAY TODAY\u2019S DAILY TO GET ON THIS BOARD' : 'DESCEND IN ENDLESS TO GET ON THIS BOARD';
+    }
+    if (st2) tracked(c, st2, VW / 2, statusY, { size: 11, weight: 800, align: 'center', color: stCol, track: 2 });
+    if (e.loading && data) this.orbitGlyph(c, x + w - 30, y + 30, 7, t * 3, '#ffd166', '#9ef7ff');
+
+    this.menu(c, items, VW / 2, mTop, mGap, { size: clamp(mGap * 0.52, 12, 15.5), w: Math.min(440, w - 60), id: 'boards' });
+  },
+
+  /* ----------------------------------------------------- the name box */
+  openName(st) {
+    this.nameEntry = { st: st === 'end' ? G.state : 'boards', msg: null, busy: false };
+    Input.textMax = 12;
+    Input.text = (Cloud.status && Cloud.status.name) || '';
+    Input.textOn = true;
+    this.lockT = 0.25;
+  },
+  closeName() {
+    this.nameEntry = null;
+    Input.textOn = false; Input.text = ''; Input.textMax = 20;
+    this.lockT = 0.2;
+  },
+  nameBox(c) {
+    const ne = this.nameEntry, t = G.uiT;
+    Input.textOn = true; Input.textMax = 12;
+    this.dim(c, 0.5);
+    const w = Math.min(540, VW - 40), h = Math.min(300, VH - 30);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
+    this.panel(c, x, y, w, h, 'rgba(255,122,230,0.34)');
+    const tw = tracked(c, 'YOUR NAME', 0, 0, { size: 22, weight: 900, track: 6, measureOnly: true });
+    tracked(c, 'YOUR NAME', VW / 2, y + 42, { size: 22, weight: 900, align: 'center', color: '#ff7ae6', glow: '#ff7ae6', blur: 16, track: 6 });
+    this.starGlyph(c, VW / 2 - tw / 2 - 22, y + 35, 8, t, '#ff7ae6', '#ffd166');
+    text(c, 'how you show up on the leaderboards', VW / 2, y + 63, { size: 11.5, weight: 600, align: 'center', color: PAL.dim });
+
+    const fw = Math.min(360, w - 80), fx = VW / 2 - fw / 2, fy = y + 88;
+    c.save();
+    c.fillStyle = 'rgba(8,10,20,0.9)';
+    roundRect(c, fx, fy, fw, 46, 6); c.fill();
+    c.strokeStyle = '#ff7ae6'; c.globalAlpha = 0.6 + 0.2 * Math.sin(t * 3); c.lineWidth = 1.3;
+    c.shadowColor = '#ff7ae6'; c.shadowBlur = 10;
+    roundRect(c, fx, fy, fw, 46, 6); c.stroke();
+    c.restore();
+    const typed = Input.text || '';
+    if (ne.last !== undefined && ne.last !== typed && !ne.busy && ne.msg && ne.msg.col === PAL.hp) ne.msg = null;
+    ne.last = typed;
+    const twd = tracked(c, typed, 0, 0, { size: 20, weight: 900, track: 3.2, mono: true, measureOnly: true });
+    tracked(c, typed, VW / 2 - twd / 2, fy + 31, { size: 20, weight: 900, color: '#ffffff', glow: '#ff7ae6', blur: 8, track: 3.2, mono: true });
+    if ((t * 2) % 2 < 1) { c.save(); c.fillStyle = '#ff7ae6'; c.fillRect(VW / 2 + twd / 2 + 3, fy + 12, 2, 23); c.restore(); }
+    if (!typed) text(c, 'type a name', VW / 2, fy + 30, { size: 14, weight: 600, align: 'center', color: PAL.dim, alpha: 0.6 });
+    text(c, '3\u201312 letters or numbers  \u00b7  ENTER to save  \u00b7  ESC to go back', VW / 2, fy + 68,
+      { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    if (ne.msg) tracked(c, ne.msg.t, VW / 2, fy + 100, { size: 12.5, weight: 900, align: 'center', color: ne.msg.col, glow: ne.msg.col, blur: 10, track: 2.4 });
+    if (ne.busy) this.orbitGlyph(c, VW / 2 + fw / 2 + 22, fy + 23, 7, t * 3, '#ff7ae6', '#9ef7ff');
+
+    const bw = 180, bh = 30, bx = VW / 2 - bw / 2, by = y + h - 50;
+    const overBack = Input.mx > bx && Input.mx < bx + bw && Input.my > by && Input.my < by + bh;
+    c.save();
+    c.strokeStyle = overBack ? '#ff7ae6' : 'rgba(120,128,160,0.5)';
+    c.globalAlpha = overBack ? 0.9 : 0.5; c.lineWidth = 1;
+    roundRect(c, bx, by, bw, bh, 4); c.stroke(); c.restore();
+    tracked(c, 'BACK  \u00b7  ESC', VW / 2, by + 20, { size: 12.5, weight: 800, align: 'center', color: overBack ? '#ff7ae6' : PAL.dim, track: 3 });
+
+    if (this.lockT > 0) return;
+    if (Input.hit('Escape') || Input.gpPressed[1] || (Input.mclick && overBack)) { this.closeName(); Sound.ui(false); return; }
+    if (Input.hit('Enter') && !ne.busy) {
+      const nm = typed.trim().replace(/\s+/g, ' ');
+      if (!NAME_RE.test(nm)) { ne.msg = { t: NAME_ERR.format, col: PAL.hp }; Sound.ui(false); return; }
+      ne.busy = true; ne.msg = { t: 'SAVING\u2026', col: PAL.dim };
+      Cloud.setName(nm).then(r => {
+        ne.busy = false;
+        if (r.ok) {
+          ne.msg = { t: 'YOU\u2019RE ON THE BOARDS AS ' + r.name, col: '#8dff6b' };
+          Flash.hit('#ff7ae6', 0.18); Sound.ui(true);
+          this._rankK = null;
+          setTimeout(() => { if (this.nameEntry === ne) this.closeName(); }, 1100);
+        } else {
+          ne.msg = { t: NAME_ERR[r.error] || 'COULDN\u2019T SAVE THAT NAME', col: PAL.hp };
+          Sound.ui(false);
+        }
+      });
+    }
+  },
+
+  /* ------------------------------------------------------------ cloud save */
+  openCloud() {
+    this.cloudMode = 'main'; this.cloudMsg = null; this.cloudFound = null; this.cloudBusy = false;
+    G.state = 'cloud'; this.lastState = '';
+    Cloud.refresh();
+  },
+  leaveCloud() {
+    Input.textOn = false; Input.text = ''; Input.textMax = 20;
+    this.cloudMode = 'main'; this.cloudMsg = null; this.cloudFound = null;
+    G.state = 'settings'; this.lastState = ''; Sound.ui(false);
+  },
+  cloudBack() {
+    if (this.cloudBusy === 'restoring') return;
+    if (this.cloudMode === 'confirm' || this.cloudMode === 'restore') {
+      Input.textOn = false; Input.text = ''; Input.textMax = 20;
+      this.cloudMode = 'main'; this.cloudFound = null; this.cloudMsg = null; this.lockT = 0.2; this.sels.cloud = 0;
+      Sound.ui(false);
+    } else this.leaveCloud();
+  },
+  cloudSay(t, col) { this.cloudMsg = { t: t, col: col || PAL.dim, at: G.uiT }; },
+  cloud(c) {
+    this.begin('cloud');
+    this.dim(c, 0.8);
+    const t = G.uiT, S = Cloud.status;
+    const w = Math.min(600, VW - 32), h = Math.min(500, VH - 24);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
+    this.panel(c, x, y, w, h, 'rgba(158,247,255,0.30)');
+    const mode = this.cloudMode || 'main';
+    const tw = tracked(c, 'CLOUD SAVE', 0, 0, { size: 24, weight: 900, track: 7, measureOnly: true });
+    tracked(c, 'CLOUD SAVE', VW / 2, y + 44, { size: 24, weight: 900, align: 'center', color: PAL.player, glow: PAL.player, blur: 18, track: 7 });
+    this.orbitGlyph(c, VW / 2 - tw / 2 - 28, y + 36, 11, t, PAL.player, '#ff7ae6');
+    this.orbitGlyph(c, VW / 2 + tw / 2 + 28, y + 36, 11, -t * 1.2, '#c9a3ff', PAL.player);
+    text(c, 'your progress, kept safe off this computer', VW / 2, y + 66, { size: 11.5, weight: 600, align: 'center', color: PAL.dim });
+    const busy = !!this.cloudBusy;
+    const run = (p, then) => { if (this.cloudBusy) return; this.cloudBusy = true; p.then(r => { this.cloudBusy = false; then(r); }); };
+    const errText = r => r.error === 'offline' ? 'OFFLINE \u2014 TRY AGAIN WHEN YOU\u2019RE CONNECTED'
+      : r.error === 'lost' ? 'THAT CODE WAS REPLACED \u2014 MAKE A NEW ONE'
+      : r.error === 'big' ? 'THE SAVE IS TOO BIG TO BACK UP' : 'SOMETHING WENT WRONG \u2014 TRY AGAIN';
+
+    if (mode === 'restore') { this.cloudRestore(c, x, y, w, h); return; }
+    if (mode === 'confirm') { this.cloudConfirm(c, x, y, w, h); return; }
+
+    let ly = y + 108;
+    if (!S) {
+      this.orbitGlyph(c, VW / 2, ly + 40, 14, t * 2.2, PAL.player, '#ff7ae6');
+      text(c, 'checking\u2026', VW / 2, ly + 78, { size: 12, weight: 700, align: 'center', color: PAL.dim });
+    } else if (S.code) {
+      tracked(c, 'YOUR SAVE CODE', VW / 2, ly, { size: 10, weight: 800, align: 'center', color: PAL.dim, track: 2.6 });
+      const cs = Math.min(30, (w - 90) / 12);
+      const cwid = tracked(c, S.code, 0, 0, { size: cs, weight: 900, mono: true, track: cs * 0.18, measureOnly: true });
+      const px = VW / 2 - cwid / 2 - 22, pw = cwid + 44, py = ly + 12, ph = cs * 1.9;
+      c.save();
+      c.fillStyle = 'rgba(6,8,20,0.92)';
+      roundRect(c, px, py, pw, ph, 10); c.fill();
+      const g = c.createLinearGradient(px, 0, px + pw, 0);
+      g.addColorStop(0, PAL.player); g.addColorStop(0.5, '#c9a3ff'); g.addColorStop(1, '#ff7ae6');
+      c.strokeStyle = g; c.lineWidth = 1.5; c.shadowColor = PAL.player; c.shadowBlur = 12 + 5 * Math.sin(t * 2.4);
+      c.stroke();
+      c.restore();
+      // a glint that walks along the code every few seconds
+      const gx = px + ((t * 0.45) % 1.6) / 1.6 * (pw + 80) - 40;
+      c.save();
+      roundRect(c, px, py, pw, ph, 10); c.clip();
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.16;
+      const gg = c.createLinearGradient(gx - 30, 0, gx + 30, 0);
+      gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(0.5, '#ffffff'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = gg; c.fillRect(gx - 30, py, 60, ph);
+      c.restore();
+      tracked(c, S.code, VW / 2, py + ph / 2 + cs * 0.36, { size: cs, weight: 900, align: 'center', mono: true, color: '#ffffff', glow: PAL.player, blur: 12, track: cs * 0.18 });
+      ly = py + ph + 26;
+      text(c, (S.savedAt ? 'backed up ' + agoText(S.savedAt) : 'not backed up yet') + '  \u00b7  it keeps itself up to date after every run',
+        VW / 2, ly, { size: 12, weight: 600, align: 'center', color: PAL.text, alpha: 0.85 });
+      text(c, 'Write it down somewhere safe. Anyone with this code can load your progress.', VW / 2, ly + 20,
+        { size: 11.5, weight: 600, align: 'center', color: PAL.dim });
+    } else {
+      const lines = [
+        'Back up everything \u2014 skins, pets, planets, relics, shards, achievements.',
+        'You get a code. On a new computer, choose RESTORE and type it in.',
+        'After that it keeps itself up to date after every run.'
+      ];
+      for (const l of lines) { text(c, l, VW / 2, ly + 14, { size: 13, weight: 600, align: 'center', color: PAL.text, alpha: 0.88 }); ly += 22; }
+      const cyv = (ly + 20 + (y + h - 30 - 2 * 32 - 40)) / 2, rv = clamp((y + h - 150 - ly) * 0.28, 16, 34);
+      if (rv > 16) {
+        this.orbitGlyph(c, VW / 2, cyv, rv, t * 0.8, PAL.player, '#ff7ae6');
+        for (let k = 0; k < 5; k++) {
+          const a = t * (0.5 + k * 0.13) + k * 1.3, rr = rv * (1.45 + 0.18 * k);
+          c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.55;
+          c.fillStyle = k % 2 ? '#c9a3ff' : PAL.player; c.shadowColor = c.fillStyle; c.shadowBlur = 8;
+          c.beginPath(); c.arc(VW / 2 + Math.cos(a) * rr, cyv + Math.sin(a) * rr * 0.42, 1.8, 0, TAU); c.fill();
+          c.restore();
+        }
+        this.shardGem(c, VW / 2, cyv, rv * 0.42, t);
+      }
+    }
+    if (this.cloudMsg) {
+      const a = clamp(1 - (t - this.cloudMsg.at - 4) / 1.5, 0, 1);
+      if (a > 0) tracked(c, this.cloudMsg.t, VW / 2, y + h - 176, { size: 12.5, weight: 900, align: 'center', color: this.cloudMsg.col, glow: this.cloudMsg.col, blur: 10, track: 2.4, alpha: a });
+    }
+    if (busy) this.orbitGlyph(c, x + w - 30, y + h - 30, 8, t * 3, PAL.player, '#ff7ae6');
+
+    const items = [];
+    if (S && S.code) {
+      items.push({ label: 'BACK UP NOW', color: PAL.player, act: () => run(Cloud.backup(), r => {
+        if (r.ok) { this.cloudSay('BACKED UP', '#8dff6b'); Flash.hit(PAL.player, 0.15); } else this.cloudSay(errText(r), PAL.hp);
+      }) });
+      items.push({ label: 'COPY CODE', color: '#c9a3ff', act: () => run(Cloud.call('copy', { text: S.code }), r => {
+        this.cloudSay(r.ok ? 'COPIED \u2014 PASTE IT SOMEWHERE SAFE' : 'COULDN\u2019T COPY IT', r.ok ? '#8dff6b' : PAL.hp);
+      }) });
+    } else if (S) {
+      items.push({ label: 'CREATE MY SAVE CODE', color: PAL.player, act: () => run(Cloud.backup(), r => {
+        if (r.ok) { this.cloudSay('YOUR CODE IS READY \u2014 WRITE IT DOWN', '#8dff6b'); Flash.hit(PAL.player, 0.22); }
+        else this.cloudSay(errText(r), PAL.hp);
+      }) });
+    }
+    items.push({ label: 'RESTORE FROM A CODE', color: '#ffb347', act: () => {
+      if (this.cloudBusy) return;
+      this.cloudMode = 'restore'; this.cloudMsg = null; Input.text = ''; Input.textMax = 20; Input.textOn = true; this.lockT = 0.2;
+    } });
+    items.push({ label: 'BACK', color: PAL.dim, act: () => this.leaveCloud() });
+    const gap = clamp((h - 300) / Math.max(1, items.length - 1), 26, 36);
+    this.menu(c, items, VW / 2, y + h - 30 - (items.length - 1) * gap, gap, { size: 16, w: Math.min(380, w - 60), id: 'cloud' });
+  },
+  cloudRestore(c, x, y, w, h) {
+    const t = G.uiT;
+    Input.textOn = true; Input.textMax = 20;
+    tracked(c, 'TYPE YOUR SAVE CODE', VW / 2, y + 112, { size: 11, weight: 800, align: 'center', color: '#ffb347', track: 2.6 });
+    const fw = Math.min(420, w - 70), fx = VW / 2 - fw / 2, fy = y + 126;
+    c.save();
+    c.fillStyle = 'rgba(8,10,20,0.9)';
+    roundRect(c, fx, fy, fw, 50, 6); c.fill();
+    c.strokeStyle = '#ffb347'; c.globalAlpha = 0.6 + 0.2 * Math.sin(t * 3); c.lineWidth = 1.3;
+    c.shadowColor = '#ffb347'; c.shadowBlur = 10;
+    roundRect(c, fx, fy, fw, 50, 6); c.stroke();
+    c.restore();
+    const typed = Input.text || '';
+    if (this._cloudTyped !== undefined && this._cloudTyped !== typed && !this.cloudBusy) this.cloudMsg = null;
+    this._cloudTyped = typed;
+    const tw = tracked(c, typed, 0, 0, { size: 20, weight: 900, track: 3, mono: true, measureOnly: true });
+    tracked(c, typed, VW / 2 - tw / 2, fy + 33, { size: 20, weight: 900, color: '#ffffff', glow: '#ffb347', blur: 8, track: 3, mono: true });
+    if ((t * 2) % 2 < 1) { c.save(); c.fillStyle = '#ffb347'; c.fillRect(VW / 2 + tw / 2 + 3, fy + 13, 2, 24); c.restore(); }
+    if (!typed) text(c, 'VB-XXXX-XXXX-XXXX', VW / 2, fy + 32, { size: 16, weight: 700, align: 'center', color: PAL.dim, alpha: 0.5, mono: true });
+    text(c, 'ENTER to look it up  \u00b7  ESC to go back', VW / 2, fy + 74, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    if (this.cloudBusy) {
+      this.orbitGlyph(c, VW / 2, fy + 120, 13, t * 2.4, '#ffb347', PAL.player);
+      text(c, 'looking for it\u2026', VW / 2, fy + 154, { size: 12, weight: 700, align: 'center', color: PAL.dim });
+    } else if (this.cloudMsg) {
+      tracked(c, this.cloudMsg.t, VW / 2, fy + 118, { size: 12.5, weight: 900, align: 'center', color: this.cloudMsg.col, glow: this.cloudMsg.col, blur: 10, track: 2.2 });
+    }
+    if (this.lockT > 0) return;
+    if (Input.hit('Escape') || Input.gpPressed[1]) { this.cloudBack(); return; }
+    if (Input.hit('Enter') && !this.cloudBusy) {
+      const raw = typed.replace(/[^A-Z0-9]/g, '');
+      if (raw.length < 12) { this.cloudSay('THAT DOESN\u2019T LOOK LIKE A SAVE CODE', PAL.hp); Sound.ui(false); return; }
+      this.cloudBusy = true; this.cloudMsg = null;
+      Cloud.call('lookup', { code: typed }).then(r => {
+        this.cloudBusy = false;
+        if (r.ok) {
+          this.cloudFound = r; this.cloudMode = 'confirm'; this.sels.cloudok = 1; this.lockT = 0.3;
+          Input.textOn = false; Input.text = ''; Sound.ui(true);
+        } else {
+          this.cloudSay(r.error === 'unknown' ? 'NO SAVE WITH THAT CODE' : r.error === 'code' ? 'THAT DOESN\u2019T LOOK LIKE A SAVE CODE'
+            : r.error === 'offline' ? 'OFFLINE \u2014 TRY AGAIN WHEN YOU\u2019RE CONNECTED' : 'SOMETHING WENT WRONG \u2014 TRY AGAIN', PAL.hp);
+          Sound.ui(false);
+        }
+      });
+    }
+  },
+  cloudConfirm(c, x, y, w, h) {
+    const t = G.uiT, F = this.cloudFound || {}, sm = F.summary || {};
+    tracked(c, 'FOUND A SAVE', VW / 2, y + 110, { size: 16, weight: 900, align: 'center', color: '#8dff6b', glow: '#8dff6b', blur: 12, track: 4 });
+    text(c, (F.code || '') + (F.savedAt ? '  \u00b7  saved ' + agoText(F.savedAt) : ''), VW / 2, y + 132, { size: 12, weight: 700, align: 'center', color: PAL.dim, mono: true });
+    const cells = [['RUNS', sm.runs], ['WINS', sm.wins], ['SHARDS', sm.shards], ['PLANETS', sm.planets], ['SKINS', sm.skins], ['ACHIEVEMENTS', sm.achs]];
+    const cw = Math.min(150, (w - 60) / 3), gx = VW / 2 - cw * 1.5;
+    for (let i = 0; i < cells.length; i++) {
+      const cx = gx + (i % 3) * cw + cw / 2, cy = y + 166 + Math.floor(i / 3) * 54;
+      text(c, cells[i][0], cx, cy, { size: 9.5, weight: 800, align: 'center', color: PAL.dim });
+      tracked(c, cells[i][1] == null ? '\u2014' : fmtNum(cells[i][1]), cx, cy + 26, { size: 20, weight: 900, align: 'center', color: '#ffffff', glow: PAL.player, blur: 8, mono: true, track: 1 });
+    }
+    const wy = y + 290;
+    const warn = 'This replaces the progress on this computer. It can\u2019t be undone.';
+    text(c, warn, VW / 2, wy, { size: 12.5, weight: 700, align: 'center', color: PAL.hp, alpha: 0.9 + 0.1 * Math.sin(t * 3) });
+    if (this.cloudBusy === 'restoring') {
+      this.orbitGlyph(c, VW / 2, wy + 50, 14, t * 3, '#8dff6b', PAL.player);
+      tracked(c, 'RESTORING \u2014 STARTING AGAIN ON YOUR SAVE', VW / 2, wy + 90, { size: 12, weight: 900, align: 'center', color: '#8dff6b', glow: '#8dff6b', blur: 10, track: 2 });
+      return;
+    }
+    if (this.cloudMsg) tracked(c, this.cloudMsg.t, VW / 2, wy + 26, { size: 12, weight: 900, align: 'center', color: this.cloudMsg.col, track: 2 });
+    this.menu(c, [
+      { label: 'RESTORE THIS SAVE', color: '#8dff6b', act: () => {
+        if (this.cloudBusy) return;
+        this.cloudBusy = 'restoring';
+        Cloud.call('adopt', { code: F.code, installId: F.installId, savedAt: F.savedAt }).then(r => {
+          if (r.ok && Cloud.apply(F)) { Flash.hit('#8dff6b', 0.3); Sound.ui(true); }
+          else { this.cloudBusy = false; this.cloudSay('COULDN\u2019T RESTORE IT \u2014 TRY AGAIN', PAL.hp); }
+        });
+      } },
+      { label: 'CANCEL', color: PAL.dim, act: () => this.cloudBack() }
+    ], VW / 2, y + h - 74, 36, { size: 16, w: Math.min(380, w - 60), id: 'cloudok' });
+  },
+
+  /* ------------------------------------- end screen: where the run landed */
+  rankEntry() {
+    const rb = Cloud.runBoard();
+    if (!rb) return null;
+    const k = rb.b + '|' + rb.d + '|' + Math.round(G.score) + '|' + Math.round(G.time);
+    if (this._rankK !== k) { this._rankK = k; this._rankB = rb; this._rankE = Cloud.board(rb.b, rb.d, rb.p, true); }
+    return this._rankE;
+  },
+  endRibbon(c, x, y, w) {
+    const e = this.rankEntry(), rb = this._rankB;
+    if (!e || !rb) return;
+    const me = e.data && e.data.board === rb.b ? e.data.me : null;
+    let label;
+    if (me) label = '#' + me.rank + '  ' + rb.label + '  \u00b7  ' + rb.what;
+    else if (e.loading) label = 'RANKING\u2026';
+    else return;
+    const t = G.uiT, size = 12;
+    const tw = tracked(c, label, 0, 0, { size: size, weight: 900, track: 2.2, measureOnly: true });
+    const pw = tw + 50, ph = 28, px = x + w - pw - 18, py = y - ph / 2;
+    c.save();
+    c.fillStyle = 'rgba(12,8,26,0.96)';
+    roundRect(c, px, py, pw, ph, ph / 2); c.fill();
+    c.strokeStyle = '#ffd166'; c.lineWidth = 1.4; c.shadowColor = '#ffd166'; c.shadowBlur = 10 + 6 * Math.sin(t * 3);
+    c.stroke();
+    c.restore();
+    if (me && me.rank <= 3) this.medal(c, px + 17, py + ph / 2, 8, me.rank, t);
+    else this.starGlyph(c, px + 17, py + ph / 2, 7, t, '#ffd166', '#ff7ae6');
+    tracked(c, label, px + 32, py + ph / 2 + size * 0.36, { size: size, weight: 900, color: '#ffd166', glow: '#ffd166', blur: 8, track: 2.2 });
   },
 
 
@@ -15747,7 +16568,7 @@ const UI = {
     const D = DIFFS.daily;
     const key = dailyKey();
     const rec = Save.dailyRec(key);
-    const w = Math.min(660, VW - 36), h = Math.min(452, VH - 32);
+    const w = Math.min(660, VW - 36), h = Math.min(452 + (Cloud.on() ? 34 : 0), VH - 32);
     const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
     this.panel(c, x, y, w, h, 'rgba(255,179,71,0.32)');
 
@@ -15802,10 +16623,13 @@ const UI = {
       }
     }
 
-    this.menu(c, [
+    const dItems = [
       { label: rec.runs ? 'RUN IT AGAIN' : 'BEGIN THE DAILY', color: D.color, act: () => { Sound.resume(); G.reset('daily'); } },
       { label: 'BACK', color: PAL.dim, act: () => { G.state = 'title'; UI.lastState = ''; } }
-    ], VW / 2, y + h - 62, 38, { size: 19, w: w - 120, id: 'daily' });
+    ];
+    if (Cloud.on()) dItems.splice(1, 0, { label: 'TODAY\u2019S LEADERBOARD', color: '#ffd166', act: () => { Sound.resume(); UI.openBoards('daily', 'daily'); } });
+    const dGap = dItems.length > 2 ? 34 : 38;
+    this.menu(c, dItems, VW / 2, y + h - 62 - (dItems.length - 2) * dGap, dGap, { size: dItems.length > 2 ? 17 : 19, w: w - 120, id: 'daily' });
   },
 
   /* --------------------------------------------------------- settings */
@@ -15826,7 +16650,7 @@ const UI = {
       else { G.state = 'title'; }
       UI.lastState = '';
     };
-    this.menu(c, [
+    const sItems = [
       { label: () => 'SOUND: ' + (Sound.muted ? 'OFF' : 'ON'), color: '#8dff6b', act: () => { Sound.resume(); Sound.toggleMute(); } },
       { label: 'MUSIC', ref: 'MUSIC', color: '#63ffc9', color2: '#9ef7ff', meter: () => Settings.music,
         act: () => { Sound.resume(); Settings.vol('music', -1, true); }, adj: d => { Sound.resume(); return Settings.vol('music', d, false); } },
@@ -15842,7 +16666,12 @@ const UI = {
       { label: () => 'CODES' + (Codes.count() ? '  ' + Codes.count() + ' REDEEMED' : ''), color: '#c9a3ff',
         act: () => { Sound.resume(); Input.text = ''; UI.codeMsg = null; G.state = 'codes'; UI.lastState = ''; } },
       { label: 'BACK', color: PAL.dim, act: back }
-    ], VW / 2, y + 96, clamp((h - 150) / 11, 20, 38), { size: clamp((h - 150) / 11 * 0.47, 11.5, 18), w: w - 70, id: 'settings' });
+    ];
+    // the cloud save lives here in the desktop app -- never mid-run, since restoring starts the game again
+    if (Cloud.on() && !fromPause) sItems.splice(sItems.length - 2, 0, { label: () => 'CLOUD SAVE' + (Cloud.status && Cloud.status.code ? '  \u00b7  ON' : ''),
+      color: '#9ef7ff', act: () => { Sound.resume(); UI.openCloud(); } });
+    const sGap = (h - 150) / (sItems.length - 1);
+    this.menu(c, sItems, VW / 2, y + 96, clamp(sGap, 20, 38), { size: clamp(sGap * 0.47, 11.5, 18), w: w - 70, id: 'settings' });
 
     const onLevel = this.sels.settings === 1 || this.sels.settings === 2;
     const foot = onLevel ? '\u2190 \u2192 set the level \u00b7 M mutes everything'
@@ -16503,12 +17332,16 @@ const UI = {
       ['SLAIN', String(G.kills)]
     ];
     if (G.endless) rows.push(['TIDE REACHED', '\u00d7' + G.tide]);
-    rows.push(['SHARDS EARNED', '+' + fmtNum(G.lastEarned || 0)]);
+    rows.push(['SHARDS EARNED', '+' + fmtNum(G.lastEarned || 0) + (G.lastMul > 1 ? '   \u00d7' + (Math.round(G.lastMul * 100) / 100) + ' EVENT' : '')]);
     let ry = y + 40;
     for (const [k, v] of rows) {
       text(c, k, x + 34, ry, { size: 13, weight: 700, color: PAL.dim });
       text(c, v, x + w - 34, ry, { size: 19, weight: 900, align: 'right', color: v.indexOf('NEW BEST') >= 0 ? PAL.gold : PAL.text, mono: false });
       ry += 42;
+    }
+    if (Cloud.on()) {
+      this.endRibbon(c, x, y, w);
+      if (this.nameEntry) { this.nameBox(c); return; }
     }
     const items = [];
     if (win && G.planet && G.planet.press && !G.actII) {
@@ -16521,6 +17354,10 @@ const UI = {
     if (G.D.daily) items.push({ label: 'DAILY STANDINGS', color: '#ffb347', act: () => { G.state = 'daily'; UI.lastState = ''; } });
     else items.push({ label: 'CHANGE DIFFICULTY', color: '#c9a3ff', act: () => { G.state = 'select'; UI.lastState = ''; } });
     items.push({ label: 'SKINS', color: PAL.gold, act: () => { G.state = 'skins'; UI.lastState = ''; } });
+    if (Cloud.on()) {
+      const re = this._rankE, me = re && re.data && this._rankB && re.data.board === this._rankB.b ? re.data.me : null;
+      if (me && !me.name && !me.hidden) items.push({ label: 'CLAIM YOUR SPOT', color: '#ffd166', act: () => this.openName('end') });
+    }
     items.push({ label: 'MAIN MENU', color: PAL.dim, act: () => { G.state = 'title'; UI.lastState = ''; } });
     this.menu(c, items, VW / 2, VH * 0.31 + h + 30, 36, { size: 17, w: 340, id: win ? 'win' : 'dead' });
   }
@@ -16906,11 +17743,15 @@ function frame(now) {
   if (st !== 'playing') Interp.stale = true;
 
   // global hotkeys
-  if (st !== 'codes' && !(st === 'mp' && Input.textOn)) {
+  if (st !== 'codes' && !(st === 'mp' && Input.textOn) && !UI.typing()) {
     if (Input.hit('m')) { Sound.resume(); Sound.toggleMute(); }
     if (Input.hit('f')) { G.showFps = !G.showFps; Settings.fps = G.showFps; Settings.save(); }
   }
-  if (st !== 'codes' && st !== 'mp' && Input.textOn) { Input.textOn = false; Input.text = ''; }
+  if (st !== 'codes' && st !== 'mp' && Input.textOn && !UI.typing()) { Input.textOn = false; Input.text = ''; Input.textMax = 20; }
+  if (UI.nameEntry && st !== UI.nameEntry.st) UI.nameEntry = null;
+  if ((st === 'boards' || st === 'cloud') && !UI.typing() && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) {
+    if (st === 'boards') UI.leaveBoards(); else UI.cloudBack();
+  }
   if ((st === 'how' || st === 'records' || st === 'skins' || st === 'daily' || st === 'achievements' || st === 'pets' || st === 'modes') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = 'title'; UI.lastState = ''; Sound.ui(false); }
   if ((st === 'select' || st === 'conquest') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = 'modes'; UI.lastState = ''; Sound.ui(false); }
   if (st === 'mp' && (Input.hit('Escape') || Input.gpPressed[1] || (Input.hit('Backspace') && !Input.textOn))) {
@@ -16969,7 +17810,7 @@ function frame(now) {
 
   if (st === 'settings' && UI.settingsFrom === 'paused') {
     UI.world(c); UI.hud(c); UI.settings(c);
-  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby') {
+  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud') {
     Cosmos.req = null;
     const cosOn = Cosmos.show(st === 'conquest' || st === 'planet' || st === 'modes');
     if (cosOn) c.clearRect(0, 0, VW, VH);
@@ -16990,6 +17831,8 @@ function frame(now) {
     else if (st === 'modes') { UI.modes(c); }
     else if (st === 'mp') { UI.mp(c); }
     else if (st === 'lobby') { UI.lobby(c); }
+    else if (st === 'boards') { UI.boards(c); }
+    else if (st === 'cloud') { UI.title(c, true); UI.cloud(c); }
     else { UI.title(c, true); UI.records(c); }
     if (UI.menuFade > 0) {
       const f = UI.menuFade;
@@ -18036,7 +18879,7 @@ const Coop = {
     const cleared = win ? DEPTHS.length : depth;
     const D = COOP_DIFFS[this.diffKey];
     const mul = D.id === 'coop_nightmare' ? 2.2 : (D.id === 'coop_hard' ? 1.5 : 1);
-    const earned = Math.round((60 + cleared * cleared * 140 + (win ? 500 : 0) + this.stats.kills * 0.6) * mul);
+    const earned = Math.round((60 + cleared * cleared * 140 + (win ? 500 : 0) + this.stats.kills * 0.6) * mul * Cloud.shardMul());
     const d = Save.data;
     d.coop = d.coop || { runs: 0, wins: 0, best: 0 };
     d.coop.runs++;
@@ -21555,10 +22398,11 @@ function boot() {
       SKINS: SKINS, ACHS: ACHS, Ach: Ach, DIFFS: DIFFS, paintSkin: paintSkin, CG: CG,
       Settings: Settings, MID_BOSSES: MID_BOSSES, DAILY_BOSSES: DAILY_BOSSES,
       shardsFor: shardsFor, dailySeed: dailySeed, dailyKey: dailyKey,
-      NET: NET, Coop: Coop, MEGA: MEGA
+      NET: NET, Coop: Coop, MEGA: MEGA, Cloud: Cloud
     };
   } catch (e) { }
   CG.init();
+  Cloud.init();
   warmSprites();
   const bootEl = document.getElementById('boot');
   if (bootEl) bootEl.className = 'gone';
