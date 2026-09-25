@@ -86,12 +86,12 @@ Each has an upside and a cost, like THE GARDEN's. None of them repeats a GARDEN 
 | Relic | Upside | Cost |
 |---|---|---|
 | **OFFCUT** | Every kill flings a splinter at the nearest enemy. | Max HP −10%. |
-| **TAILWIND** | +20% move speed while you haven't been hit for 5s. | Dash cooldown +30%. |
+| **TAILWIND** | +20% move speed while you have not been hit for 5s. | Dash cooldown +30%. |
 | **BAIT** | Every 12s a lure drops at your feet and draws enemies to it for 3s. | Enemies move 10% faster. |
 | **SEGMENT** | Your projectiles pierce one extra enemy. | −15% damage to bosses. |
 | **COCOON** | Every level-up heals 25% of max HP. | All other healing −50%. |
 | **DIGESTION** | Each hit makes that enemy take +2% more damage from you (up to +20%). | Base damage −10%. |
-| **LEECHROOT** | Heal 1 HP for every 40 damage you deal. | You take +15% damage. |
+| **LEECHROOT** | Heal 1% of the damage you deal, up to 4 HP a second. | You take +15% damage. |
 | **BARKSKIN** | Every 8s grow a bark layer that absorbs 15 damage (up to 3). | Pickup radius −30%. |
 | **SNARE** | Your dash leaves a snare that roots the first enemy through it for 3s. | Dash cooldown +40%. |
 | **AMBERGLASS** | Enemy bullets that come within 60px of you hang frozen for 0.6s first. | Your projectiles travel 20% slower. |
@@ -149,7 +149,7 @@ THE GYRE always spins the floor and HOARFROST always builds rime.
 
 **THE STRANGLER** · Stranglehold · ★3
 *It holds on. That is all it has ever done.*
-- **Signature — THE VINE:** a vine tethers you to it. You move freely inside the leash but can't leave it, and it drains you while it's taut. Dash *across* the vine to cut it; it re-attaches a few seconds later.
+- **Signature — THE VINE:** a vine tethers you to it. You move freely inside the leash but can't leave it, and it drains you while it's taut. Throw your dash *against* the vine (away from it, at the end of the leash) to snap it; it re-attaches a few seconds later.
 - P1: one vine on a long leash, plus fans of thorns.
 - P2: it plants two anchor trees and you're held between two vines.
 - P3: the leash shortens every few seconds. Cut it, or be crushed.
