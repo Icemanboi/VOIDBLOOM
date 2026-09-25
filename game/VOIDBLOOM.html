@@ -5861,6 +5861,61 @@ const Pet = {
   }
 };
 
+/* Pet previews are drawn through here, never straight onto a shared canvas.
+
+   'lighter' + shadowBlur + draws spread across the canvas is a Skia cliff: the
+   blend mode forces a saveLayer whose bounds grow to the union of the draws, and
+   every shadowed stroke then re-composites that whole layer. Measured on the
+   pets screen: 300 shadowed strokes cost 0.18 ms under source-over, 0.72 ms
+   under 'lighter' at one spot, and 2716 ms under 'lighter' spread out. The menu
+   sat at 1818 ms a frame with fifteen pets owned.
+
+   Confining each pet to its own tile keeps the layer at 128px. Same pixels --
+   'lighter' is additive, so summing into a transparent tile and adding the tile
+   is the same as adding each stroke in place. */
+const PET_TILE = 128;
+const _petTiles = new Map();
+function petTile(pet, t, fx, fy) {
+  let e = _petTiles.get(pet.id);
+  if (!e) {
+    const cv = makeCanvas(PET_TILE * 2, PET_TILE * 2);
+    e = { cv: cv, c: cv.getContext('2d'), k: '' };
+    _petTiles.set(pet.id, e);
+  }
+  // the sub-pixel remainder is part of the key: the same pet at a different
+  // phase of a pixel is a different tile
+  const k = t + '|' + fx + '|' + fy + '|' + DPR;
+  if (e.k !== k) {
+    e.k = k;
+    const c = e.c, s = Math.min(2, DPR || 1);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, PET_TILE * 2, PET_TILE * 2);
+    c.setTransform(s, 0, 0, s, 0, 0);
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    petShape(c, pet, PET_TILE / 2 + fx, PET_TILE / 2 + fy, 1, 0, 0, 0, 0, t);
+    c.restore();
+    e.s = s;
+  }
+  return e;
+}
+/* Stamp a pet preview centred on x, y.
+   The stamp is snapped to a whole device pixel and the remainder is drawn into
+   the tile, so drawImage resamples nothing and the strokes land exactly where
+   drawing straight onto the canvas would have put them. */
+function drawPetPreview(c, pet, x, y, t, alpha) {
+  if (!pet || pet.form === 'none') return;
+  const s = Math.min(2, DPR || 1);
+  const sx = Math.round(x * s) / s, sy = Math.round(y * s) / s;
+  const e = petTile(pet, t, Math.round((x - sx) * s * 64) / (s * 64), Math.round((y - sy) * s * 64) / (s * 64));
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  if (alpha !== undefined) c.globalAlpha = alpha;
+  c.drawImage(e.cv, 0, 0, PET_TILE * e.s, PET_TILE * e.s,
+              sx - PET_TILE / 2, sy - PET_TILE / 2, PET_TILE, PET_TILE);
+  c.restore();
+}
+
 function petShape(c, pet, x, y, alpha, face, flinch, spin, bright, t) {
   const col = pet.col, f = pet.form;
   if (f === 'none') return;
@@ -13525,8 +13580,36 @@ const Cosmos = {
       }
       if (ap) this.aProg = ap;
       this.ok = true;
+      this.warm();
       return true;
     } catch (e) { return false; }
+  },
+  /* Draw one scissored pixel with every program so the driver compiles them
+     now, on the boot screen, instead of on the frame START is pressed.
+     Best-effort: a failure here must never stop the sky from working. */
+  warm() {
+    const gl = this.gl;
+    if (!gl) return;
+    try {
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(0, 0, 1, 1);
+      for (const pr of [this.prog, this.nProg, this.aProg, this.anProg]) {
+        if (!pr) continue;
+        gl.useProgram(pr);
+        const loc = gl.getAttribLocation(pr, 'aPos');
+        if (loc >= 0) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        }
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      gl.disable(gl.SCISSOR_TEST);
+      gl.flush();
+      if (this.prog) gl.useProgram(this.prog);
+    } catch (e) {
+      try { gl.disable(gl.SCISSOR_TEST); } catch (e2) { }
+    }
   },
   // the originals, built only if the cached path cannot run
   liveProgram() {
@@ -14948,10 +15031,7 @@ const UI = {
 
       // a live preview of the thing itself
       if (owned && pt.form !== 'none') {
-        c.save();
-        c.globalCompositeOperation = 'lighter';
-        petShape(c, pt, x + cw / 2, y + 34 + Math.sin(t * 2 + i) * 2.5, 1, 0, 0, 0, 0, t + i);
-        c.restore();
+        drawPetPreview(c, pt, x + cw / 2, y + 34 + Math.sin(t * 2 + i) * 2.5, t + i);
       } else if (!owned) {
         tracked(c, '?', x + cw / 2, y + 40, { size: 20, weight: 900, align: 'center', color: 'rgba(80,90,124,1)', track: 2 });
       }
@@ -17023,7 +17103,7 @@ function adaptQuality() {
    here -- Render shows it at the top of the service page. (A tester can
    point a copy of the game somewhere else without editing the file:
    localStorage['voidbloom.server'] = 'http://localhost:2567') */
-const MP_SERVER_URL = 'https://voidbloom-server.onrender.com';
+const MP_SERVER_URL = 'https://voidbloom-server-gtwg.onrender.com';
 const MP_PROTOCOL = 'undervault-1';
 const MP_MAX = 4;
 const SLOT_COL = ['#9ef7ff', '#ff7ae6', '#ffd166', '#8dff6b'];
@@ -17089,7 +17169,7 @@ const NET = {
   t0: 0, tOnline: 0, wasCold: false, lastErr: '',
   est: 55,              // how long this server usually takes to wake, seconds
   pollT: 0, longReq: null, token: 0,
-  rtt: 0, pingT: 0,
+  rtt: 0, pingT: 0, lastSeen: 0, warmT: 0, tries: 0,
   client: null, room: null, joining: false,
   slot: -1, code: '', isPublic: false, host: false,
   lobby: null,          // the latest lobby message
@@ -17149,14 +17229,21 @@ const NET = {
     const t = performance.now();
     fetch(mpServerUrl() + '/health?t=' + Date.now(), { cache: 'no-store', credentials: 'omit', mode: 'cors' })
       .then(r => r.ok ? r.json() : null)
-      .then(j => { if (j && j.ok === 'voidbloom' && !this.rtt) this.rtt = performance.now() - t; })
+      .then(j => { if (j && j.ok === 'voidbloom') { this.seen(); if (!this.rtt) this.rtt = performance.now() - t; } })
       .catch(() => { });
   },
+  // the server answered: it is up right now
+  seen() { this.lastSeen = performance.now(); },
+  // Render puts the server back to sleep after fifteen idle minutes. If it is a
+  // while since it last answered, treat it as cold: wake it behind the bar
+  // rather than letting a lobby request sit in a cold start and time out.
+  fresh() { return this.status === 'online' && this.lastSeen && (performance.now() - this.lastSeen) < 45000; },
   awake(j, ms) {
     const secs = (performance.now() - this.t0) / 1000;
     if (j.protocol && j.protocol !== MP_PROTOCOL) { this.fail('The server runs ' + j.protocol + ', the game wants ' + MP_PROTOCOL + '.'); return; }
     this.status = 'online';
     this.tOnline = performance.now();
+    this.seen();
     // a request the server held while it woke says nothing about the ping: ask again
     this.rtt = ms < 3000 ? ms : 0;
     if (!this.rtt) this.ping();
@@ -17192,6 +17279,11 @@ const NET = {
     if (this.room && !this.dropped) {
       this.pingT -= dt;
       if (this.pingT <= 0) { this.pingT = 2; this.room.send('ping', Date.now()); }
+    } else if (this.status === 'online' && !this.joining && (G.state === 'mp' || G.state === 'lobby')) {
+      // nobody is in a room yet: a knock every ninety seconds keeps the free
+      // server from falling asleep under a player who is reading the screen
+      this.warmT -= dt;
+      if (this.warmT <= 0) { this.warmT = 90; this.ping(); }
     }
     if (this.msgT > 0) this.msgT -= dt;
   },
@@ -17202,7 +17294,7 @@ const NET = {
   go(kind, code) {
     if (this.room || this.joining) return;
     if (typeof VBColyseus === 'undefined' || !VBColyseus.Client) { this.say('Multiplayer could not load in this browser.', PAL.hp); return; }
-    if (this.status !== 'online') { this.want = { kind: kind, code: code }; this.wake(); return; }
+    if (!this.fresh()) { this.want = { kind: kind, code: code }; this.status = 'off'; this.wake(); return; }
     this.joining = true;
     const opts = { v: MP_PROTOCOL, name: mpCallsign(), skin: currentSkin().id, pet: currentPet().id };
     try { if (!this.client) this.client = new VBColyseus.Client(mpServerUrl()); }
@@ -17212,16 +17304,36 @@ const NET = {
     else if (kind === 'quick') p = this.client.joinOrCreate('undervault', Object.assign({ public: true }, opts));
     else p = this.client.create('undervault', Object.assign({ public: false }, opts));
     this.say(kind === 'join' ? 'Joining ' + code + '...' : (kind === 'quick' ? 'Finding a lobby...' : 'Opening a lobby...'), PAL.player, 20);
-    p.then(room => { this.joining = false; this.attach(room); })
+    p.then(room => { this.joining = false; this.tries = 0; this.seen(); this.attach(room); })
      .catch(e => {
        this.joining = false;
        const m = String(e && e.message || e);
+       // what the gateway in front of a sleeping server answers with: a 5xx, a
+       // page of HTML where JSON should be, or a fetch that never landed
+       const st = +(e && (e.status || e.code)) || 0;
+       const cold = st >= 500 || /error code|\b5\d\d\b|timeout|timed out|gateway|not valid JSON|Unexpected token|Failed to fetch|NetworkError|load failed/i.test(m);
        let why = m;
        if (/locked/i.test(m)) why = 'That lobby is full, or its delve has already started.';
-       else if (/not found|no rooms|matchmake/i.test(m)) why = kind === 'join' ? 'No lobby with the code ' + code + '.' : 'Could not find a lobby.';
        else if (/VERSION/.test(m)) why = 'That server runs a different version of the game.';
        else if (/RUNNING/.test(m)) why = 'That delve has already started.';
-       else if (/fetch|network|Failed/i.test(m)) { why = 'Lost the server. It may have gone back to sleep.'; this.status = 'off'; }
+       else if (cold) {
+         // the server was asleep or still starting and the request timed out at
+         // the gateway (Render answers those with a 502/504/524 page): wake it
+         // properly, with the bar, and try the same thing again
+         this.status = 'off'; this.lastSeen = 0;
+         if (++this.tries <= 2) {
+           this.want = { kind: kind, code: code };
+           this.say('The server was still waking up — trying again...', '#ffd166', 20);
+           this.wake();
+           return;
+         }
+         this.tries = 0;
+         why = 'The server did not wake up in time. Give it a minute and try again.';
+       }
+       else if (/not found|no rooms|matchmake/i.test(m)) why = kind === 'join' ? 'No lobby with the code ' + code + '.' : 'Could not find a lobby.';
+       else if (/fetch|network|Failed/i.test(m)) { why = 'Lost the server. It may have gone back to sleep.'; this.status = 'off'; this.lastSeen = 0; }
+       // never show a raw page of server or gateway HTML
+       why = String(why).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 96) || 'The server refused that.';
        this.say(why, PAL.hp, 6);
        Sound.ui(false);
      });
@@ -17247,7 +17359,7 @@ const NET = {
     R.onMessage('back', m => Coop.peerDrop(m.slot, false));
     R.onMessage('left', m => Coop.peerLeft(m.slot));
     R.onMessage('note', m => Coop.onNote(m.from, m.n));
-    R.onMessage('pong', t => { const r = Date.now() - t; this.rtt = this.rtt ? this.rtt * 0.7 + r * 0.3 : r; });
+    R.onMessage('pong', t => { const r = Date.now() - t; this.rtt = this.rtt ? this.rtt * 0.7 + r * 0.3 : r; this.seen(); });
     R.onMessage('h', b => Coop.onHost(b));
     R.onMessage('f', b => Coop.onFull(b));
     for (let i = 0; i < MP_MAX; i++) {
@@ -20986,9 +21098,7 @@ Object.assign(UI, {
     drawSprite(c, body, bx, by, t * 1.4 + i, Math.min(1.2, h / 150), 1);
     drawSkinHalo(c, sk, bx, by, 19.5, t);
     if (pet && pet.form !== 'none' && h > 110) {
-      c.save(); c.globalCompositeOperation = 'lighter';
-      petShape(c, pet, bx + Math.cos(t * 0.9 + i) * 44, by + Math.sin(t * 0.9 + i) * 16, 0.95, t, 0, 0, 0, t + i);
-      c.restore();
+      drawPetPreview(c, pet, bx + Math.cos(t * 0.9 + i) * 44, by + Math.sin(t * 0.9 + i) * 16, t + i, 0.95);
     }
     const nsz = Math.min(15, w * 0.085);
     tracked(c, s.name, x + w / 2, y + h - 34, { size: nsz, weight: 900, align: 'center', color: col, glow: col, blur: 10, track: 1.6 });
@@ -21387,6 +21497,29 @@ document.addEventListener('visibilitychange', () => {
 
 
 /* ------------------------------------------------------------------ boot */
+/* Sprites are built the first time something needs one, which puts their cost
+   on the frame an enemy first appears -- the worst possible moment, and the
+   first of those frames measured 22 ms. Everything here is cheap and certain
+   to be wanted, so it is built while the boot screen is still up.
+   Bosses are deliberately left out: their sprites are large, only one shows up
+   per run, and a boss arrives on a banner and a horn, not mid-scramble. */
+function warmSprites() {
+  try {
+    const cols = new Set();
+    for (const id in ENEMY) { const d = ENEMY[id]; if (d && d.col) cols.add(d.col); }
+    for (const pt of PETS) if (pt.col) cols.add(pt.col);
+    for (const k in PAL) if (typeof PAL[k] === 'string' && PAL[k][0] === '#') cols.add(PAL[k]);
+    cols.add('#ffffff');
+    for (const col of cols) glowSprite(col);
+    for (const id in ENEMY) {
+      const d = ENEMY[id];
+      if (!d || d.boss || d.art || BOSS_BODY[id]) continue;   // rank and file only
+      enemySprite(d, false);
+      enemySprite(d, true);
+    }
+  } catch (e) { }
+}
+
 function boot() {
   G = Game;
   G.uiT = 0;
@@ -21426,6 +21559,7 @@ function boot() {
     };
   } catch (e) { }
   CG.init();
+  warmSprites();
   const bootEl = document.getElementById('boot');
   if (bootEl) bootEl.className = 'gone';
   requestAnimationFrame(frame);
