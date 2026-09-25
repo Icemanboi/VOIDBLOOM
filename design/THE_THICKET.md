@@ -16,10 +16,10 @@ hives, carnivorous plants, and things that hunt.
 
 | Galaxy | Difficulty | Opens when |
 |---|---|---|
-| THE SHALLOWS | Easy | always open *(built later)* |
+| THE SHALLOWS | Easy | always open |
 | THE GARDEN | Medium | always open *(the existing 12 worlds + EVENTIDE)* |
 | **THE THICKET** | **Hard** | **you put out THE SOWER at EVENTIDE** |
-| THE ROT | Impossible | you put down THE HUNTER at THE HEARTWOOD *(built later)* |
+| THE ROT | Impossible | you put down THE HUNTER at THE HEARTWOOD |
 
 - Existing saves keep everything: every world already taken stays taken in THE GARDEN,
   and anyone who has already beaten EVENTIDE finds THE THICKET open.

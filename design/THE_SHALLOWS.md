@@ -29,7 +29,7 @@ Nothing here reads your aim — your weapons fire themselves. Every lesson is ab
 | **THE SHALLOWS** | **Easy** | **always open** |
 | THE GARDEN | Medium | always open |
 | THE THICKET | Hard | you put out THE SOWER at EVENTIDE |
-| THE ROT | Impossible | you bring down THE HUNTER at THE HEARTWOOD *(built later)* |
+| THE ROT | Impossible | you bring down THE HUNTER at THE HEARTWOOD |
 
 - Relics from any galaxy can be equipped anywhere. The two-relic limit stays.
 - The Shallows' gauntlet draws from its own three wild bosses, plus the finales of
