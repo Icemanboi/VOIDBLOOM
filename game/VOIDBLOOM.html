@@ -2301,6 +2301,165 @@ const ENEMY = {
   hunter4: {
     id: 'hunter4', name: 'THE THORN', hp: 30000, spd: 150, dmg: 68, r: 34, xp: 900, score: 26000,
     col: '#ff2d55', ai: 'boss', mass: 40, kbres: 1, boss: true, bossKind: 'hunter', finale: true
+  },
+
+  /* ==== THE SHALLOWS. Slot for slot against the garden's (SHALLOWS_FAUNA),
+     so the director's curve holds -- only what turns up is different. ==== */
+  sprat: {
+    id: 'sprat', name: 'Sprat', hp: 17, spd: 80, dmg: 12, r: 14, xp: 1, score: 10,
+    col: '#bfe6ff', ai: 'chase', mass: 1, wobble: 1.6, face: true
+  },
+  krill: {
+    id: 'krill', name: 'Krill', hp: 8, spd: 146, dmg: 8, r: 9, xp: 1, score: 8,
+    col: '#ff9e8a', ai: 'chase', mass: 0.55, wobble: 2.6, face: true, noGun: true
+  },
+  scuttler: {
+    id: 'scuttler', name: 'Scuttler', hp: 96, spd: 56, dmg: 22, r: 24, xp: 4, score: 40,
+    col: '#ff7a4a', ai: 'scuttle', mass: 3.4, kbres: 0.72
+  },
+  archer: {
+    id: 'archer', name: 'Archerfish', hp: 30, spd: 64, dmg: 13, r: 16, xp: 3, score: 30,
+    col: '#ffd84a', ai: 'kite', keep: 260, fireCd: 2.3, bulletSpd: 300, bulletDmg: 11, mass: 1, aim: true
+  },
+  roe: {
+    id: 'roe', name: 'Roe', hp: 52, spd: 70, dmg: 14, r: 19, xp: 3, score: 32,
+    col: '#ffb070', ai: 'chase', mass: 1.5, splits: 4, splitDef: 'krill'
+  },
+  flounder: {
+    id: 'flounder', name: 'Flounder', hp: 70, spd: 90, dmg: 18, r: 18, xp: 4, score: 45,
+    col: '#e8c890', ai: 'flounder', mass: 1.1, dashSpd: 640
+  },
+  polyp: {
+    id: 'polyp', name: 'Polyp', hp: 60, spd: 30, dmg: 14, r: 20, xp: 3, score: 34,
+    col: '#ff8ad8', ai: 'polyp', mass: 2, kbres: 0.4, spawnsOnDeath: 2, spawnDef: 'jellet', fireCd: 3.6
+  },
+  jellet: {
+    id: 'jellet', name: 'Jellet', hp: 20, spd: 110, dmg: 10, r: 11, xp: 1, score: 10,
+    col: '#e0b8ff', ai: 'pulse', mass: 0.5, noGun: true
+  },
+  needlefish: {
+    id: 'needlefish', name: 'Needlefish', hp: 60, spd: 88, dmg: 22, r: 15, xp: 4, score: 46,
+    col: '#7af0d8', ai: 'dasher', mass: 1.1, dashCd: 1.8, dashSpd: 860
+  },
+  inkling: {
+    id: 'inkling', name: 'Inkling', hp: 56, spd: 76, dmg: 14, r: 17, xp: 4, score: 50,
+    col: '#9aa4ff', ai: 'inkling', keep: 290, fireCd: 3.4, mass: 1.1, aim: true
+  },
+  seahorse: {
+    id: 'seahorse', name: 'Seahorse', hp: 78, spd: 82, dmg: 16, r: 18, xp: 5, score: 62,
+    col: '#ffb84a', ai: 'seahorse', keep: 320, fireCd: 2.6, bulletSpd: 150, bulletDmg: 10, mass: 1.2, aim: true
+  },
+  grouper: {
+    id: 'grouper', name: 'Grouper', hp: 250, spd: 32, dmg: 30, r: 34, xp: 8, score: 95,
+    col: '#8ab4c8', ai: 'grouper', mass: 7, kbres: 0.95, fireCd: 5.0, aim: true
+  },
+  bristle: {
+    id: 'bristle', name: 'Bristling', hp: 24, spd: 96, dmg: 10, r: 11, xp: 1, score: 10,
+    col: '#d8a0ff', ai: 'chase', mass: 0.6, noGun: true
+  },
+  stararm: {
+    id: 'stararm', name: 'ARM', hp: 1, spd: 60, dmg: 14, r: 24, xp: 2, score: 60,
+    col: '#ff9a5c', ai: 'stararm', mass: 2, kbres: 0.6, noGun: true
+  },
+  /* ---- the shallows' elites ---- */
+  seaturtle: {
+    id: 'seaturtle', name: 'SEA TURTLE', hp: 1500, spd: 50, dmg: 31, r: 46, xp: 40, score: 500,
+    col: '#7ad89a', ai: 'turtle', mass: 9, kbres: 0.94, elite: true, fireCd: 2.8, bulletSpd: 220, bulletDmg: 13, turn: 1.2, plate: true
+  },
+  manowar: {
+    id: 'manowar', name: "MAN O' WAR", hp: 1800, spd: 46, dmg: 30, r: 42, xp: 40, score: 560,
+    col: '#b890ff', ai: 'manowar', mass: 8, kbres: 0.92, elite: true, fireCd: 3.2, bulletSpd: 200, bulletDmg: 12
+  },
+  lionfish: {
+    id: 'lionfish', name: 'LIONFISH', hp: 2200, spd: 54, dmg: 34, r: 44, xp: 46, score: 640,
+    col: '#ff6a52', ai: 'lionfish', mass: 10, kbres: 0.95, elite: true, fireCd: 2.4, bulletSpd: 230, bulletDmg: 13, aim: true
+  },
+  sailfish: {
+    id: 'sailfish', name: 'SAILFISH', hp: 1600, spd: 120, dmg: 33, r: 38, xp: 40, score: 600,
+    col: '#5ab8ff', ai: 'sailfish', mass: 6, kbres: 0.88, elite: true, dashCd: 2.6, dashSpd: 980
+  },
+  /* ---- the shallows' finales ---- */
+  hermit: {
+    id: 'hermit', name: 'THE HERMIT', hp: 26000, spd: 60, dmg: 36, r: 70, xp: 140, score: 3200,
+    col: '#f2d27a', ai: 'boss', mass: 30, kbres: 1, boss: true, bossKind: 'hermit'
+  },
+  bell: {
+    id: 'bell', name: 'THE BELL', hp: 27000, spd: 44, dmg: 36, r: 76, xp: 145, score: 3300,
+    col: '#b8d8ff', ai: 'boss', mass: 26, kbres: 1, boss: true, bossKind: 'bell'
+  },
+  bellbud: {
+    id: 'bellbud', name: 'A SMALL BELL', hp: 1, spd: 60, dmg: 28, r: 38, xp: 0, score: 0,
+    col: '#d8c8ff', ai: 'boss', mass: 12, kbres: 1, boss: true, bossKind: 'bellbud', art: true
+  },
+  eel: {
+    id: 'eel', name: 'THE EEL', hp: 28000, spd: 110, dmg: 38, r: 56, xp: 150, score: 3400,
+    col: '#6af07a', ai: 'boss', mass: 22, kbres: 1, boss: true, bossKind: 'eel'
+  },
+  urchin: {
+    id: 'urchin', name: 'THE URCHIN', hp: 29000, spd: 38, dmg: 38, r: 70, xp: 150, score: 3500,
+    col: '#c47cff', ai: 'boss', mass: 34, kbres: 1, boss: true, bossKind: 'urchin'
+  },
+  starfish: {
+    id: 'starfish', name: 'THE STARFISH', hp: 29000, spd: 42, dmg: 38, r: 78, xp: 150, score: 3500,
+    col: '#ff9a5c', ai: 'boss', mass: 34, kbres: 1, boss: true, bossKind: 'starfish'
+  },
+  maelstrom: {
+    id: 'maelstrom', name: 'THE MAELSTROM', hp: 31000, spd: 30, dmg: 40, r: 80, xp: 160, score: 3800,
+    col: '#4f9cff', ai: 'boss', mass: 60, kbres: 1, boss: true, bossKind: 'maelstrom'
+  },
+  mantis: {
+    id: 'mantis', name: 'THE MANTIS', hp: 30000, spd: 74, dmg: 42, r: 64, xp: 160, score: 3800,
+    col: '#ff5f9a', ai: 'boss', mass: 28, kbres: 1, boss: true, bossKind: 'mantis'
+  },
+  octopus: {
+    id: 'octopus', name: 'THE OCTOPUS', hp: 32000, spd: 40, dmg: 40, r: 72, xp: 165, score: 3900,
+    col: '#8a90ff', ai: 'boss', mass: 36, kbres: 1, boss: true, bossKind: 'octopus'
+  },
+  ray: {
+    id: 'ray', name: 'THE RAY', hp: 33000, spd: 90, dmg: 42, r: 84, xp: 170, score: 4100,
+    col: '#8af0ff', ai: 'boss', mass: 30, kbres: 1, boss: true, bossKind: 'ray'
+  },
+  nautilus: {
+    id: 'nautilus', name: 'THE NAUTILUS', hp: 36000, spd: 50, dmg: 42, r: 76, xp: 185, score: 4500,
+    col: '#f0d8b8', ai: 'boss', mass: 36, kbres: 1, boss: true, bossKind: 'nautilus'
+  },
+  clam: {
+    id: 'clam', name: 'THE CLAM', hp: 38000, spd: 26, dmg: 44, r: 84, xp: 200, score: 5000,
+    col: '#f4f0ff', ai: 'boss', mass: 60, kbres: 1, boss: true, bossKind: 'clam'
+  },
+  whale: {
+    id: 'whale', name: 'THE WHALE', hp: 40000, spd: 58, dmg: 46, r: 108, xp: 210, score: 5200,
+    col: '#2fd0b0', ai: 'boss', mass: 70, kbres: 1, boss: true, bossKind: 'whale'
+  },
+  /* ---- the shallows' wild bosses ---- */
+  gull: {
+    id: 'gull', name: 'THE GULL', hp: 24000, spd: 120, dmg: 36, r: 54, xp: 145, score: 3400,
+    col: '#e8eef8', ai: 'boss', mass: 18, kbres: 1, boss: true, bossKind: 'gull'
+  },
+  kingcrab: {
+    id: 'kingcrab', name: 'THE KING CRAB', hp: 28000, spd: 70, dmg: 40, r: 76, xp: 150, score: 3600,
+    col: '#ff5a3c', ai: 'boss', mass: 40, kbres: 1, boss: true, bossKind: 'kingcrab'
+  },
+  school: {
+    id: 'school', name: 'THE SCHOOL', hp: 26000, spd: 100, dmg: 36, r: 46, xp: 150, score: 3600,
+    col: '#c8f4ff', ai: 'boss', mass: 16, kbres: 1, boss: true, bossKind: 'school'
+  },
+  /* ---- THE MOTHER OF PEARL, at the bottom of MOONPOOL, in four bodies ---- */
+  pearl: {
+    id: 'pearl', name: 'THE MOTHER OF PEARL', hp: 23800, spd: 20, dmg: 50, r: 100, xp: 900, score: 26000,
+    col: '#dff0ff', ai: 'boss', mass: 60, kbres: 1, boss: true, bossKind: 'pearl', finale: true
+  },
+  pearl2: {
+    id: 'pearl2', name: 'THE TIDE', hp: 30000, spd: 70, dmg: 52, r: 86, xp: 900, score: 26000,
+    col: '#4fe8d8', ai: 'boss', mass: 60, kbres: 1, boss: true, bossKind: 'pearl', finale: true
+  },
+  pearl3: {
+    id: 'pearl3', name: 'THE PEARL', hp: 30000, spd: 60, dmg: 56, r: 70, xp: 900, score: 26000,
+    col: '#fff4fe', ai: 'boss', mass: 60, kbres: 1, boss: true, bossKind: 'pearl', finale: true
+  },
+  pearl4: {
+    id: 'pearl4', name: 'THE GRAIN', hp: 30000, spd: 150, dmg: 60, r: 28, xp: 900, score: 26000,
+    col: '#ffe0a0', ai: 'boss', mass: 40, kbres: 1, boss: true, bossKind: 'pearl', finale: true
   }
 };
 
@@ -2564,7 +2723,11 @@ const BOSS_ALT = {
   chrysalis: '#ffffff', chrysmoth: '#ffb3e6', pitcher: '#c8ff4a', strangler: '#b4ffd2', stanchor: '#b4ffd2',
   burl: '#ffe0a8', trapper: '#ffcf5a', amberwright: '#fff0b0', whitestag: '#ff5a7a', comb: '#fff4c0', combfrag: '#fff4c0',
   graft: '#ff9ef0', molt: '#e8fff4', pack: '#ffd0a0',
-  hunter: '#ffd06b', hunter2: '#e8ffe0', hunter3: '#ffe8b0', hunter4: '#ffffff'
+  hunter: '#ffd06b', hunter2: '#e8ffe0', hunter3: '#ffe8b0', hunter4: '#ffffff',
+  hermit: '#ff9a6a', bell: '#ff9ecf', bellbud: '#ff9ecf', eel: '#e8ff8a', urchin: '#ff9ad0', starfish: '#ffe0c8',
+  maelstrom: '#e0f4ff', mantis: '#8affd8', octopus: '#ff9ecf', ray: '#ffffff', nautilus: '#ff9a5c', clam: '#ff9ecf',
+  whale: '#d0fff4', gull: '#ffd24a', kingcrab: '#ffd0a0', school: '#ffe27a',
+  pearl: '#ff9ecf', pearl2: '#ffffff', pearl3: '#8af0ff', pearl4: '#ff9a5c'
 };
 
 const BOSS_BODY = Object.create(null);
@@ -4349,7 +4512,7 @@ function enemySprite(def, hurt) {
         break;
       }
       default: {
-        const TS = THICKET_SPRITE[def.id];
+        const TS = THICKET_SPRITE[def.id] || SHALLOWS_SPRITE[def.id];
         if (TS) TS(c, R, col, core, hurt, o);
       }
     }
@@ -4836,6 +4999,9 @@ const MASTERY = [
   { id: 'heartwood', name: 'HEARTWOOD', mastery: 'heartwood', req: 'BRING DOWN THE HUNTER', short: 'THE HEARTWOOD',
     col: '#ff7a3c', ring: '#ffd06b', core: '#fff0c4', halo: 6, haloCol: '#ff9a5c', pulse: true,
     blurb: 'Bark grown round a heart that is still beating. It was the hunter\u2019s.' },
+  { id: 'nacre', name: 'NACRE', mastery: 'moonpool', req: 'BRING UP THE PEARL', short: 'MOONPOOL',
+    col: '#dff0ff', ring: '#ff9ecf', core: '#ffffff', halo: 6, haloCol: '#8af0ff', pulse: true, rainbow: true,
+    blurb: 'The lining of the shell. It shows every colour at once, and none of them for long.' },
   /* secret: hidden from the wardrobe entirely until a code puts it there */
   { id: 'dayzero', name: 'DAY ZERO', mastery: 'code', req: 'A CODE', short: 'A CODE', secret: true,
     col: '#9ef7ff', ring: '#ff7ae6', core: '#ffffff', halo: 10, haloCol: '#9ef7ff', pulse: true, oil: true,
@@ -4868,7 +5034,8 @@ const PETS = [
   { id: 'bloomling',name: 'BLOOMLING',  price: -1, col: '#ff4fd8', form: 'bloomling',req: 'bloom25',  reqText: 'Kill THE BLOOM twenty-five times',   blurb: 'It opens a little wider with every streak.' },
   { id: 'tidewalker',name:'TIDEWALKER', price: -1, col: '#8affd8', form: 'tide',     req: 'tide25',   reqText: 'Reach tide 25 in ENDLESS',          blurb: 'A drop of deep water with your face in it.' },
   { id: 'daybreak', name: 'DAYBREAK',   price: -1, col: '#ffd166', form: 'daybreak', req: 'daily10',  reqText: 'Clear ten daily challenges',         blurb: 'A small sun that keeps real hours.' },
-  { id: 'fawn',     name: 'FAWN',       price: -1, col: '#ffcf9a', form: 'fawn',     req: 'thk_core', reqText: 'Bring down THE HUNTER in THE HEARTWOOD', blurb: 'It came out of the heartwood after you, and it has not left.' }
+  { id: 'fawn',     name: 'FAWN',       price: -1, col: '#ffcf9a', form: 'fawn',     req: 'thk_core', reqText: 'Bring down THE HUNTER in THE HEARTWOOD', blurb: 'It came out of the heartwood after you, and it has not left.' },
+  { id: 'seedpearl', name: 'SEED PEARL', price: -1, col: '#dff0ff', form: 'seedpearl', req: 'shl_core', reqText: 'Bring up the pearl from MOONPOOL', blurb: 'A pearl no bigger than a seed, in half a shell. It catches every light there is.' }
 ];
 const PET_BY_ID = Object.create(null);
 for (const pt of PETS) PET_BY_ID[pt.id] = pt;
@@ -5187,6 +5354,163 @@ const HEARTWOOD = {
 EVENTIDE.core = true; EVENTIDE.coreBoss = 'sower'; EVENTIDE.gal = 'garden';
 for (const pl of PLANETS) pl.gal = 'garden';
 for (const pl of THICKET_PLANETS) pl.gal = 'thicket';
+HEARTWOOD.coreType = 24;
+HEARTWOOD.descent = 'INTO THE HEARTWOOD'; HEARTWOOD.soloLine = 'SOMETHING IN HERE IS BREATHING';
+HEARTWOOD.where = 'where every path in the thicket ends'; HEARTWOOD.rule = 'Nothing else lives in here.';
+HEARTWOOD.loseHead = 'THE WOODS KEPT YOU'; HEARTWOOD.loseSub = 'it is still beating, somewhere under the bark';
+HEARTWOOD.winHead = 'THE HUNT IS OVER'; HEARTWOOD.winSub = 'you walked out of the woods. the woods did not';
+
+/* ========================================================================
+   THE SHALLOWS  --  the EASY galaxy, and the one a new player starts in.
+   The warm edge of the sea: tide pools, kelp, coral, shells and jellies.
+   Every finale is built round one idea, shown plainly and warned long,
+   so by its core you have learned what the harder galaxies will ask.
+   ======================================================================== */
+const SHALLOWS_PLANETS = [
+  { id:'sandbar', name:'SANDBAR', threat:1, col:'#f2d27a', mx:418, my:436,
+    finale:'hermit', finaleNow:'hermit', relic:'spareshell', relicName:'SPARE SHELL',
+    relicDesc:'Once a minute, a hit that would take a quarter of your health is blocked. Move speed −8%.',
+    loc:['Sprat','Krill','Scuttler'], flav:'It comes out when it thinks you have gone.',
+    roster:{ sprat:3.0, krill:2.6, scuttler:2.2, archer:0.3, roe:0.4, polyp:0.3, grouper:0 },
+    body:{ base:'#b8944a', dark:'#2e2410', light:'#fff2c8', feat:'sand', moons:0 },
+    sky:{ bg0:'#100d06', bg1:'#1a160b', ring:'rgba(242,210,122,0.10)', spokes:8, gap:380,
+          wall:'rgba(242,214,130,0.55)', wallCore:'rgba(255,246,220,0.55)', wash:'rgba(120,96,40,0.20)' } },
+
+  { id:'glasswater', name:'GLASSWATER', threat:1, col:'#a8d8ff', mx:596, my:262,
+    finale:'bell', finaleNow:'bell', relic:'stinger', relicName:'STINGER',
+    relicDesc:'Enemies that touch you are stung and burn for 3s. Max HP −10%.',
+    loc:['Polyp','Jellet','Sprat'], flav:'Clear enough to see the bottom. Clear enough to miss what is in it.',
+    roster:{ polyp:3.0, sprat:2.4, krill:1.4, archer:0.4, roe:0.3, grouper:0 },
+    body:{ base:'#5a7cb8', dark:'#0e1628', light:'#eef6ff', feat:'jelly', moons:1 },
+    sky:{ bg0:'#070b14', bg1:'#0d1422', ring:'rgba(168,216,255,0.10)', spokes:10, gap:420,
+          wall:'rgba(168,216,255,0.55)', wallCore:'rgba(236,246,255,0.55)', wash:'rgba(50,90,150,0.20)' } },
+
+  { id:'kelpwood', name:'KELPWOOD', threat:2, col:'#5fe07a', mx:296, my:214,
+    finale:'eel', finaleNow:'eel', relic:'static', relicName:'STATIC',
+    relicDesc:'Every 4th hit arcs to a second enemy nearby for half damage. Fire rate −10%.',
+    loc:['Needlefish','Seahorse','Sprat'], flav:'The forest hums when the eel is home.',
+    roster:{ needlefish:3.0, seahorse:2.6, sprat:1.6, scuttler:0.5, krill:0.6, grouper:0 },
+    body:{ base:'#2f7a3c', dark:'#0a200e', light:'#c8ffd0', feat:'kelp', moons:0 },
+    sky:{ bg0:'#050f08', bg1:'#0b180f', ring:'rgba(95,224,122,0.10)', spokes:12, gap:400,
+          wall:'rgba(95,230,130,0.55)', wallCore:'rgba(220,255,226,0.55)', wash:'rgba(30,100,50,0.20)' } },
+
+  { id:'urchinflats', name:'URCHIN FLATS', threat:2, col:'#c47cff', mx:704, my:446,
+    finale:'urchin', finaleNow:'urchin', relic:'spineback', relicName:'SPINEBACK',
+    relicDesc:'Being hit throws eight spines out of you. You take +10% damage.',
+    loc:['Scuttler','Archerfish','Roe'], flav:'Every spine is a promise.',
+    roster:{ scuttler:3.0, archer:2.6, roe:2.2, sprat:0.6, krill:0.6, grouper:0 },
+    body:{ base:'#6a3496', dark:'#180a24', light:'#f0d8ff', feat:'spines', moons:0 },
+    sky:{ bg0:'#0e0714', bg1:'#170c20', ring:'rgba(196,124,255,0.10)', spokes:12, gap:380,
+          wall:'rgba(196,130,255,0.55)', wallCore:'rgba(244,230,255,0.55)', wash:'rgba(100,40,140,0.20)' } },
+
+  { id:'starfall', name:'STARFALL', threat:2, col:'#ff9a5c', mx:516, my:566,
+    finale:'starfish', finaleNow:'starfish', relic:'regrowth', relicName:'REGROWTH',
+    relicDesc:'Regain 2 HP a second while no enemy is within 250px. Max HP −10%.',
+    loc:['Krill','Flounder','Roe'], flav:'Cut it in five and you have five of it.',
+    roster:{ krill:3.0, flounder:2.6, roe:2.2, sprat:0.6, scuttler:0.4, grouper:0 },
+    body:{ base:'#b0542a', dark:'#2c1006', light:'#ffe0c8', feat:'star', moons:0 },
+    sky:{ bg0:'#120805', bg1:'#1c0e08', ring:'rgba(255,154,92,0.10)', spokes:5, gap:400,
+          wall:'rgba(255,160,100,0.55)', wallCore:'rgba(255,236,222,0.55)', wash:'rgba(140,60,24,0.20)' } },
+
+  { id:'thewhirl', name:'THE WHIRL', threat:3, col:'#3f8cff', mx:176, my:384,
+    finale:'maelstrom', finaleNow:'maelstrom', relic:'undertow', relicName:'UNDERTOW',
+    relicDesc:'Pickup radius +100%. Enemies move 8% faster.',
+    loc:['Inkling','Needlefish','Sprat'], flav:'Everything here is on its way to the middle.',
+    roster:{ inkling:3.0, needlefish:2.6, sprat:2.0, seahorse:0.4, krill:0.8, grouper:0 },
+    body:{ base:'#1f4c9a', dark:'#060e22', light:'#d6e6ff', feat:'whirl', moons:0 },
+    sky:{ bg0:'#050912', bg1:'#0a1120', ring:'rgba(63,140,255,0.11)', spokes:0, gap:440,
+          wall:'rgba(80,150,255,0.58)', wallCore:'rgba(220,236,255,0.58)', wash:'rgba(20,60,140,0.22)' } },
+
+  { id:'smashingreef', name:'SMASHING REEF', threat:3, col:'#ff5f9a', mx:822, my:248,
+    finale:'mantis', finaleNow:'mantis', relic:'clubstrike', relicName:'CLUBSTRIKE',
+    relicDesc:'Your dash strikes what it passes through for heavy damage. Dash cooldown +20%.',
+    loc:['Scuttler','Flounder','Archerfish'], flav:'You will hear it before you see it.',
+    roster:{ scuttler:2.6, flounder:2.6, archer:2.2, sprat:0.5, krill:0.6, grouper:0 },
+    body:{ base:'#a82a5a', dark:'#2a0616', light:'#ffd6e6', feat:'reef', moons:1 },
+    sky:{ bg0:'#12050a', bg1:'#1c0a12', ring:'rgba(255,95,154,0.10)', spokes:8, gap:380,
+          wall:'rgba(255,100,160,0.55)', wallCore:'rgba(255,228,238,0.55)', wash:'rgba(140,24,70,0.20)' } },
+
+  { id:'inkwell', name:'INKWELL', threat:3, col:'#7a86ff', mx:344, my:598,
+    finale:'octopus', finaleNow:'octopus', relic:'inksac', relicName:'INKSAC',
+    relicDesc:'Being hit clears enemy bullets within 180px. Max HP −10%.',
+    loc:['Inkling','Seahorse','Grouper'], flav:'Eight arms, and it knows where all of them are.',
+    roster:{ inkling:2.6, seahorse:2.6, grouper:2.0, sprat:0.5, krill:0.6 },
+    body:{ base:'#2e3478', dark:'#07081c', light:'#dcdcff', feat:'ink', moons:0 },
+    sky:{ bg0:'#06060f', bg1:'#0c0c1a', ring:'rgba(122,134,255,0.10)', spokes:8, gap:420,
+          wall:'rgba(130,140,255,0.55)', wallCore:'rgba(230,232,255,0.55)', wash:'rgba(40,44,130,0.22)' } },
+
+  { id:'reaches', name:'THE REACHES', threat:4, col:'#8af0ff', mx:486, my:108,
+    finale:'ray', finaleNow:'ray', relic:'glide', relicName:'GLIDE',
+    relicDesc:'Take 15% less damage while moving. Take 15% more while standing still.',
+    loc:['Needlefish','Flounder','Seahorse','Archerfish'], flav:'A shadow first. Then the wind of it passing.',
+    roster:{ needlefish:2.2, flounder:2.2, seahorse:2.0, archer:2.0, grouper:1.2, sprat:0.5 },
+    body:{ base:'#3a8ea6', dark:'#08202a', light:'#e6fcff', feat:'wake', moons:0 },
+    sky:{ bg0:'#050c10', bg1:'#0a161c', ring:'rgba(138,240,255,0.09)', spokes:12, gap:480,
+          wall:'rgba(140,236,255,0.55)', wallCore:'rgba(230,252,255,0.58)', wash:'rgba(40,120,150,0.20)' } },
+
+  { id:'nautilusshelf', name:'NAUTILUS SHELF', threat:5, col:'#f0d8b8', mx:902, my:520,
+    finale:'nautilus', finaleNow:'nautilus', relic:'buoyancy', relicName:'BUOYANCY',
+    relicDesc:'Levels come 12% faster. Enemies have +10% health.',
+    loc:['Seahorse','Grouper','Polyp'], flav:'It goes deeper every time you find it.',
+    roster:{ seahorse:2.6, grouper:2.2, polyp:2.0, sprat:0.6, needlefish:0.6 },
+    body:{ base:'#a08462', dark:'#281e12', light:'#fff4e2', feat:'spiral', moons:0 },
+    sky:{ bg0:'#100d09', bg1:'#1a150f', ring:'rgba(240,216,184,0.10)', spokes:9, gap:440,
+          wall:'rgba(240,220,190,0.55)', wallCore:'rgba(255,250,240,0.58)', wash:'rgba(120,96,64,0.20)' } },
+
+  { id:'pearlbeds', name:'PEARL BEDS', threat:5, col:'#f4f0ff', mx:110, my:150, press:1,
+    finale:'clam', finaleNow:'clam', relic:'orbpearl', relicName:'PEARL',
+    relicDesc:'A pearl circles you and eats one enemy bullet every 2s. Pickup radius −20%.',
+    loc:['Every type','at full rate'], flav:'It has one treasure, and it throws it at you.',
+    roster:{},
+    body:{ base:'#b8b2c8', dark:'#26222e', light:'#ffffff', feat:'nacre', moons:0 },
+    sky:{ bg0:'#0c0b10', bg1:'#15131b', ring:'rgba(244,240,255,0.09)', spokes:6, gap:460,
+          wall:'rgba(240,236,255,0.58)', wallCore:'rgba(255,255,255,0.6)', wash:'rgba(100,96,130,0.18)' } },
+
+  { id:'whalefall', name:'WHALEFALL', threat:5, col:'#2fd0b0', mx:98, my:548, press:1,
+    finale:'whale', finaleNow:'whale', relic:'sonar', relicName:'SONAR',
+    relicDesc:'Every 10s, a pulse pushes back everything within 260px. Dash cooldown +25%.',
+    loc:['Every type','at full rate'], flav:'It sings the whole sea awake.',
+    roster:{},
+    body:{ base:'#1a7a6a', dark:'#051c18', light:'#d0fff4', feat:'song', moons:0 },
+    sky:{ bg0:'#040e0c', bg1:'#081814', ring:'rgba(47,208,176,0.10)', spokes:0, gap:520,
+          wall:'rgba(60,214,184,0.58)', wallCore:'rgba(220,255,246,0.58)', wash:'rgba(16,110,90,0.22)' } }
+];
+
+/* THE TIDE KEY: nothing stored -- a piece is held by holding its world */
+const SHALLOWS_KEYS = [
+  { id: 'spiral', name: 'THE SPIRAL', from: 'nautilusshelf', col: '#f0d8b8',
+    line: 'Every chamber it ever lived in, one inside the next.' },
+  { id: 'nacre',  name: 'THE NACRE',  from: 'pearlbeds',     col: '#f4f0ff',
+    line: 'The lining of the shell. It shows you every colour at once.' },
+  { id: 'song',   name: 'THE SONG',   from: 'whalefall',     col: '#2fd0b0',
+    line: 'You cannot hold a song. You are holding this one.' }
+];
+
+/* MOONPOOL -- the thing at the middle of THE SHALLOWS: a moon, sunk to the
+   bottom of a pool, and something grown round it the way a pearl grows */
+const MOONPOOL = {
+  id: 'moonpool', name: 'MOONPOOL', threat: 6, col: '#bfe8ff', mx: 500, my: 345,
+  finale: 'pearl', finaleNow: 'pearl',
+  relic: null, relicName: null,
+  loc: [], flav: 'A moon, sunk to the bottom of a pool. The tide still answers it.',
+  solo: true, core: true, coreBoss: 'pearl', gal: 'shallows', coreType: 37,
+  descent: 'DOWN TO THE MOONPOOL', soloLine: 'THE WATER IS VERY STILL',
+  where: 'where every tide turns', rule: 'Nothing else swims down here.',
+  loseHead: 'THE TIDE TOOK YOU', loseSub: 'it is patient. it has all the time the moon has',
+  winHead: 'THE MOONPOOL IS STILL', winSub: 'you took the pearl, and left the moon where it lies',
+  roster: {},
+  body: { base: '#6a8aa8', dark: '#0a1420', light: '#ffffff', feat: 'moon', moons: 0 },
+  sky: { bg0: '#04080e', bg1: '#08101a', ring: 'rgba(191,232,255,0.10)', spokes: 0, gap: 520,
+         wall: 'rgba(191,232,255,0.6)', wallCore: 'rgba(255,255,255,0.62)', wash: 'rgba(40,80,120,0.22)' }
+};
+for (const pl of SHALLOWS_PLANETS) pl.gal = 'shallows';
+
+/* the shallows' own rank and file, slot for slot against the garden's */
+const SHALLOWS_FAUNA = {
+  drifter: 'sprat', swarmer: 'krill', bulwark: 'scuttler', spitter: 'archer', splitter: 'roe',
+  wraith: 'flounder', howler: 'polyp', lancer: 'needlefish', hexer: 'inkling', weaver: 'seahorse', monolith: 'grouper',
+  warden: 'seaturtle', harbinger: 'manowar', sentinel: 'lionfish', carver: 'sailfish'
+};
 
 /* the thicket's own rank and file, slot for slot against the garden's, so
    the director's timings, surges and elite rotation all carry across */
@@ -5203,12 +5527,17 @@ const THICKET_FAUNA = {
    The two not yet charted are shown on the ring and cannot be entered.
    ------------------------------------------------------------------------ */
 const GALAXIES = [
-  { id: 'shallows', name: 'THE SHALLOWS', diff: 'easy', col: '#8dff6b', built: false },
+  { id: 'shallows', name: 'THE SHALLOWS', diff: 'easy', col: '#4fe8d8', built: true,
+    planets: SHALLOWS_PLANETS, core: MOONPOOL, keys: SHALLOWS_KEYS, wild: ['gull', 'kingcrab', 'school'],
+    fauna: SHALLOWS_FAUNA, typeBase: 25, loseSub: 'the tide takes everything back',
+    // seafoam, sun on the water, coral, the bright crossing, and a deep green floor
+    neb: [[0.08, 0.52, 0.50], [0.95, 0.80, 0.40], [0.95, 0.40, 0.46], [0.80, 1.00, 0.96], [0.04, 0.16, 0.18]] },
   { id: 'garden', name: 'THE GARDEN', diff: 'medium', col: '#7ee8ff', built: true,
-    planets: PLANETS, core: EVENTIDE, keys: KEYS, wild: WILD_BOSSES, fauna: null, typeBase: 0, neb: null },
+    planets: PLANETS, core: EVENTIDE, keys: KEYS, wild: WILD_BOSSES, fauna: null, typeBase: 0, neb: null,
+    loseSub: 'the garden takes everything eventually' },
   { id: 'thicket', name: 'THE THICKET', diff: 'hard', col: '#ffd166', built: true, needs: 'garden',
     planets: THICKET_PLANETS, core: HEARTWOOD, keys: THICKET_KEYS, wild: ['graft', 'molt', 'pack'],
-    fauna: THICKET_FAUNA, typeBase: 12,
+    fauna: THICKET_FAUNA, typeBase: 12, loseSub: 'the thicket closes over everything',
     // the nebula's three sheets and where they cross: moss, amber, blood, and a hot core
     neb: [[0.10, 0.46, 0.10], [0.86, 0.44, 0.05], [0.95, 0.16, 0.10], [1.00, 0.86, 0.56], [0.22, 0.15, 0.07]] },
   { id: 'rot', name: 'THE ROT', diff: 'impossible', col: '#ff4d6d', built: false, needs: 'thicket' }
@@ -5220,8 +5549,10 @@ function galOf(pl) { return GAL_BY_ID[(pl && pl.gal) || 'garden'] || GAL_BY_ID.g
 const PLANET_BY_ID = Object.create(null);
 for (const pl of PLANETS) PLANET_BY_ID[pl.id] = pl;
 for (const pl of THICKET_PLANETS) PLANET_BY_ID[pl.id] = pl;
+for (const pl of SHALLOWS_PLANETS) PLANET_BY_ID[pl.id] = pl;
 PLANET_BY_ID[EVENTIDE.id] = EVENTIDE;
 PLANET_BY_ID[HEARTWOOD.id] = HEARTWOOD;
+PLANET_BY_ID[MOONPOOL.id] = MOONPOOL;
 
 /* ------------------------------------------------------------------------
    COVENANTS  --  Act II only. Your build is finished by now; these are the
@@ -5254,7 +5585,7 @@ const OG_RULES = [
 ];
 
 const RELIC_BY_ID = Object.create(null);
-const ALL_WORLDS = PLANETS.concat(THICKET_PLANETS);
+const ALL_WORLDS = PLANETS.concat(THICKET_PLANETS, SHALLOWS_PLANETS);
 for (const pl of ALL_WORLDS) RELIC_BY_ID[pl.relic] = { id: pl.relic, name: pl.relicName, desc: pl.relicDesc, col: pl.col, from: pl.name, gal: pl.gal };
 const RELIC_IDS = ALL_WORLDS.map(pl => pl.relic);
 const MAX_RELICS = 2;
@@ -5262,7 +5593,8 @@ const MAX_RELICS = 2;
 const Conquest = {
   d() {
     const s = Save.data;
-    if (!s.conquest) s.conquest = {};
+    // a new player starts in THE SHALLOWS; a save from before the galaxies stays in THE GARDEN
+    if (!s.conquest) s.conquest = { gal: 'shallows' };
     const q = s.conquest;
     if (!q.gal) q.gal = 'garden';
     if (!q.conquered) q.conquered = {};
@@ -5833,6 +6165,22 @@ function paintSkin(c, sk, R, t) {
       neon(c, x => pathBlob(x, R * 0.72, 9, 0.12, 77), col, { lw: 2.6, blur: 20, core: 'rgba(24,8,2,0.92)' });
       for (let i = 0; i < 2; i++) neon(c, x => pathBlob(x, R * (0.32 + i * 0.18), 8, 0.2, 90 + i), '#e8b27a', { lw: 0.9, blur: 6, core: null, inner: false });
       neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.16, 0, TAU); }, '#fff0c4', { lw: 1.6, blur: 18, core: 'rgba(255,200,120,0.85)' });
+      break;
+    }
+
+    case 'nacre': {
+      // a pearl in its half shell: ribs fanned behind, every colour on the orb
+      for (let i = 0; i < 7; i++) {
+        const a = Math.PI + (i - 3) * 0.36;
+        neon(c, x => { x.beginPath(); x.moveTo(0, R * 0.2); x.quadraticCurveTo(Math.cos(a - 0.12) * R * 1.1, Math.sin(a - 0.12) * R * 1.1 + R * 0.2, Math.cos(a) * R * 1.3, Math.sin(a) * R * 1.3 + R * 0.2); }, i % 2 ? sk.ring : '#8af0ff', { lw: 1.6, blur: 12, core: null, inner: false });
+      }
+      neon(c, x => { x.beginPath(); x.arc(0, R * 0.2, R * 1.3, Math.PI * 1.05, Math.PI * 1.95); }, '#ffffff', { lw: 2, blur: 14, core: null, inner: false });
+      neon(c, x => { x.beginPath(); x.arc(0, -R * 0.05, R * 0.62, 0, TAU); }, col, { lw: 2.6, blur: 20, core: 'rgba(40,40,60,0.9)' });
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.6;
+        neon(c, x => { x.beginPath(); x.arc(0, -R * 0.05, R * (0.3 + i * 0.07), a, a + 1.3); }, ['#ff9ecf', '#8af0ff', '#ffe27a', '#c9a3ff'][i], { lw: 1.6, blur: 8, core: null, inner: false });
+      }
+      neon(c, x => { x.beginPath(); x.arc(-R * 0.2, -R * 0.25, R * 0.12, 0, TAU); }, '#ffffff', { lw: 1.4, blur: 14, core: 'rgba(255,255,255,0.9)' });
       break;
     }
 
@@ -6833,6 +7181,17 @@ function petShape(c, pet, x, y, alpha, face, flinch, spin, bright, t) {
         i ? cc.lineTo(px, py) : cc.moveTo(px, py);
       }
     }, '#d6fff2', thin(8));
+
+  } else if (f === 'seedpearl') {
+    // half a shell, and a pearl in it that keeps changing colour
+    for (let i = 0; i < 5; i++) {
+      const a = Math.PI * 0.5 + (i - 2) * 0.42;
+      neon(c, cc => { cc.beginPath(); cc.moveTo(0, -R * 0.1); cc.lineTo(Math.cos(a) * R * 1.1, Math.sin(a) * R * 1.1 - R * 0.1); }, col, thin(7));
+    }
+    neon(c, cc => { cc.beginPath(); cc.arc(0, -R * 0.1, R * 1.1, Math.PI * 0.08, Math.PI * 0.92); cc.closePath(); }, col, lw);
+    const hue = ['#ff9ecf', '#8af0ff', '#ffe27a', '#c9a3ff'][Math.floor(t * 0.8) % 4];
+    neon(c, cc => { cc.beginPath(); cc.arc(0, -R * 0.2, R * 0.46, 0, TAU); }, hue, { lw: 1.6, blur: 14, core: 'rgba(240,240,255,0.55)' });
+    neon(c, cc => { cc.beginPath(); cc.arc(-R * 0.14, -R * 0.36, R * 0.12, 0, TAU); }, '#ffffff', thin(10));
 
   } else if (f === 'fawn') {
     // big ears, bigger eyes, and the spots it has not lost yet
@@ -8719,6 +9078,7 @@ const HIT = {
   ring: { src: 'ring', boss: 1 }, link: { src: 'link', boss: 1 },
   lash: { src: 'lash' }, snip: { src: 'snip', boss: 1 }, acid: { src: 'acid', boss: 1 }, snare: { src: 'snare' },
   bramble: { src: 'bramble' }, bait: { src: 'bait', boss: 1 },
+  sweep: { src: 'sweep', boss: 1 }, beam: { src: 'beam', boss: 1 }, pearl: { src: 'pearl', boss: 1 }, current: { src: 'current', boss: 1 },
   contact: { contact: true, src: 'contact' }, bossContact: { contact: true, src: 'contact', boss: 1 }
 };
 class EBullet {
@@ -13309,12 +13669,15 @@ Thicket.boss = {
 };
 
 /* THE HUNTER's four bodies, sized and paced like THE SOWER's */
+// every core's boss is a four-body fight; each registers its bodies here by kind
+const CORE_FORMS = Object.create(null);
 const HUNTER_FORMS = [
   { def: 'hunter',  hp: 0.46, title: 'I · THE HUNTER', line: 'It learned to hunt from everything you killed.', t: 240, arena: 1240 },
   { def: 'hunter2', hp: 1.58, title: 'II · THE HEDGE', line: 'There is no way out it did not plant.',         t: 380, arena: 1180 },
   { def: 'hunter3', hp: 0.88, title: 'III · THE ROOT', line: 'It goes down further than you do.',            t: 510, arena: 1100 },
   { def: 'hunter4', hp: 1.35, title: 'IV · THE THORN', line: 'Every rose you ever reached for.',             t: 630, arena: 980 }
 ];
+CORE_FORMS.hunter = HUNTER_FORMS;
 
 /* ---- the thicket's bigger machines, kept out of the table above ---- */
 Thicket.snip = function (e, a, open, col) {
@@ -14946,6 +15309,2377 @@ BOSS_LIVE.hunter4 = {
   }
 };
 
+
+/* ---- the galaxies' own runtimes hang off THE THICKET's. Each may add
+   reset, tick, relicTick, hurt (a hit on you, before it lands), hitMul,
+   onKill, formChange, touched, hud, drawUnder and drawOver. ---- */
+Thicket.mods = [];
+(() => {
+  const T = Thicket, M = T.mods;
+  const chain = (name, mk) => { const base = T[name]; T[name] = mk(base); };
+  chain('reset', b => function () { b.call(T); for (const m of M) if (m.reset) m.reset(); });
+  chain('tick', b => function (dt) { b.call(T, dt); for (const m of M) if (m.tick) m.tick(dt); });
+  chain('relicTick', b => function (dt) { b.call(T, dt); for (const m of M) if (m.relicTick) m.relicTick(dt); });
+  chain('bark', b => function (n) { n = b.call(T, n); for (const m of M) if (m.hurt && n > 0) n = m.hurt(n); return n; });
+  chain('hitMul', b => function (e, dmg, o) { dmg = b.call(T, e, dmg, o); for (const m of M) if (m.hitMul) dmg = m.hitMul(e, dmg, o || {}); return dmg; });
+  chain('onKill', b => function (e) { b.call(T, e); for (const m of M) if (m.onKill) m.onKill(e); });
+  chain('formChange', b => function (e) { b.call(T, e); for (const m of M) if (m.formChange) m.formChange(e); });
+  chain('touched', b => function (e) { b.call(T, e); for (const m of M) if (m.touched) m.touched(e); });
+  chain('hud', b => function (c, hs, ty) { b.call(T, c, hs, ty); for (const m of M) if (m.hud) m.hud(c, hs, ty); });
+  chain('drawUnder', b => function (c, x0, y0, x1, y1) { b.call(T, c, x0, y0, x1, y1); for (const m of M) if (m.drawUnder) m.drawUnder(c, x0, y0, x1, y1); });
+  chain('drawOver', b => function (c) { b.call(T, c); for (const m of M) if (m.drawOver) m.drawOver(c); });
+})();
+GAL_BY_ID.thicket.mod = Thicket;
+
+/* ========================================================================
+   THE SHALLOWS -- the easy galaxy's runtime. It rides on THE THICKET's:
+   the same dispatch tables (Thicket.ai, .boss, .drawE) and the same
+   per-frame hooks, through Thicket.mods. What is new lives here: arms that
+   sweep, pearls that ricochet, posts that carry current, and twelve relics.
+   ======================================================================== */
+const Shallows = {
+  arms: [], pearls: [], posts: [],
+  staticN: 0, sonarT: 0, orbA: 0, orbT: 0, shellT: -99, clubHit: null, regrowT: 0,
+
+  reset() {
+    this.arms.length = 0; this.pearls.length = 0; this.posts.length = 0;
+    this.staticN = 0; this.sonarT = 0; this.orbA = 0; this.orbT = 0; this.shellT = -99;
+    this.clubHit = null; this.regrowT = 0;
+  },
+  formChange(e) { this.arms.length = 0; this.pearls.length = 0; this.posts.length = 0; },
+
+  /* ------------------------------------------------------------ the systems */
+  // an arm (or a beam) laid out from a body, warned, then swept round
+  arm(src, a, len, w, o) {
+    const A = Object.assign({ src: src, a: a, len: len, w: w, spin: 0.5, tele: 1.2, life: 6, dmg: 20, col: src.def.col,
+      kind: 'arm', hitT: 0, max: 0 }, o || {});
+    A.tele = G.bossTele(A.tele); A.max = A.life + A.tele;
+    this.arms.push(A);
+    return A;
+  },
+  // a pearl thrown to ricochet round the arena and come home
+  pearl(src, a, o) {
+    const P = Object.assign({ src: src, x: src.x + Math.cos(a) * src.r, y: src.y + Math.sin(a) * src.r, spd: 380, r: 20,
+      bounces: 3, mode: 'out', home: 0, dmg: 26, col: '#ffffff', trail: false, trailT: 0, hitT: 0 }, o || {});
+    P.vx = Math.cos(a) * P.spd; P.vy = Math.sin(a) * P.spd;
+    this.pearls.push(P);
+    Sound.shoot('nova');
+    return P;
+  },
+  // posts that hold the eel's current
+  plant(src, n, rad) {
+    const p = G.player;
+    this.posts.length = 0;
+    const off = rnd(TAU);
+    for (let i = 0; i < n; i++) {
+      const a = off + i / n * TAU + rnd(-0.2, 0.2);
+      const q = Thicket.inArena(p.x + Math.cos(a) * rad, p.y + Math.sin(a) * rad, 80);
+      this.posts.push({ x: q[0], y: q[1], src: src, t: 0 });
+      Particles.ring(q[0], q[1], 4, 60, { col: src.def.col, life: 0.5, w: 4 });
+    }
+  },
+  // current between two points: a hum, then it fires
+  current(src, x1, y1, x2, y2, tl, o) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len < 20) return;
+    tl = G.bossTele(tl);
+    G.fx.push({ t: 'tele', x: x1, y: y1, a: Math.atan2(y2 - y1, x2 - x1), len: len, w: 26, life: tl + 0.34, max: tl + 0.34,
+      col: src.def.col, src: null, fired: false, dmg: 22, hit: HIT.current, onHit: () => { src.shocked = 1; }, ...(o || {}) });
+  },
+
+  tick(dt) {
+    const p = G.player;
+    if (!p) return;
+    // arms
+    for (let i = this.arms.length - 1; i >= 0; i--) {
+      const A = this.arms[i];
+      const S = A.src;
+      if (!S || S.dead) { this.arms.splice(i, 1); continue; }
+      if (A.tele > 0) { A.tele -= dt; continue; }
+      A.life -= dt;
+      if (A.life <= 0) { this.arms.splice(i, 1); continue; }
+      A.a += A.spin * dt;
+      A.hitT -= dt;
+      if (A.hitT <= 0 && !p.dead) {
+        const x2 = S.x + Math.cos(A.a) * A.len, y2 = S.y + Math.sin(A.a) * A.len;
+        if (Thicket.segDist(p.x, p.y, S.x, S.y, x2, y2) < A.w / 2 + p.r && Math.hypot(p.x - S.x, p.y - S.y) > S.r * 0.6) {
+          A.hitT = 0.7;
+          Thicket.asBoss(S, () => p.damage(A.dmg * G.dmgScale, A.kind === 'beam' ? HIT.beam : HIT.sweep));
+          S.armHit = 1;
+        }
+      }
+    }
+    // pearls
+    for (let i = this.pearls.length - 1; i >= 0; i--) {
+      const P = this.pearls[i], S = P.src;
+      if (!S || S.dead) { this.pearls.splice(i, 1); continue; }
+      if (P.mode === 'out') {
+        P.x += P.vx * dt; P.y += P.vy * dt;
+        const m = Math.hypot(P.x, P.y), lim = G.arenaR - P.r;
+        if (m > lim) {
+          // off the wall: reflect about the normal
+          const nx = P.x / m, ny = P.y / m, d = P.vx * nx + P.vy * ny;
+          P.vx -= 2 * d * nx; P.vy -= 2 * d * ny;
+          P.x = nx * lim; P.y = ny * lim;
+          P.bounces--;
+          Particles.ring(P.x, P.y, 4, 50, { col: P.col, life: 0.35, w: 3 });
+          Sound.hit(0.3);
+          if (P.bounces < 0) { P.mode = 'wait'; P.home = G.bossTele(0.75); }
+        }
+      } else if (P.mode === 'wait') {
+        // it stops, and the line home lights up: that is where it will go
+        P.home -= dt;
+        if (P.home <= 0) {
+          P.mode = 'home';
+          const a = Math.atan2(S.y - P.y, S.x - P.x);
+          P.vx = Math.cos(a) * P.spd * 1.25; P.vy = Math.sin(a) * P.spd * 1.25;
+        }
+      } else {
+        const dx = S.x - P.x, dy = S.y - P.y, d = Math.hypot(dx, dy);
+        const sp = Math.hypot(P.vx, P.vy);
+        P.vx = dx / (d || 1) * sp; P.vy = dy / (d || 1) * sp;
+        P.x += P.vx * dt; P.y += P.vy * dt;
+        if (d < S.r * 0.6 + sp * dt) { this.pearls.splice(i, 1); S.pearlsOut = Math.max(0, (S.pearlsOut || 1) - 1); Sound.hit(0.4); continue; }
+      }
+      if (P.trail && P.mode !== 'wait') {
+        P.trailT -= dt;
+        if (P.trailT <= 0) {
+          P.trailT = 0.22;
+          Thicket.asBoss(S, () => G.enemyBullet(P.x, P.y, rnd(-30, 30), rnd(-30, 30), 10 * G.dmgScale, P.col, { life: 2.6, acc: 0.4, r: 6 }));
+        }
+      }
+      P.hitT -= dt;
+      if (P.hitT <= 0 && !p.dead && dist2(P.x, P.y, p.x, p.y) < (P.r + p.r) * (P.r + p.r)) {
+        P.hitT = 0.8;
+        Thicket.asBoss(S, () => p.damage(P.dmg * G.dmgScale, HIT.pearl));
+        S.pearlHit = 1;
+      }
+    }
+    // THE STARFISH's arms: dash across one and it is done
+    if (p.dashT > 0 && !p.dead) {
+      for (const e of G.queryEnemies(p.x, p.y, 80)) {
+        if (e.dead || e.def.id !== 'stararm') continue;
+        if (dist2(e.x, e.y, p.x, p.y) < (e.r + p.r + 12) * (e.r + p.r + 12)) {
+          G.callout('CRUSHED', '#ffe0c8', e);
+          e.crushed = 1;
+          G.killEnemy(e, e.def.col);
+          Cam.shake(0.25); Sound.hit(0.6);
+        }
+      }
+    }
+  },
+
+  /* ------------------------------------------------------------ the relics */
+  relicTick(dt) {
+    const p = G.player;
+    if (!p || p.dead) return;
+    // REGROWTH: quiet water heals
+    if (G.rel('regrowth')) {
+      this.regrowT += dt;
+      if (this.regrowT >= 0.5) {
+        this.regrowT = 0;
+        const near = G.queryEnemies(p.x, p.y, 250);
+        let any = false;
+        for (const e of near) if (!e.dead && dist2(e.x, e.y, p.x, p.y) < 250 * 250) { any = true; break; }
+        if (!any && p.hp < p.maxHp) p.heal(1, true);
+      }
+    }
+    // PEARL: it circles you, and eats a bullet every other second
+    if (G.rel('orbpearl')) {
+      this.orbA += dt * 2.2;
+      this.orbT -= dt;
+      if (this.orbT <= 0) {
+        const ox = p.x + Math.cos(this.orbA) * 46, oy = p.y + Math.sin(this.orbA) * 46;
+        for (let i = G.ebullets.length - 1; i >= 0; i--) {
+          const b = G.ebullets[i];
+          if (!b || b.dead) continue;
+          if (dist2(b.x, b.y, ox, oy) < (b.r + 16) * (b.r + 16)) {
+            b.dead = true; this.orbT = 2;
+            Particles.ring(ox, oy, 4, 34, { col: '#f4f0ff', life: 0.3, w: 3 });
+            break;
+          }
+        }
+      }
+    }
+    // SONAR: every ten seconds everything near is pushed off you
+    if (G.rel('sonar')) {
+      this.sonarT += dt;
+      if (this.sonarT >= 10) {
+        this.sonarT = 0;
+        for (const e of G.queryEnemies(p.x, p.y, 280)) {
+          if (e.dead || e.boss) continue;
+          const d = Math.hypot(e.x - p.x, e.y - p.y);
+          if (d > 260 + e.r) continue;
+          const a = Math.atan2(e.y - p.y, e.x - p.x), k = (1 - (e.def.kbres || 0)) * 620;
+          e.kx += Math.cos(a) * k; e.ky += Math.sin(a) * k;
+        }
+        Particles.ring(p.x, p.y, 20, 260, { col: '#2fd0b0', life: 0.55, w: 5 });
+        Sound.shoot('arc');
+      }
+    }
+    // CLUBSTRIKE: the dash is a punch
+    if (G.rel('clubstrike')) {
+      if (p.dashT > 0) {
+        if (!this.clubHit) this.clubHit = new Set();
+        for (const e of G.queryEnemies(p.x, p.y, 70)) {
+          if (e.dead || this.clubHit.has(e)) continue;
+          if (dist2(e.x, e.y, p.x, p.y) < (e.r + p.r + 8) * (e.r + p.r + 8)) {
+            this.clubHit.add(e);
+            G.hitEnemy(e, 120 * ((G.stats && G.stats.dmgMul) || 1), { col: '#ff5f9a', kb: 320, kbAngle: Math.atan2(e.y - p.y, e.x - p.x) });
+            Particles.ring(e.x, e.y, 6, 60, { col: '#ff5f9a', life: 0.3, w: 4 });
+          }
+        }
+      } else if (this.clubHit) this.clubHit = null;
+    }
+  },
+  // a hit on you, before it lands
+  hurt(n) {
+    const p = G.player;
+    // SPARE SHELL: the big one bounces off, once a minute
+    if (G.rel('spareshell') && n >= p.maxHp * 0.25 && G.time - this.shellT >= 60) {
+      this.shellT = G.time;
+      Pops.add(p.x, p.y - 22, 'SHELL', { col: '#f2d27a', size: 16, vy: -100 });
+      Particles.ring(p.x, p.y, 16, 90, { col: '#f2d27a', life: 0.45, w: 5 });
+      Sound.ui(true);
+      return 0;
+    }
+    // THE HERMIT's lesson: you were hit while it was out
+    const B = G.boss;
+    if (B && !B.dead && B.def.bossKind === 'hermit' && !B.inShell) B.hitOut = 1;
+    // GLIDE: moving water is kinder
+    if (G.rel('glide')) n *= Math.hypot(p.vx || 0, p.vy || 0) > 40 ? 0.85 : 1.15;
+    if (n <= 0) return n;
+    // SPINEBACK: eight spines out of you
+    if (G.rel('spineback') && G.stats) {
+      const off = rnd(TAU);
+      for (let i = 0; i < 8; i++) {
+        const a = off + i / 8 * TAU;
+        G.shots.push(new Shot({ x: p.x, y: p.y, vx: Math.cos(a) * 520, vy: Math.sin(a) * 520, r: 4, dmg: 30 * G.stats.dmgMul,
+          life: 0.7, pierce: 1, col: '#c47cff', kind: 'spine', wkey: 'spineback' }));
+      }
+    }
+    // INKSAC: a cloud, and nothing near you comes through it
+    if (G.rel('inksac')) {
+      for (let i = G.ebullets.length - 1; i >= 0; i--) {
+        const b = G.ebullets[i];
+        if (b && !b.dead && dist2(b.x, b.y, p.x, p.y) < 180 * 180) b.dead = true;
+      }
+      Particles.ring(p.x, p.y, 20, 180, { col: '#7a86ff', life: 0.5, w: 8 });
+    }
+    return n;
+  },
+  hitMul(e, dmg, o) {
+    // STATIC: every fourth hit jumps
+    if (G.rel('static') && !o.arc && !o.silent) {
+      this.staticN++;
+      if (this.staticN >= 4) {
+        this.staticN = 0;
+        let best = null, bd = 220 * 220;
+        for (const q of G.queryEnemies(e.x, e.y, 220)) {
+          if (q === e || q.dead) continue;
+          const d = dist2(q.x, q.y, e.x, e.y);
+          if (d < bd) { bd = d; best = q; }
+        }
+        if (best) {
+          const b2 = best;
+          Thicket.later(0, () => { if (!b2.dead) G.hitEnemy(b2, dmg * 0.5, { col: '#6af07a', arc: true, silent: true }); });
+          G.fx.push({ t: 'link', x: e.x, y: e.y, x2: best.x, y2: best.y, life: 0.18, max: 0.18, col: '#8affa0' });
+        }
+      }
+    }
+    return dmg;
+  },
+  touched(e) {
+    // STINGER: whatever touches you is stung
+    if (G.rel('stinger') && !e.boss) G.ignite(e, 40, 3);
+    else if (G.rel('stinger')) G.ignite(e, 120, 3);
+    if (e.def.bossKind === 'maelstrom') e.drank = 1;
+    if (e.def.bossKind === 'ray' && e.gliding > 0) e.glideHit = 1;
+  },
+  onKill(e) {
+    // THE GULL gives back what it took
+    if (e.def.bossKind === 'gull' && e.bag > 0) {
+      const n = Math.min(40, e.bag);
+      for (let i = 0; i < n; i++) {
+        const a = rnd(TAU), d = rnd(20, e.r * 2);
+        G.pickups.push(new Pickup(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 'mote', 46));
+      }
+      e.bag = 0;
+    }
+    if (e.boss && !e.isSpawn && !e.linkTo) this.bossDown(e);
+  },
+  // the lessons, and whether you learned them
+  bossDown(e) {
+    const k = e.def.bossKind;
+    if (k === 'hermit' && !e.hitOut) Ach.grant('shl_window');
+    if (k === 'bell' && !e.stung) Ach.grant('shl_wake');
+    if (k === 'eel' && !e.shocked) Ach.grant('shl_grounded');
+    if (k === 'urchin' && !e.burst) Ach.grant('shl_nopop');
+    if (k === 'starfish' && !e.regrew) Ach.grant('shl_crush');
+    if (k === 'maelstrom' && !e.drank) Ach.grant('shl_swim');
+    if (k === 'octopus' && !e.armHit) Ach.grant('shl_sweep');
+    if (k === 'ray' && !e.glideHit) Ach.grant('shl_shadow');
+    if (k === 'clam' && !e.pearlHit) Ach.grant('shl_catch');
+    if (k === 'whale' && !e.breached) Ach.grant('shl_dry');
+    if (k === 'gull' && !e.stole) Ach.grant('shl_gull');
+  },
+  worldWon(pl) {
+    const g = GAL_BY_ID.shallows;
+    Ach.grant('shl_first');
+    if (Conquest.count(g) >= g.planets.length) Ach.grant('shl_all');
+    if (Conquest.keyWhole(g)) Ach.grant('shl_key');
+  },
+  coreWon(pl) {
+    Ach.grant('shl_core');
+    const d = Save.data;
+    if (!Array.isArray(d.pets)) d.pets = ['mote'];
+    if (d.pets.indexOf('seedpearl') < 0) {
+      d.pets.push('seedpearl');
+      Save.save();
+      G.banner('A SEED PEARL FOLLOWS YOU UP', '#f4f0ff');
+    }
+  },
+
+  hud(c, hs, ty) {
+    const B = G.boss;
+    if (!B || B.dead) return;
+    const k = B.def.bossKind;
+    const y = ty + (G.endless ? 56 : 30) * hs + 24 * hs;
+    const say = (s, col) => tracked(c, s, VW / 2, y + 8 * hs, { size: 10.5 * hs, weight: 900, align: 'center', color: col, track: 2.4 });
+    if (k === 'hermit') {
+      say(B.inShell ? 'IN ITS SHELL' : 'OUT OF ITS SHELL', B.inShell ? PAL.dim : '#f2d27a');
+    } else if (k === 'urchin' && B.spines !== undefined) {
+      const w = 150 * hs, u = sat(B.spines / 40);
+      say(u > 0.8 ? 'IT IS ABOUT TO BURST' : 'SPINES', u > 0.8 ? '#ff9ad0' : '#d8a0ff');
+      UI.bar(c, VW / 2 - w / 2, y + 13 * hs, w, 5 * hs, u, u > 0.8 ? '#ff9ad0' : '#c47cff', 'rgba(30,10,44,0.6)');
+    } else if (k === 'starfish' && B.arms !== undefined) {
+      say(B.arms + ' OF 5 ARMS', '#ffc8a0');
+    } else if (k === 'clam') {
+      say(B.open ? 'OPEN' : 'SHUT', B.open ? '#ffffff' : PAL.dim);
+    } else if (k === 'gull' && B.bag > 0) {
+      say('IT HAS ' + B.bag + ' OF YOUR MOTES', '#e8eef8');
+    }
+  },
+
+  /* ------------------------------------------------------------ drawing */
+  drawUnder(c, vx0, vy0, vx1, vy1) {
+    const t = G.time;
+    // kelp posts, humming
+    if (this.posts.length) {
+      c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+      for (const P of this.posts) {
+        if (P.x < vx0 - 60 || P.x > vx1 + 60 || P.y < vy0 - 60 || P.y > vy1 + 60) continue;
+        c.beginPath();
+        for (let k = 0; k < 3; k++) {
+          const sw = Math.sin(t * 1.3 + k * 2 + P.x) * 8;
+          c.moveTo(P.x + (k - 1) * 7, P.y + 18);
+          c.quadraticCurveTo(P.x + (k - 1) * 9 + sw, P.y - 10, P.x + (k - 1) * 5 + sw * 1.6, P.y - 38 - k * 6);
+        }
+        BA.band(c, '#5fe07a', 2, 0.8);
+        BA.glow(c, '#b8ffc8', P.x, P.y - 4, 16 + Math.sin(t * 9 + P.y) * 3, 0.7);
+      }
+      c.restore();
+    }
+  },
+  drawOver(c) {
+    const t = G.time;
+    if (this.arms.length) {
+      c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+      for (const A of this.arms) {
+        const S = A.src;
+        if (!S) continue;
+        const x0 = S.x, y0 = S.y, ca = Math.cos(A.a), sa = Math.sin(A.a);
+        if (A.tele > 0) {
+          const u = 1 - A.tele / Math.max(0.01, A.max - A.life);
+          c.globalCompositeOperation = 'lighter';
+          c.setLineDash([14, 12]); c.lineDashOffset = -t * 40;
+          c.beginPath(); c.moveTo(x0, y0); c.lineTo(x0 + ca * A.len, y0 + sa * A.len);
+          BA.line(c, A.col, 2, 0.3 + u * 0.5);
+          c.setLineDash([]);
+          continue;
+        }
+        const k = Math.min(1, A.life / 0.4);
+        if (A.kind === 'beam') {
+          c.globalCompositeOperation = 'lighter';
+          c.beginPath(); c.moveTo(x0, y0); c.lineTo(x0 + ca * A.len, y0 + sa * A.len);
+          BA.band(c, A.col, A.w * 0.5, 0.75 * k, '#ffffff');
+        } else {
+          // a tentacle: it curls a little as it goes, and the suckers show
+          const px = -sa, py = ca, n = 10;
+          c.globalCompositeOperation = 'source-over';
+          c.beginPath();
+          for (let i = 0; i <= n; i++) {
+            const u = i / n, wv = Math.sin(u * 6 - t * 3) * 10 * u;
+            const x = x0 + ca * A.len * u + px * wv, y = y0 + sa * A.len * u + py * wv;
+            i ? c.lineTo(x, y) : c.moveTo(x, y);
+          }
+          c.strokeStyle = 'rgba(8,6,24,0.9)'; c.lineWidth = A.w * 0.9; c.globalAlpha = k; c.stroke();
+          c.globalAlpha = 1;
+          c.globalCompositeOperation = 'lighter';
+          BA.band(c, A.col, 2.4, 0.9 * k);
+          c.beginPath();
+          for (let i = 2; i < n; i += 1) {
+            const u = i / n, wv = Math.sin(u * 6 - t * 3) * 10 * u;
+            tkDot(c, x0 + ca * A.len * u + px * wv, y0 + sa * A.len * u + py * wv, 3.5 * (1 - u * 0.5));
+          }
+          BA.line(c, '#ffd0f0', 1.2, 0.7 * k);
+        }
+      }
+      c.restore();
+    }
+    if (this.pearls.length) {
+      c.save(); c.globalCompositeOperation = 'lighter';
+      for (const P of this.pearls) {
+        if (P.mode === 'wait' && P.src) {
+          // the way home, shown
+          c.setLineDash([10, 10]); c.lineDashOffset = -t * 50;
+          c.beginPath(); c.moveTo(P.x, P.y); c.lineTo(P.src.x, P.src.y);
+          BA.line(c, P.col, 2, 0.5 + Math.sin(t * 20) * 0.2);
+          c.setLineDash([]);
+        }
+        BA.glow(c, P.col, P.x, P.y, P.r * 2.4, 0.5);
+        c.beginPath(); c.arc(P.x, P.y, P.r, 0, TAU);
+        BA.band(c, '#ffffff', 2, 0.9);
+        BA.glow(c, '#ffffff', P.x - P.r * 0.3, P.y - P.r * 0.35, P.r * 0.5, 0.9);
+        // it shows every colour at once
+        c.beginPath(); c.arc(P.x, P.y, P.r * 0.7, t * 2, t * 2 + 2);
+        BA.line(c, '#ff9ecf', 2, 0.6);
+        c.beginPath(); c.arc(P.x, P.y, P.r * 0.7, t * 2 + 2.2, t * 2 + 4);
+        BA.line(c, '#8af0ff', 2, 0.6);
+      }
+      c.restore();
+    }
+    // the relic PEARL, circling you
+    const p = G.player;
+    if (G.rel('orbpearl') && p && !p.dead) {
+      const ox = p.x + Math.cos(this.orbA) * 46, oy = p.y + Math.sin(this.orbA) * 46, ready = this.orbT <= 0;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      BA.glow(c, '#f4f0ff', ox, oy, ready ? 18 : 10, ready ? 0.8 : 0.35);
+      c.beginPath(); c.arc(ox, oy, 5, 0, TAU);
+      BA.band(c, '#ffffff', 1.4, ready ? 1 : 0.4);
+      c.restore();
+    }
+  }
+};
+Thicket.mods.push(Shallows);
+
+/* ---- the shallows' rank and file: minds that the built-in ones do not cover ---- */
+Object.assign(Thicket.ai, {
+  // SCUTTLER: a crab. It keeps its front to you and comes in sideways
+  scuttle(e, dt, p, nx, ny, dd, spd) {
+    e.faceLock = true; e.face = Math.atan2(ny, nx);
+    e.sideT = (e.sideT || 0) - dt;
+    if (e.sideT <= 0) { e.sideT = rnd(1.3, 2.3); e.side = e.side === 1 ? -1 : 1; }
+    const s = e.side || 1;
+    e.vx = (nx * 0.45 - ny * s * 0.89) * spd * 1.2; e.vy = (ny * 0.45 + nx * s * 0.89) * spd * 1.2;
+  },
+  // FLOUNDER: flat on the sand until you are close, then a dart
+  flounder(e, dt, p, nx, ny, dd, spd) {
+    e.faceLock = true;
+    if (e.fade === undefined) e.fade = 0.14;
+    if (e.dart > 0) {
+      e.dart -= dt; e.vx *= 0.985; e.vy *= 0.985; e.fade = 1;
+      if (e.dart <= 0) e.rest = 1.2;
+      return;
+    }
+    if (e.tellT > 0) {
+      e.tellT -= dt; e.vx *= 0.7; e.vy *= 0.7; e.fade = Math.min(1, e.fade + dt * 3); e.face = Math.atan2(ny, nx);
+      if (e.tellT <= 0) { e.dart = 0.45; e.vx = nx * e.def.dashSpd; e.vy = ny * e.def.dashSpd; Particles.ring(e.x, e.y, 6, 44, { col: '#e8c890', life: 0.35, w: 2.5 }); }
+      return;
+    }
+    if (e.rest > 0) { e.rest -= dt; e.vx *= 0.9; e.vy *= 0.9; e.fade = Math.max(0.14, e.fade - dt * 0.9); return; }
+    e.fade = Math.max(0.14, e.fade - dt * 0.9);
+    e.vx = nx * spd * 0.3; e.vy = ny * spd * 0.3; e.face = Math.atan2(ny, nx);
+    if (dd < 260 && e.spawnT <= 0) {
+      e.tellT = G.D.bossGentle ? 0.5 : 0.35;
+      for (let i = 0; i < 6; i++) Particles.spark(e.x, e.y, rnd(TAU), rnd(40, 120), { col: '#e8c890', life: 0.35, w: 2 });
+    }
+  },
+  // POLYP: rooted, near enough; it buds little jellies
+  polyp(e, dt, p, nx, ny, dd, spd) {
+    e.vx = nx * spd; e.vy = ny * spd;
+    e.fireT -= dt;
+    e.puff = Math.max(0, (e.puff || 0) - dt * 2.5);
+    if (e.fireT <= 0 && e.spawnT <= 0 && dd < 900) {
+      e.fireT = e.def.fireCd * rnd(0.85, 1.2);
+      e.brood = (e.brood || []).filter(w => w && !w.dead);
+      if (e.brood.length < 3 && G.enemies.length < G.enemyCap && Thicket.liveN('jellet') < 18) {
+        const a = rnd(TAU);
+        const w = new Enemy(ENEMY.jellet, e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, G.hpMul() * 0.7, G.dmgScale);
+        w.kx = Math.cos(a) * 200; w.ky = Math.sin(a) * 200;
+        G.enemies.push(w); e.brood.push(w); e.puff = 1;
+      }
+    }
+  },
+  // JELLET: it goes in pulses, and drifts between them
+  pulse(e, dt, p, nx, ny, dd, spd) {
+    e.pulseT = (e.pulseT === undefined ? rnd(0, 0.9) : e.pulseT) - dt;
+    if (e.pulseT <= 0) { e.pulseT = 0.95; e.vx = nx * spd * 2.4; e.vy = ny * spd * 2.4; e.squeeze = 1; }
+    const k = Math.exp(-3 * dt);
+    e.vx *= k; e.vy *= k;
+    e.squeeze = Math.max(0, (e.squeeze || 0) - dt * 3);
+  },
+  // INKLING: keeps off, inks your feet, and jets when you close in
+  inkling(e, dt, p, nx, ny, dd, spd) {
+    if (e.jet > 0) { e.jet -= dt; e.vx *= 0.96; e.vy *= 0.96; return; }
+    const keep = e.def.keep;
+    if (dd < keep * 0.55 && e.spawnT <= 0 && !(e.jetCd > 0)) {
+      e.jet = 0.45; e.jetCd = 2.6;
+      e.vx = -nx * spd * 3.4; e.vy = -ny * spd * 3.4;
+      Thicket.sticky(e.x, e.y, 56, '#4a52c0');
+      return;
+    }
+    e.jetCd = (e.jetCd || 0) - dt;
+    const s2 = dd > keep + 50 ? 1 : (dd < keep - 50 ? -1 : 0), per = Math.sin(G.time * 0.6 + e.ph) * 0.5;
+    e.vx = (nx * s2 - ny * per) * spd; e.vy = (ny * s2 + nx * per) * spd;
+    e.fireT -= dt;
+    if (e.fireT <= 0 && e.spawnT <= 0 && dd < 620) {
+      e.fireT = e.def.fireCd * rnd(0.85, 1.2);
+      Thicket.sticky(p.x + rnd(-30, 30), p.y + rnd(-30, 30), 66, '#4a52c0');
+      e.puff = 1;
+    }
+    e.puff = Math.max(0, (e.puff || 0) - dt * 2);
+  },
+  // SEAHORSE: circles at range and blows bubbles that pick up speed
+  seahorse(e, dt, p, nx, ny, dd, spd) {
+    const keep = e.def.keep;
+    const s2 = dd > keep + 40 ? 1 : (dd < keep - 40 ? -0.8 : 0);
+    e.vx = (nx * s2 - ny * 0.8) * spd; e.vy = (ny * s2 + nx * 0.8) * spd;
+    e.fireT -= dt;
+    if (e.fireT <= 0 && e.spawnT <= 0 && dd < 620) {
+      e.fireT = e.def.fireCd * rnd(0.85, 1.2);
+      const a0 = Math.atan2(ny, nx);
+      for (let i = -1; i <= 1; i++) {
+        const a = a0 + i * 0.2;
+        G.enemyBullet(e.x, e.y, Math.cos(a) * e.def.bulletSpd, Math.sin(a) * e.def.bulletSpd, e.def.bulletDmg * G.dmgScale, e.def.col, { acc: 1.5, r: 8, life: 4 });
+      }
+    }
+  },
+  // GROUPER: slow. It opens its mouth and the water goes in, and you with it a little
+  grouper(e, dt, p, nx, ny, dd, spd) {
+    if (e.gulp > 0) {
+      e.gulp -= dt;
+      e.vx *= 0.85; e.vy *= 0.85;
+      if (dd < 520) { G.pullTo = e; G.pullF = Math.max(G.pullF || 0, G.D.bossGentle ? 42 : 60); }
+      if (e.gulp <= 0) {
+        const n = 7, a0 = Math.atan2(ny, nx);
+        for (let i = 0; i < n; i++) {
+          const a = a0 + (i - (n - 1) / 2) * 0.14;
+          G.enemyBullet(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, Math.cos(a) * 230, Math.sin(a) * 230, 12 * G.dmgScale, e.def.col);
+        }
+        Sound.shoot('nova');
+      }
+      return;
+    }
+    e.vx = nx * spd; e.vy = ny * spd;
+    e.fireT -= dt;
+    if (e.fireT <= 0 && e.spawnT <= 0 && dd < 600) { e.fireT = e.def.fireCd * rnd(0.9, 1.2); e.gulp = G.D.bossGentle ? 1.3 : 1.0; }
+  },
+  // an arm torn off THE STARFISH, crawling home
+  stararm(e, dt, p, nx, ny, dd, spd) {
+    const O = e.owner;
+    if (!O || O.dead) { if (!e.dead) G.killEnemy(e, e.def.col); return; }
+    const dx = O.x - e.x, dy = O.y - e.y, d = Math.hypot(dx, dy) || 1;
+    e.faceLock = true; e.face = Math.atan2(dy, dx);
+    e.vx = dx / d * spd; e.vy = dy / d * spd;
+    if (d < O.r * 0.75) {
+      e.dead = true;
+      O.arms = Math.min(5, (O.arms || 0) + 1);
+      if (O.slots) { const k = O.slots.indexOf(0); if (k >= 0) O.slots[k] = 1; }
+      O.hp = Math.min(O.maxHp, O.hp + O.maxHp * 0.04);
+      O.regrew = 1;
+      G.callout('IT GROWS BACK', O.def.col, O);
+      Particles.ring(O.x, O.y, O.r, O.r * 1.5, { col: O.def.col, life: 0.5, w: 5 });
+    }
+  },
+  /* ---- elites ---- */
+  // SEA TURTLE: turns slowly and keeps its shell to you
+  turtle(e, dt, p, nx, ny, dd, spd) {
+    const want = Math.atan2(ny, nx);
+    e.faceLock = true;
+    e.face = e.face === undefined ? want : e.face + clamp(angDiff(e.face, want), -e.def.turn * dt, e.def.turn * dt);
+    const go = dd > 240 ? Math.max(0.3, Math.cos(angDiff(e.face, want))) : 0;
+    e.vx = Math.cos(e.face) * spd * go; e.vy = Math.sin(e.face) * spd * go;
+    e.fireT -= dt;
+    if (e.fireT <= 0 && e.spawnT <= 0 && dd < 700) {
+      e.fireT = e.def.fireCd;
+      for (let i = -2; i <= 2; i++) {
+        const a = e.face + i * 0.12;
+        G.enemyBullet(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, Math.cos(a) * e.def.bulletSpd, Math.sin(a) * e.def.bulletSpd, e.def.bulletDmg * G.dmgScale, e.def.col);
+      }
+      Sound.shoot('beam');
+    }
+  },
+  // MAN O' WAR: drifts, and what trails behind it stings
+  manowar(e, dt, p, nx, ny, dd, spd) {
+    const s2 = dd > 220 ? 1 : -0.4;
+    e.vx = (nx * s2 - ny * 0.3) * spd; e.vy = (ny * s2 + nx * 0.3) * spd;
+    e.trailT = (e.trailT || 0) - dt;
+    if (e.trailT <= 0 && e.spawnT <= 0) {
+      e.trailT = 0.4;
+      const a = Math.atan2(-e.vy, -e.vx) + rnd(-0.5, 0.5);
+      G.enemyBullet(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, Math.cos(a) * 30, Math.sin(a) * 30, 11 * G.dmgScale, '#d8b8ff', { acc: 0.2, life: 3.6, r: 7, arm: 0.3 });
+    }
+    e.fireT -= dt;
+    if (e.fireT <= 0 && e.spawnT <= 0) {
+      e.fireT = e.def.fireCd;
+      for (let i = 0; i < 3; i++) {
+        if (G.enemies.length >= G.enemyCap + 10 || Thicket.liveN('jellet') >= 18) break;
+        const a = rnd(TAU);
+        const w = new Enemy(ENEMY.jellet, e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, G.hpMul() * 0.8, G.dmgScale);
+        w.kx = Math.cos(a) * 240; w.ky = Math.sin(a) * 240;
+        G.enemies.push(w);
+      }
+      Particles.ring(e.x, e.y, e.r, e.r + 50, { col: e.def.col, life: 0.4, w: 4 });
+    }
+  },
+  // LIONFISH: keeps its distance and fans venom; too close and every spine goes up
+  lionfish(e, dt, p, nx, ny, dd, spd) {
+    const keep = 280;
+    const s2 = dd > keep + 50 ? 1 : (dd < keep - 50 ? -0.7 : 0);
+    e.vx = (nx * s2 - ny * 0.35) * spd; e.vy = (ny * s2 + nx * 0.35) * spd;
+    e.flareCd = (e.flareCd || 0) - dt;
+    e.flare = Math.max(0, (e.flare || 0) - dt * 2);
+    if (dd < 180 && e.flareCd <= 0 && e.spawnT <= 0) {
+      e.flareCd = 3.2; e.flare = 1;
+      const n = G.D.bossGentle ? 12 : 16, off = rnd(TAU);
+      for (let i = 0; i < n; i++) { const a = off + i / n * TAU; G.enemyBullet(e.x, e.y, Math.cos(a) * 220, Math.sin(a) * 220, e.def.bulletDmg * G.dmgScale, e.def.col); }
+      Sound.shoot('nova');
+    }
+    e.fireT -= dt;
+    if (e.fireT <= 0 && e.spawnT <= 0) {
+      e.fireT = e.def.fireCd;
+      const a0 = Math.atan2(ny, nx), n = G.D.bossGentle ? 7 : 9;
+      for (let i = 0; i < n; i++) {
+        const a = a0 + (i - (n - 1) / 2) * 0.14;
+        G.enemyBullet(e.x, e.y, Math.cos(a) * e.def.bulletSpd, Math.sin(a) * e.def.bulletSpd, e.def.bulletDmg * G.dmgScale, e.def.col);
+      }
+      Sound.shoot('beam');
+    }
+  },
+  // SAILFISH: a lane, then the fastest thing in the water runs it
+  sailfish(e, dt, p, nx, ny, dd, spd) {
+    e.faceLock = true;
+    if (e.charge > 0) {
+      e.charge -= dt;
+      e.wakeT = (e.wakeT || 0) - dt;
+      if (e.wakeT <= 0) {
+        e.wakeT = 0.09;
+        for (const s of [-1, 1]) {
+          const a = e.face + s * Math.PI / 2;
+          G.enemyBullet(e.x, e.y, Math.cos(a) * 50, Math.sin(a) * 50, 9 * G.dmgScale, '#bfe8ff', { acc: 0.3, life: 1.6, r: 6 });
+        }
+      }
+      if (e.charge <= 0) { e.vx *= 0.25; e.vy *= 0.25; }
+      return;
+    }
+    if (e.windT > 0) {
+      e.windT -= dt; e.vx *= 0.85; e.vy *= 0.85;
+      if (e.windT <= 0) { e.charge = 0.72; e.vx = Math.cos(e.face) * e.def.dashSpd; e.vy = Math.sin(e.face) * e.def.dashSpd; Sound.shoot('lash'); }
+      return;
+    }
+    e.face = Math.atan2(ny, nx);
+    e.vx = nx * spd * 0.5; e.vy = ny * spd * 0.5;
+    e.dashT -= dt;
+    if (e.dashT <= 0 && e.spawnT <= 0 && dd < 800) {
+      e.dashT = e.def.dashCd * rnd(0.9, 1.2);
+      e.windT = G.bossTele(0.62);
+      Thicket.lane(e, e.face, 720, e.r * 2, e.windT);
+    }
+  }
+});
+
+/* ---- the shallows' finales ---- */
+const SH = Shallows;
+Object.assign(Thicket.boss, {
+  /* ============================================ THE HERMIT · SANDBAR
+     SHELL: half its time out and throwing, half tucked in and nearly
+     immune. The shell glows before it hides. Hit it in the window. */
+  hermit: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      if (e.shellT === undefined) { e.shellT = 6.5; e.inShell = false; }
+      e.shellT -= dt;
+      if (e.inShell) {
+        if (!e.dest) { const a = rnd(TAU); e.dest = Thicket.inArena(G.player.x + Math.cos(a) * 380, G.player.y + Math.sin(a) * 380, 140); }
+        const dx = e.dest[0] - e.x, dy = e.dest[1] - e.y, d = Math.hypot(dx, dy);
+        if (d > 24) { e.vx = dx / d * spd * 3; e.vy = dy / d * spd * 3; } else { e.vx *= 0.8; e.vy *= 0.8; }
+        if (ph >= 1) {
+          e.sprayT = (e.sprayT || 0) - dt;
+          if (e.sprayT <= 0) { e.sprayT = G.bossCd(0.9); Thicket.ringFrom(e, e.x, e.y, 6 + ph, 150, 10); }
+        }
+        e.warn = 0;
+        if (e.shellT <= 0) {
+          e.inShell = false; e.dest = null; e.shellT = [6.5, 5.5, 4.6][ph] || 4.6;
+          G.callout('IT COMES OUT', e.def.col, e);
+          e.attackT = Math.min(e.attackT, 0.9);
+        }
+      } else {
+        tkOrbit(e, nx, ny, dd, spd, 320, 0.4);
+        e.warn = e.shellT < 1 ? 1 - e.shellT : 0;
+        if (e.shellT <= 0) {
+          e.inShell = true; e.warn = 0; e.shellT = G.D.bossGentle ? 3 : 3.4;
+          G.callout('IT HIDES', e.def.col, e); Sound.hit(0.5);
+          Particles.ring(e.x, e.y, e.r, e.r * 1.6, { col: e.def.col, life: 0.4, w: 5 });
+        }
+      }
+    },
+    hurt(e, dmg) { return e.inShell ? dmg * 0.1 : dmg; },
+    attack(e, ph, col, p) {
+      if (e.inShell) { e.attackT = 0.4; return; }
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0) { e.attackT = G.bossCd(2.2); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.16, 12, toP); Sound.shoot('nova'); }
+      else if (e.sub === 1) { e.attackT = G.bossCd(2.6); G.sowerRing(e, { n: 14 + ph * 3, spd: 175, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+      else if (e.sub === 2) {
+        // two claws snap shut across where you stand
+        e.attackT = G.bossCd(2.8);
+        const tl = G.bossTele(0.9);
+        for (const s of [-1, 1]) {
+          const b = toP + s * 0.7, ox = p.x - Math.cos(b) * 420, oy = p.y - Math.sin(b) * 420;
+          G.fx.push({ t: 'tele', x: ox, y: oy, a: b, len: 840, w: 30, life: tl + 0.34, max: tl + 0.34, col: col, src: null, fired: false, dmg: 22 });
+        }
+        Sound.bossHorn();
+      } else { e.attackT = G.bossCd(2.4); e.fall = 2 + ph; e.fallT = 0.1; e.fallGap = 0.36; e.fallN = 5; e.fallSpd = 240; }
+    }
+  },
+
+  /* ============================================ THE BELL · GLASSWATER
+     PULSE: it moves in lunges, and every pulse leaves stings hanging in
+     the water where it was. Do not stand where it has been. */
+  bell: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.pulseT = (e.pulseT === undefined ? 1.6 : e.pulseT) - dt;
+      e.squeeze = Math.max(0, (e.squeeze || 0) - dt * 2.4);
+      if (e.pulseT <= 0) {
+        e.pulseT = G.bossCd([2.4, 2.1, 1.8][ph] || 1.8);
+        const a = Math.atan2(ny, nx) + rnd(-0.5, 0.5), k = dd > 240 ? 1 : -0.4;
+        e.vx = Math.cos(a) * spd * 5 * k; e.vy = Math.sin(a) * spd * 5 * k;
+        e.squeeze = 1;
+        const n = G.bossN(8 + ph * 2), off = rnd(TAU);
+        for (let i = 0; i < n; i++) {
+          const b = off + i / n * TAU;
+          G.enemyBullet(e.x + Math.cos(b) * e.r * 0.7, e.y + Math.sin(b) * e.r * 0.7, Math.cos(b) * 70, Math.sin(b) * 70, 11 * G.dmgScale, '#e0d0ff',
+            { acc: 0.15, life: 4.4, r: 7, hitCb: () => { e.stung = 1; } });
+        }
+        Sound.shoot('arc');
+      }
+      const k = Math.exp(-2.2 * dt);
+      e.vx *= k; e.vy *= k;
+    },
+    phase(e, ph) {
+      if (ph >= 2 && !e.linkTo && !e.buds) {
+        e.buds = [];
+        for (const s of [-1, 1]) e.buds.push(Thicket.spawnLinked(e, ENEMY.bellbud, e.x + s * 140, e.y, { budA: s > 0 ? 0 : Math.PI, attackT: 99 }));
+        G.banner('IT BUDS', e.def.col);
+      }
+    },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0) { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 16 + ph * 4, spd: 165, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+      else if (e.sub === 1) { e.attackT = G.bossCd(2.6); e.spiral = G.bossN(16 + ph * 4); e.spiralA = rnd(TAU); }
+      else if (e.sub === 2) { e.attackT = G.bossCd(2.8); G.hexCircle(p.x, p.y, 110, 1.1, 26 * G.dmgScale, col); }
+      else { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5, 230, 0.16, 12, toP); }
+    }
+  },
+  bellbud: {
+    move(e, dt) {
+      const O = e.linkTo;
+      if (!O || O.dead) return;
+      e.budA = (e.budA || 0) + dt * 0.9;
+      const tx = O.x + Math.cos(e.budA) * 170, ty = O.y + Math.sin(e.budA) * 170;
+      e.vx = (tx - e.x) * 3; e.vy = (ty - e.y) * 3;
+      e.pulseT = (e.pulseT === undefined ? 1.2 : e.pulseT) - dt;
+      e.squeeze = Math.max(0, (e.squeeze || 0) - dt * 2.4);
+      if (e.pulseT <= 0) {
+        e.pulseT = G.bossCd(2.6); e.squeeze = 1;
+        const off = rnd(TAU);
+        for (let i = 0; i < 5; i++) {
+          const b = off + i / 5 * TAU;
+          G.enemyBullet(e.x, e.y, Math.cos(b) * 60, Math.sin(b) * 60, 10 * G.dmgScale, '#e0d0ff', { acc: 0.15, life: 3.6, r: 6, hitCb: () => { O.stung = 1; } });
+        }
+      }
+    },
+    attack(e) { e.attackT = 99; }
+  },
+
+  /* ============================================ THE EEL · KELPWOOD
+     CURRENT: it plants kelp posts, and lines of current hum between them
+     before they fire. Read the lines and step between them. */
+  eel: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.sw = (e.sw || 0) + dt;
+      tkOrbit(e, nx, ny, dd, spd, 360 + Math.sin(e.sw * 0.7) * 80, 0.8);
+      e.faceLock = true;
+      if (e.vx * e.vx + e.vy * e.vy > 100) e.face = Math.atan2(e.vy, e.vx);
+    },
+    attack(e, ph, col, p) {
+      if (e.sub === 0 || (e.sub === 2 && ph >= 1)) {
+        e.attackT = G.bossCd(3.4 - ph * 0.3);
+        const n = 4 + ph;
+        SH.plant(e, n, 300 + ph * 20);
+        const P = SH.posts, tl = 1.1 - ph * 0.1;
+        // across you, not round you: every line passes near the middle
+        if (n % 2 === 0) for (let i = 0; i < n / 2; i++) SH.current(e, P[i].x, P[i].y, P[i + n / 2].x, P[i + n / 2].y, tl);
+        else for (let i = 0; i < n; i++) { const j = (i + 2) % n; SH.current(e, P[i].x, P[i].y, P[j].x, P[j].y, tl); }
+        if (ph >= 2) {
+          let best = P[0], bd = 1e12;
+          for (const q of P) { const d = dist2(q.x, q.y, e.x, e.y); if (d < bd) { bd = d; best = q; } }
+          SH.current(e, e.x, e.y, best.x, best.y, tl + 0.3);
+        }
+        Sound.shoot('arc');
+      } else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 260, 0.15, 12); }
+      else { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 16 + ph * 4, spd: 185, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+    }
+  },
+
+  /* ============================================ THE URCHIN · URCHIN FLATS
+     SPINES: it grows them, on a meter; full, it bursts. Every hit knocks
+     spines off. Stay close enough that it is what you are shooting. */
+  urchin: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      if (e.spines === undefined) { e.spines = 10; e.spineAcc = 0; e.knock = 0; }
+      e.spines = Math.min(40, e.spines + dt * ([1.6, 2.0, 2.5][ph] || 2.5) * (G.D.bossGentle ? 0.85 : 1));
+      e.vx = nx * spd; e.vy = ny * spd;
+      e.roll = (e.roll || 0) + dt * spd / e.r;
+      if (e.spines >= 40) {
+        e.burst = 1; e.spines = 12;
+        for (let k = 0; k < 3; k++) Thicket.later(k * 0.3, () => { if (!e.dead) G.sowerRing(e, { n: 22 + ph * 4, spd: 190 + k * 20, gapW: 0.36, gapA: rnd(TAU), dmg: 13 }); });
+        G.callout('IT BURSTS', e.def.col, e); Cam.shake(0.6); Sound.shoot('nova');
+      }
+      e.brT = (e.brT === undefined ? 4 : e.brT) - dt;
+      if (e.brT <= 0) {
+        e.brT = 7 - ph;
+        for (let i = 0; i < 2; i++) {
+          if (Thicket.liveN('bristle') >= 8 || G.enemies.length >= G.enemyCap + 10) break;
+          const a = rnd(TAU), q = Thicket.inArena(e.x + Math.cos(a) * e.r * 1.4, e.y + Math.sin(a) * e.r * 1.4, 60);
+          const b = new Enemy(ENEMY.bristle, q[0], q[1], G.hpMul(), G.dmgScale);
+          b.bossAdd = 1; b.kx = Math.cos(a) * 200; b.ky = Math.sin(a) * 200;
+          G.enemies.push(b);
+        }
+      }
+    },
+    hurt(e, dmg) {
+      if (e.spines === undefined) return dmg;
+      e.spineAcc += dmg;
+      const per = Math.max(1, e.maxHp * 0.0045);
+      let n = 0;
+      while (e.spineAcc >= per && e.spines > 0 && n < 4) {
+        e.spineAcc -= per; e.spines -= 1; n++;
+        if ((e.knock = (e.knock + 1) % 3) === 0) {
+          const a = rnd(TAU);
+          Thicket.asBoss(e, () => G.enemyBullet(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, Math.cos(a) * 120, Math.sin(a) * 120, 8 * G.dmgScale, '#d8a0ff', { acc: 0.5, life: 1.6, r: 5 }));
+        }
+      }
+      if (e.spineAcc > per * 3) e.spineAcc = per * 3;
+      return dmg;
+    },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 250, 0.15, 12, toP); }
+      else if (e.sub === 1) { e.attackT = G.bossCd(2.8); Thicket.ringFrom(e, e.x, e.y, 12 + ph * 2, 180, 12); }
+      else if (e.sub === 2) { e.attackT = G.bossCd(3.0); G.hexCircle(p.x, p.y, 110, 1.1, 26 * G.dmgScale, col); }
+      else { e.attackT = G.bossCd(2.6); e.spiral = G.bossN(12 + ph * 4); e.spiralA = rnd(TAU); }
+    }
+  },
+
+  /* ============================================ THE STARFISH · STARFALL
+     ARMS: every fifth of its life, an arm tears off and crawls home to
+     regrow. Dash across a crawling arm to crush it: the dash is a weapon. */
+  starfish: {
+    move(e, dt, nx, ny, dd, spd, ph) {
+      if (e.arms === undefined) { e.arms = 5; e.slots = [1, 1, 1, 1, 1]; e.tornAt = 1; }
+      tkOrbit(e, nx, ny, dd, spd, 340, 0.3);
+      e.spinA = (e.spinA || 0) + dt * 0.35;
+      const f = e.hp / e.maxHp;
+      while (e.arms > 0 && f < e.tornAt - 0.2) { e.tornAt -= 0.2; SH.tearArm(e); }
+    },
+    attack(e, ph, col, p) {
+      if (e.sub % 2 === 0) {
+        // every arm it still has fires down its own length
+        e.attackT = G.bossCd(2.6 - ph * 0.2);
+        for (let k = 0; k < 5; k++) {
+          if (!e.slots || !e.slots[k]) continue;
+          const a = e.spinA + k / 5 * TAU - Math.PI / 2;
+          Thicket.fanFrom(e, e.x + Math.cos(a) * e.r * 1.1, e.y + Math.sin(a) * e.r * 1.1, 2 + (ph >= 2 ? 1 : 0), 220, 0.12, 12, a);
+        }
+        Sound.shoot('nova');
+      } else if (e.sub === 1) {
+        e.attackT = G.bossCd(2.8);
+        G.sowerRing(e, { n: 16 + ph * 4, spd: 170, gapW: 0.5, gapA: rnd(TAU), dmg: 12 });
+      } else { e.attackT = G.bossCd(3.0); G.hexCircle(p.x, p.y, 110, 1.1, 26 * G.dmgScale, col); }
+    }
+  },
+
+  /* ============================================ THE MAELSTROM · THE WHIRL
+     PULL: it draws everything to its middle, you and its own shot, which
+     curls in as it comes. Keep swimming against it. */
+  maelstrom: {
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.vx = -e.x * 0.25 - ny * spd * 0.4; e.vy = -e.y * 0.25 + nx * spd * 0.4;
+      const m = Math.hypot(e.vx, e.vy);
+      if (m > spd * 1.5) { e.vx *= spd * 1.5 / m; e.vy *= spd * 1.5 / m; }
+      e.swirl = (e.swirl || 0) + dt * (1 + ph * 0.4);
+      G.pullTo = e; G.pullF = Math.max(G.pullF || 0, (G.D.bossGentle ? 40 : 58) * (1 + ph * 0.3));
+      // what the water carries in
+      e.debT = (e.debT || 0) - dt;
+      if (e.debT <= 0) {
+        e.debT = G.bossCd(0.55 - ph * 0.08);
+        const p = G.player;
+        for (let k = 0; k < 2; k++) {
+          const a = rnd(TAU), x = p.x + Math.cos(a) * 560, y = p.y + Math.sin(a) * 560;
+          const b = Math.atan2(e.y - y, e.x - x);
+          Thicket.asBoss(e, () => G.enemyBullet(x, y, Math.cos(b) * 130, Math.sin(b) * 130, 11 * G.dmgScale, '#9ad0ff', { turn: 0.5, life: 6, r: 7, arm: 0.6 }));
+        }
+      }
+    },
+    attack(e, ph, col, p) {
+      if (e.sub === 0) { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 18 + ph * 4, spd: 170, gapW: 0.5, gapA: rnd(TAU), dmg: 12, turn: 0.45 }); }
+      else if (e.sub === 1) { e.attackT = G.bossCd(2.6); e.spiral = G.bossN(18 + ph * 4); e.spiralA = rnd(TAU); }
+      else if (e.sub === 2) { e.attackT = G.bossCd(2.4); e.fall = 2 + ph; e.fallT = 0.1; e.fallGap = 0.36; e.fallN = 5; e.fallSpd = 250; }
+      else { e.attackT = G.bossCd(3.0); G.hexCircle(p.x, p.y, 110, 1.1, 26 * G.dmgScale, col); }
+    }
+  },
+
+  /* ============================================ THE MANTIS · SMASHING REEF
+     PUNCH: the club glows, a lane lights, and the fastest thing in the
+     shallows goes down it. Dash through it at the last moment. */
+  mantis: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.faceLock = true;
+      const p = G.player;
+      if (e.punchT > 0) {
+        e.punchT -= dt;
+        if ((G.frame & 1) === 0) Particles.spark(e.x, e.y, e.face + Math.PI + rnd(-0.3, 0.3), rnd(80, 240), { col: e.def.col, life: 0.3, w: 2.4 });
+        if (p.dashT > 0 && !p.dead && dist2(p.x, p.y, e.x, e.y) < (e.r + p.r + 16) * (e.r + p.r + 16)) Ach.grant('shl_parry');
+        if (e.punchT <= 0) {
+          e.vx *= 0.1; e.vy *= 0.1;
+          // it cracks the water where it lands
+          G.hexCircle(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r, 110, 0.35, 24 * G.dmgScale, e.def.col);
+          Thicket.ringFrom(e, e.x, e.y, 10 + ph * 2, 200, 12);
+          Cam.shake(0.5); Sound.shoot('nova');
+          if (e.combo > 0) {
+            e.combo--;
+            e.windT = G.bossTele(0.6); e.windA = Math.atan2(p.y - e.y, p.x - e.x); e.face = e.windA;
+            Thicket.lane(e, e.windA, 600, e.r * 2 + 10, e.windT);
+          } else e.rest = 1.0;
+        }
+        return;
+      }
+      if (e.windT > 0) {
+        e.windT -= dt; e.vx *= 0.8; e.vy *= 0.8; e.face = e.windA;
+        if (e.windT <= 0) { e.punchT = 0.34; e.vx = Math.cos(e.windA) * 1500; e.vy = Math.sin(e.windA) * 1500; Sound.shoot('lash'); Cam.shake(0.3); }
+        return;
+      }
+      if (e.rest > 0) { e.rest -= dt; e.vx *= 0.9; e.vy *= 0.9; return; }
+      e.face = Math.atan2(ny, nx);
+      tkOrbit(e, nx, ny, dd, spd, 330, 0.5);
+    },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.punchT > 0 || e.windT > 0) { e.attackT = 0.3; return; }
+      if (e.sub === 0 || e.sub === 2) {
+        e.attackT = G.bossCd(3.4 - ph * 0.3);
+        e.windT = G.bossTele(0.9 - ph * 0.1); e.windA = toP; e.face = toP; e.combo = ph;
+        Thicket.lane(e, toP, 600, e.r * 2 + 10, e.windT);
+        Sound.bossHorn();
+      } else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 250, 0.15, 12, toP); }
+      else { e.attackT = G.bossCd(2.6); G.sowerRing(e, { n: 16 + ph * 4, spd: 180, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+    }
+  },
+
+  /* ============================================ THE OCTOPUS · INKWELL
+     SWEEP: it lays its arms across the water (a warning first) and turns
+     them like the hands of a clock. Keep ahead of them. */
+  octopus: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      const out = SH.arms.some(A => A.src === e);
+      if (out) { e.vx *= 0.9; e.vy *= 0.9; } else tkOrbit(e, nx, ny, dd, spd, 300, 0.4);
+      e.curl = (e.curl || 0) + dt;
+    },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      const out = SH.arms.some(A => A.src === e);
+      if (e.sub === 0 && !out) {
+        e.attackT = G.bossCd(3.0);
+        const n = 2 + ph, spin = (rand() < 0.5 ? 1 : -1) * (G.D.bossGentle ? 0.4 : 0.55) * (1 + ph * 0.1);
+        const a0 = toP + Math.PI / n;
+        for (let i = 0; i < n; i++) SH.arm(e, a0 + i / n * TAU, 560, 30, { spin: spin, tele: 1.3, life: 6 + ph, dmg: 20, col: col });
+        G.callout('IT REACHES OUT', col, e);
+      } else if (e.sub === 2 && ph >= 1) {
+        e.attackT = G.bossCd(2.6);
+        for (let i = 0; i < 2; i++) Thicket.sticky(p.x + rnd(-120, 120), p.y + rnd(-120, 120), 80, '#3a3f9a');
+      } else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.15, 12, toP); }
+      else { e.attackT = G.bossCd(2.8); Thicket.ringFrom(e, e.x, e.y, 12 + ph * 2, 180, 12); }
+    }
+  },
+
+  /* ============================================ THE RAY · THE REACHES
+     GLIDE: a shadow first -- the lane -- then the ray, and a wake of
+     bubbles behind it. Read where it is going, not where it is. */
+  ray: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.faceLock = true;
+      if (e.gliding > 0) {
+        e.gliding -= dt;
+        e.wakeT = (e.wakeT || 0) - dt;
+        if (e.wakeT <= 0) {
+          e.wakeT = 0.11;
+          for (const s of [-1, 1]) {
+            const a = e.face + s * Math.PI / 2;
+            Thicket.asBoss(e, () => G.enemyBullet(e.x + Math.cos(a) * e.r * 0.9, e.y + Math.sin(a) * e.r * 0.9, Math.cos(a) * 70, Math.sin(a) * 70, 11 * G.dmgScale, '#bff8ff', { acc: 0.45, life: 2.2, r: 7 }));
+          }
+        }
+        if (e.gliding <= 0) { e.vx *= 0.3; e.vy *= 0.3; if (e.passes > 0) { e.passes--; SH.glide(e); } }
+        return;
+      }
+      if (e.windT > 0) {
+        e.windT -= dt; e.vx *= 0.9; e.vy *= 0.9; e.face = e.windA;
+        if (e.windT <= 0) { e.gliding = e.glideDur; e.vx = Math.cos(e.windA) * e.glideSpd; e.vy = Math.sin(e.windA) * e.glideSpd; Sound.shoot('lash'); }
+        return;
+      }
+      tkOrbit(e, nx, ny, dd, spd, 520, 0.9);
+      if (e.vx * e.vx + e.vy * e.vy > 100) e.face = Math.atan2(e.vy, e.vx);
+    },
+    attack(e, ph, col, p) {
+      if (e.gliding > 0 || e.windT > 0) { e.attackT = 0.3; return; }
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub % 2 === 0) { e.attackT = G.bossCd(3.6); e.passes = ph >= 2 ? 1 : 0; SH.glide(e); }
+      else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.16, 12, toP); }
+      else { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 16 + ph * 4, spd: 175, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+    }
+  },
+
+  /* ============================================ THE NAUTILUS · NAUTILUS SHELF
+     CHAMBERS: spirals from its siphon, all the time. Each phase it goes a
+     chamber deeper: smaller, faster, one more arm. Move with a spiral. */
+  nautilus: {
+    move(e, dt, nx, ny, dd, spd, ph) {
+      if (e.chamber === undefined) { e.chamber = 0; e.siDir = 1; }
+      if (e.jet > 0) { e.jet -= dt; e.vx *= 0.96; e.vy *= 0.96; }
+      else tkOrbit(e, nx, ny, dd, spd * (1 + e.chamber * 0.25), 360 - e.chamber * 40, 0.5);
+      e.siT = (e.siT || 0) - dt;
+      if (e.siT <= 0 && e.spawnT <= 0) {
+        e.siT = G.D.bossGentle ? 0.2 : 0.14;
+        e.siA = (e.siA || 0) + (0.23 + e.chamber * 0.02) * e.siDir;
+        const arms = 2 + (e.chamber >= 2 ? 1 : 0);
+        for (let k = 0; k < arms; k++) {
+          const a = e.siA + k / arms * TAU;
+          Thicket.asBoss(e, () => G.enemyBullet(e.x + Math.cos(a) * e.r * 0.8, e.y + Math.sin(a) * e.r * 0.8, Math.cos(a) * 150, Math.sin(a) * 150, 11 * G.dmgScale, e.def.col,
+            { turn: 0.35 * e.siDir, life: 6, r: 7 }));
+        }
+      }
+    },
+    phase(e, ph) {
+      if (ph > (e.chamber || 0)) {
+        e.chamber = ph; e.r = e.def.r * (1 - ph * 0.12); e.siDir = -(e.siDir || 1);
+        G.banner(ph >= 2 ? 'THE LAST CHAMBER' : 'A CHAMBER DEEPER', e.def.col);
+        Cam.shake(0.6);
+      }
+    },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0) { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 16 + ph * 4, spd: 170, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+      else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.15, 12, toP); }
+      else if (e.sub === 2) {
+        // it jets away, and leaves ink where it was
+        e.attackT = G.bossCd(2.6);
+        e.jet = 0.5; e.vx = -Math.cos(toP) * 520; e.vy = -Math.sin(toP) * 520;
+        Thicket.sticky(e.x, e.y, 90, '#5a4a30');
+      } else { e.attackT = G.bossCd(3.0); G.hexCircle(p.x, p.y, 110, 1.1, 26 * G.dmgScale, col); }
+    }
+  },
+
+  /* ============================================ THE CLAM · PEARL BEDS
+     PEARL: it opens and throws its pearl, which ricochets and comes home
+     along a line you can see. It is only soft while it waits, open. */
+  clam: {
+    move(e, dt, nx, ny, dd, spd, ph) {
+      if (e.open === undefined) { e.open = false; e.cyc = 1.8; }
+      e.vx = nx * spd * 0.5; e.vy = ny * spd * 0.5;
+      e.openA = (e.openA || 0) + ((e.open ? 1 : 0) - (e.openA || 0)) * Math.min(1, dt * 5);
+      let out = 0; for (const P of SH.pearls) if (P.src === e) out++;
+      if (!e.open) {
+        e.cyc -= dt;
+        e.warn = e.cyc < 0.9 ? 1 - e.cyc / 0.9 : 0;
+        if (e.cyc <= 0) {
+          e.open = true; e.warn = 0;
+          const toP = Math.atan2(G.player.y - e.y, G.player.x - e.x), n = ph >= 1 ? 2 : 1;
+          for (let k = 0; k < n; k++) SH.pearl(e, toP + (k - (n - 1) / 2) * 0.9, { spd: 360 + ph * 30, bounces: 2 + ph, trail: ph >= 2, col: '#f4f0ff', dmg: 28 });
+          G.callout('THE PEARL', e.def.col, e);
+        }
+      } else if (out === 0) { e.open = false; e.cyc = G.bossCd(2.2); }
+    },
+    hurt(e, dmg) { return e.open ? dmg : dmg * 0.15; },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (!e.open) {
+        e.attackT = G.bossCd(2.6);
+        if (e.sub % 2 === 0) G.sowerRing(e, { n: 14 + ph * 4, spd: 150, gapW: 0.55, gapA: rnd(TAU), dmg: 12 });
+      } else {
+        e.attackT = G.bossCd(2.0);
+        Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.16, 12, toP);
+      }
+    }
+  },
+
+  /* ============================================ THE WHALE · WHALEFALL
+     SONG: slow rings with a gap in each, out from the edge; then it dives
+     and breaches under you. Everything you learned, at once, gently. */
+  whale: {
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.faceLock = true;
+      if (e.dive > 0) {
+        e.dive -= dt; e.hidden = true; e.downed = 1;
+        e.x += (e.bx - e.x) * Math.min(1, dt * 2.5); e.y += (e.by - e.y) * Math.min(1, dt * 2.5);
+        e.vx = 0; e.vy = 0;
+        if (e.dive <= 0) {
+          e.hidden = false; e.downed = 0; e.x = e.bx; e.y = e.by;
+          const p = G.player;
+          if (!p.dead && !(p.inv > 0) && dist2(p.x, p.y, e.x, e.y) < (190 + p.r) * (190 + p.r)) e.breached = 1;
+          Thicket.ringFrom(e, e.x, e.y, 14 + ph * 2, 190, 12);
+          Cam.shake(0.9); Sound.shoot('nova');
+          Particles.ring(e.x, e.y, e.r, e.r * 3.4, { col: e.def.col, life: 0.7, w: 8 });
+          for (let i = 0; i < 30; i++) Particles.spark(e.x, e.y, rnd(TAU), rnd(120, 420), { col: '#d0fff4', life: rnd(0.4, 0.9), w: 2.6 });
+        }
+        return;
+      }
+      e.hidden = false; e.downed = 0;
+      tkOrbit(e, nx, ny, dd, spd, 560, 0.6);
+      if (e.vx * e.vx + e.vy * e.vy > 100) e.face = Math.atan2(e.vy, e.vx);
+    },
+    attack(e, ph, col, p) {
+      if (e.dive > 0) { e.attackT = 0.4; return; }
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0 || e.sub === 2) {
+        // the song: slow rings, a door in each
+        e.attackT = G.bossCd(3.4);
+        const n = 1 + (ph >= 1 ? 1 : 0) + (ph >= 2 ? 1 : 0);
+        for (let k = 0; k < n; k++) Thicket.later(k * 0.75, () => { if (!e.dead && !(e.dive > 0)) G.sowerRing(e, { n: 26 + ph * 4, spd: 115 + k * 10, gapW: 0.55, gapA: toP + (k % 2 ? 0.7 : -0.7), dmg: 12 }); });
+        Sound.bossHorn();
+      } else if (e.sub === 1) {
+        e.attackT = G.bossCd(4.4);
+        const q = Thicket.inArena(p.x, p.y, 220);
+        e.bx = q[0]; e.by = q[1];
+        e.dive = G.bossTele(1.5);
+        G.hexCircle(e.bx, e.by, 190, 1.5, 34 * G.dmgScale, col);
+        G.callout('IT DIVES', col, e);
+      } else { e.attackT = G.bossCd(2.6); e.fall = 2 + ph; e.fallT = 0.1; e.fallGap = 0.36; e.fallN = 6; e.fallSpd = 240; }
+    }
+  },
+
+  /* ---- the wild ones ---- */
+  /* THE GULL: circles high, dives down a lane, and takes what you leave */
+  gull: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.faceLock = true;
+      e.stealT = (e.stealT || 0) - dt;
+      if (e.stealT <= 0) {
+        e.stealT = 0.25;
+        for (const k of G.pickups) {
+          if (k.dead || k.type !== 'mote' || dist2(k.x, k.y, e.x, e.y) > 150 * 150) continue;
+          k.dead = true; e.bag = (e.bag || 0) + 1; e.stole = 1;
+          Particles.spark(k.x, k.y, Math.atan2(e.y - k.y, e.x - k.x), 200, { col: '#9ef7ff', life: 0.3, w: 2 });
+        }
+      }
+      if (e.diving > 0) {
+        e.diving -= dt;
+        if ((G.frame & 1) === 0) Particles.spark(e.x, e.y, e.face + Math.PI + rnd(-0.4, 0.4), rnd(60, 200), { col: e.def.col, life: 0.3, w: 2 });
+        if (e.diving <= 0) { e.vx *= 0.3; e.vy *= 0.3; e.rest = 0.6; }
+        return;
+      }
+      if (e.windT > 0) {
+        e.windT -= dt; e.vx *= 0.85; e.vy *= 0.85; e.face = e.windA;
+        if (e.windT <= 0) { e.diving = 0.62; e.vx = Math.cos(e.windA) * 1100; e.vy = Math.sin(e.windA) * 1100; Sound.shoot('lash'); }
+        return;
+      }
+      if (e.rest > 0) { e.rest -= dt; e.vx *= 0.9; e.vy *= 0.9; return; }
+      tkOrbit(e, nx, ny, dd, spd, 420, 0.9, 80);
+      if (e.vx * e.vx + e.vy * e.vy > 100) e.face = Math.atan2(e.vy, e.vx);
+    },
+    attack(e, ph, col, p) {
+      if (e.diving > 0 || e.windT > 0) { e.attackT = 0.3; return; }
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0 || e.sub === 2) {
+        e.attackT = G.bossCd(3.0 - ph * 0.3);
+        e.windT = G.bossTele(0.8); e.windA = toP; e.face = toP;
+        Thicket.lane(e, toP, 900, e.r * 2, e.windT);
+      } else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.16, 12, toP); }
+      else { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 16 + ph * 4, spd: 180, gapW: 0.5, gapA: rnd(TAU), dmg: 12 }); }
+    }
+  },
+  /* THE KING CRAB: only ever sideways, its shell to you. Get round it. */
+  kingcrab: {
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.faceLock = true;
+      const want = Math.atan2(ny, nx);
+      e.face = e.face === undefined ? want : e.face + clamp(angDiff(e.face, want), -1.1 * dt, 1.1 * dt);
+      e.sideT = (e.sideT || 0) - dt;
+      if (e.sideT <= 0) { e.sideT = rnd(2.2, 3.4); e.side = -(e.side || 1); }
+      const s = e.side || 1, radial = dd > 340 ? 0.35 : (dd < 260 ? -0.35 : 0);
+      const fx = Math.cos(e.face), fy = Math.sin(e.face);
+      e.vx = (-fy * s + fx * radial) * spd; e.vy = (fx * s + fy * radial) * spd;
+    },
+    hurt(e, dmg, o) {
+      const p = G.player, ka = o && o.kbAngle !== undefined ? o.kbAngle : Math.atan2(e.y - p.y, e.x - p.x);
+      if (Math.abs(angDiff(e.face || 0, ka + Math.PI)) < 1.0) { e.platedT = G.time; return dmg * 0.3; }
+      return dmg * 1.1;
+    },
+    attack(e, ph, col, p) {
+      const toP = Math.atan2(p.y - e.y, p.x - e.x);
+      if (e.sub === 0 || e.sub === 2) {
+        // both claws, across where you are
+        e.attackT = G.bossCd(2.8);
+        const tl = G.bossTele(0.85), fx = Math.cos(e.face || toP), fy = Math.sin(e.face || toP);
+        for (const s of [-1, 1]) {
+          const cx = e.x + fx * e.r * 0.8 - fy * s * e.r * 0.9, cy = e.y + fy * e.r * 0.8 + fx * s * e.r * 0.9;
+          const a = Math.atan2(p.y - cy, p.x - cx), len = Math.hypot(p.x - cx, p.y - cy) + 320;
+          G.fx.push({ t: 'tele', x: cx, y: cy, a: a, len: len, w: 34, life: tl + 0.34, max: tl + 0.34, col: col, src: null, fired: false, dmg: 24 });
+        }
+        Sound.bossHorn();
+      } else if (e.sub === 1) { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 230, 0.16, 12, toP); }
+      else { e.attackT = G.bossCd(2.8); Thicket.ringFrom(e, e.x, e.y, 12 + ph * 2, 180, 12); }
+    }
+  },
+  /* THE SCHOOL: a thousand fish, one life, and it changes shape */
+  school: {
+    wear: true,
+    move(e, dt, nx, ny, dd, spd, ph) {
+      e.faceLock = true;
+      e.shapeT = Math.max(0, (e.shapeT || 0) - dt);
+      if (e.shapeT <= 0) e.shape = 'swirl';
+      if (e.darting > 0) {
+        e.darting -= dt;
+        if (e.darting <= 0) { e.vx *= 0.3; e.vy *= 0.3; e.rest = 0.5; }
+        return;
+      }
+      if (e.windT > 0) {
+        e.windT -= dt; e.vx *= 0.85; e.vy *= 0.85; e.face = e.windA;
+        if (e.windT <= 0) { e.darting = 0.6; e.vx = Math.cos(e.windA) * 1000; e.vy = Math.sin(e.windA) * 1000; Sound.shoot('lash'); }
+        return;
+      }
+      if (e.rest > 0) { e.rest -= dt; e.vx *= 0.9; e.vy *= 0.9; return; }
+      tkOrbit(e, nx, ny, dd, spd, 380, 0.8, 60);
+      if (e.vx * e.vx + e.vy * e.vy > 100) e.face = Math.atan2(e.vy, e.vx);
+    },
+    attack(e, ph, col, p) {
+      if (e.darting > 0 || e.windT > 0) { e.attackT = 0.3; return; }
+      const toP = Math.atan2(p.y - e.y, p.x - e.x), k = e.sub % 3;
+      e.attackT = G.bossCd(3.4 - ph * 0.3);
+      if (k === 0) {
+        // A RING that closes on you: find the gap
+        e.shape = 'ring'; e.shapeT = 2.5;
+        const n = G.bossN(30 + ph * 6), gap = rnd(TAU), gw = 0.42, R = 360;
+        for (let i = 0; i < n; i++) {
+          const a = i / n * TAU;
+          if (Math.abs(angDiff(a, gap)) < gw) continue;
+          G.enemyBullet(p.x + Math.cos(a) * R, p.y + Math.sin(a) * R, -Math.cos(a) * 110, -Math.sin(a) * 110, 12 * G.dmgScale, col, { life: R / 110 + 0.6, arm: 0.6, r: 7 });
+        }
+        G.callout('A RING', col, e);
+      } else if (k === 1) {
+        // AN ARROW through you
+        e.shape = 'arrow'; e.shapeT = 2;
+        e.windT = G.bossTele(0.9); e.windA = toP; e.face = toP;
+        Thicket.lane(e, toP, 900, e.r * 2.4, e.windT);
+      } else {
+        // A WALL that sweeps across
+        e.shape = 'wall'; e.shapeT = 2.5;
+        const dx = Math.cos(toP), dy = Math.sin(toP), px2 = -dy, py2 = dx;
+        const cx = p.x - dx * 520, cy = p.y - dy * 520, gap = rnd(-260, 260), step = G.D.bossGentle ? 56 : 44;
+        for (let u = -520; u <= 520; u += step) {
+          if (Math.abs(u - gap) < 70) continue;
+          G.enemyBullet(cx + px2 * u, cy + py2 * u, dx * 150, dy * 150, 12 * G.dmgScale, col, { life: 7, arm: 0.5, r: 7 });
+        }
+        G.callout('A WALL', col, e);
+      }
+    }
+  }
+});
+
+/* ---- the glide, and the arms torn off ---- */
+SH.glide = function (e) {
+  const p = G.player;
+  const a = Math.atan2(p.y - e.y, p.x - e.x), len = Math.min(1500, Math.hypot(p.x - e.x, p.y - e.y) + 520);
+  e.glideSpd = 720; e.glideDur = len / e.glideSpd;
+  e.windT = G.bossTele(1.0); e.windA = a; e.face = a;
+  Thicket.lane(e, a, len, e.r * 1.6, e.windT);
+};
+SH.tearArm = function (e) {
+  let k = -1;
+  for (let i = 0; i < 5; i++) if (e.slots[i]) { k = i; if (rand() < 0.5) break; }
+  if (k < 0) return;
+  e.slots[k] = 0; e.arms--;
+  const a = (e.spinA || 0) + k / 5 * TAU - Math.PI / 2;
+  const q = Thicket.inArena(e.x + Math.cos(a) * e.r * 1.6, e.y + Math.sin(a) * e.r * 1.6, 60);
+  const A = new Enemy(ENEMY.stararm, q[0], q[1], 1, G.dmgScale);
+  A.maxHp = A.hp = Math.max(260, Math.round(e.maxHp * 0.028));
+  A.owner = e; A.bossAdd = 1; A.spawnT = 0.4;
+  A.kx = Math.cos(a) * 320; A.ky = Math.sin(a) * 320;
+  G.enemies.push(A);
+  G.callout(e.tornHint ? 'AN ARM COMES OFF' : 'DASH ACROSS IT TO CRUSH IT', '#ffe0c8', A);
+  e.tornHint = 1;
+  Cam.shake(0.4); Sound.shoot('lash');
+};
+
+/* ================================================ THE MOTHER OF PEARL · MOONPOOL
+   Four bodies, like THE SOWER and THE HUNTER. I opens and shuts; II is only
+   water, and sends it across in walls; III turns its light on you; IV is
+   the grain of sand it was all grown round. */
+const PEARL_FORMS = [
+  { def: 'pearl',  hp: 0.46, title: 'I · THE SHELL', line: 'It has been growing round the same thing for a thousand years.', t: 240, arena: 1240 },
+  { def: 'pearl2', hp: 1.58, title: 'II · THE TIDE', line: 'The shell is gone. There is only the water it was holding.',   t: 380, arena: 1180 },
+  { def: 'pearl3', hp: 0.88, title: 'III · THE PEARL', line: 'Every colour at once, and all of it turned on you.',          t: 510, arena: 1100 },
+  { def: 'pearl4', hp: 1.35, title: 'IV · THE GRAIN', line: 'The grain of sand it all grew round.',                          t: 630, arena: 980 }
+];
+CORE_FORMS.pearl = PEARL_FORMS;
+Thicket.boss.pearl = {
+  move(e, dt, nx, ny, dd, spd, ph) {
+    const F = e.form | 0, p = G.player;
+    if (e.reviveT > 0) {
+      e.reviveT -= dt;
+      e.downed = Math.max(0.001, e.downed - dt);
+      e.vx *= 0.88; e.vy *= 0.88;
+      e.hidden = false; e.fade = 1;
+      if ((G.frame & 1) === 0) {
+        const a = rnd(TAU), d2 = 760 * (e.reviveT / 2.9) + e.r;
+        Particles.spark(e.x + Math.cos(a) * d2, e.y + Math.sin(a) * d2, a + Math.PI, rnd(320, 760), { col: e.def.col, life: 0.36, w: 2.6 });
+      }
+      if (e.reviveT <= 0) {
+        e.downed = 0; e.reviveT = 0;
+        Cam.shake(0.8); Flash.hit(e.def.col, 0.34); Sound.bossHorn();
+        Particles.ring(e.x, e.y, e.r * 0.5, e.r * 6, { col: e.def.col, life: 0.6, w: 8 });
+      }
+      return;
+    }
+    if (F === 0) {
+      // I: the shell, opening and shutting at the bottom of the pool
+      if (e.open === undefined) { e.open = false; e.cyc = 2.2; }
+      e.vx = -e.x * 0.3; e.vy = -e.y * 0.3;
+      e.openA = (e.openA || 0) + ((e.open ? 1 : 0) - (e.openA || 0)) * Math.min(1, dt * 4);
+      let out = 0; for (const P of SH.pearls) if (P.src === e) out++;
+      if (!e.open) {
+        e.cyc -= dt;
+        e.warn = e.cyc < 1 ? 1 - e.cyc : 0;
+        if (e.cyc <= 0) {
+          e.open = true; e.warn = 0; e.openT = 0;
+          const toP = Math.atan2(p.y - e.y, p.x - e.x), n = ph >= 1 ? 2 : 1;
+          for (let k = 0; k < n; k++) SH.pearl(e, toP + (k - (n - 1) / 2) * 1.0, { spd: 380, bounces: 2 + ph, trail: ph >= 2, col: '#f4f0ff', dmg: 30, r: 24 });
+        }
+      } else {
+        e.openT = (e.openT || 0) + dt;
+        if (out === 0 && e.openT > 2.4) { e.open = false; e.cyc = G.bossCd(2.4); }
+      }
+    } else if (F === 1) {
+      // II: only water. It stays near the middle and throws the sea at you
+      e.vx = -e.x * 0.25 - ny * spd * 0.3; e.vy = -e.y * 0.25 + nx * spd * 0.3;
+      e.waveT = (e.waveT === undefined ? 2 : e.waveT) - dt;
+      if (e.waveT <= 0) { e.waveT = G.bossCd([3.6, 3.2, 2.8][ph] || 2.8); SH.wave(e, ph); }
+    } else if (F === 2) {
+      // III: the pearl, turning its light on you
+      tkOrbit(e, nx, ny, dd, spd, 340, 0.5);
+    } else {
+      // IV: the grain. Tiny, and quick, and it will not be still
+      e.blinkT = (e.blinkT === undefined ? 2 : e.blinkT) - dt;
+      if (e.blinkT <= 0) {
+        e.blinkT = G.bossCd(2.6);
+        const a = rnd(TAU), q = Thicket.inArena(p.x + Math.cos(a) * 320, p.y + Math.sin(a) * 320, 120);
+        Particles.ring(e.x, e.y, 4, 80, { col: e.def.col, life: 0.4, w: 4 });
+        e.x = q[0]; e.y = q[1];
+        Particles.ring(e.x, e.y, 80, 4, { col: e.def.col, life: 0.4, w: 4 });
+        Thicket.ringFrom(e, e.x, e.y, 10 + ph * 2, 180, 12);
+      }
+      tkOrbit(e, nx, ny, dd, spd, 300, 0.9, 60);
+    }
+  },
+  hurt(e, dmg) { return (e.form | 0) === 0 && !e.open ? dmg * 0.25 : dmg; },
+  attack(e, ph, col, p) {
+    const F = e.form | 0, toP = Math.atan2(p.y - e.y, p.x - e.x);
+    if (e.reviveT > 0) { e.attackT = 0.5; return; }
+    if (F === 0) {
+      if (!e.open) { e.attackT = G.bossCd(2.8); G.sowerRing(e, { n: 20 + ph * 4, spd: 140, gapW: 0.55, gapA: rnd(TAU), dmg: 13 }); }
+      else { e.attackT = G.bossCd(2.2); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.16, 13, toP); }
+    } else if (F === 1) {
+      if (e.sub % 2 === 0) { e.attackT = G.bossCd(2.8); e.spiral = G.bossN(16 + ph * 4); e.spiralA = rnd(TAU); }
+      else { e.attackT = G.bossCd(2.6); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 240, 0.15, 13, toP); }
+    } else if (F === 2) {
+      let beams = 0; for (const A of SH.arms) if (A.src === e) beams++;
+      if (e.sub === 0 && !beams) {
+        e.attackT = G.bossCd(2.8);
+        const n = 3, spin = (rand() < 0.5 ? 1 : -1) * (G.D.bossGentle ? 0.32 : 0.42);
+        for (let i = 0; i < n; i++) SH.arm(e, toP + Math.PI / n + i / n * TAU, 1100, 24, { kind: 'beam', spin: spin, tele: 1.3, life: 7, dmg: 22, col: '#fff4fe' });
+        G.callout('ITS LIGHT TURNS', col, e);
+      } else if (e.sub === 1) { e.attackT = G.bossCd(2.6); G.sowerRing(e, { n: 18 + ph * 4, spd: 170, gapW: 0.5, gapA: rnd(TAU), dmg: 13 }); }
+      else { e.attackT = G.bossCd(2.4); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 250, 0.15, 13, toP); }
+    } else {
+      if (e.sub % 2 === 0) { e.attackT = G.bossCd(2.2); Thicket.fanFrom(e, e.x, e.y, 5 + ph, 270, 0.14, 13, toP); }
+      else { e.attackT = G.bossCd(2.6); e.spiral = G.bossN(14 + ph * 4); e.spiralA = rnd(TAU); }
+    }
+  }
+};
+// THE TIDE: a wall of water across the whole pool, with gaps in it
+SH.wave = function (e, ph) {
+  const p = G.player;
+  e.waveSide = ((e.waveSide || 0) + 1 + (rand() < 0.5 ? 1 : 0)) % 4;
+  const a = e.waveSide * Math.PI / 2 + rnd(-0.3, 0.3), dx = Math.cos(a), dy = Math.sin(a), px2 = -dy, py2 = dx;
+  const cx = p.x - dx * 700, cy = p.y - dy * 700, step = G.D.bossGentle ? 58 : 46;
+  const gaps = ph >= 2 ? [rnd(-500, -80), rnd(80, 500)] : [rnd(-400, 400)];
+  Thicket.asBoss(e, () => {
+    for (let u = -800; u <= 800; u += step) {
+      let skip = false; for (const g of gaps) if (Math.abs(u - g) < 80) skip = true;
+      if (skip) continue;
+      G.enemyBullet(cx + px2 * u, cy + py2 * u, dx * 165, dy * 165, 13 * G.dmgScale, '#8af0ff', { life: 9, arm: 0.7, r: 8, hitCb: () => { e.soaked = 1; } });
+    }
+  });
+  G.callout('THE TIDE', e.def.col, e);
+  Sound.shoot('arc');
+};
+GAL_BY_ID.shallows.mod = Shallows;
+
+
+/* =======================================================================
+   THE SHALLOWS -- how it looks
+
+   The garden is geometry and the thicket is thorn; the shallows is water.
+   Its pen is the long curve of a fin, the round of a bubble, scales, the
+   bell of a jelly and the sheen on a pearl -- bright tropical colour on
+   deep water. Same rules: baked bodies, banded live parts, no live blur.
+   ======================================================================= */
+
+/* ---- the pen ---- */
+// a fish: nose at +L, body height H, tail fork at the back
+function shFish(cc, L, H, tailW) {
+  cc.moveTo(L, 0);
+  cc.bezierCurveTo(L * 0.75, -H, -L * 0.35, -H * 0.9, -L * 0.62, -H * 0.18);
+  cc.lineTo(-L * 1.05, -(tailW || H * 0.9));
+  cc.quadraticCurveTo(-L * 0.9, 0, -L * 1.05, (tailW || H * 0.9));
+  cc.lineTo(-L * 0.62, H * 0.18);
+  cc.bezierCurveTo(-L * 0.35, H * 0.9, L * 0.75, H, L, 0);
+  cc.closePath();
+}
+// a fin: a rounded fan from x,y pointing a
+function shFin(cc, x, y, a, L, W) {
+  const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+  cc.moveTo(x + px * W * 0.3, y + py * W * 0.3);
+  cc.quadraticCurveTo(x + ca * L * 0.6 + px * W, y + sa * L * 0.6 + py * W, x + ca * L, y + sa * L);
+  cc.quadraticCurveTo(x + ca * L * 0.7 - px * W * 0.2, y + sa * L * 0.7 - py * W * 0.2, x - px * W * 0.3, y - py * W * 0.3);
+}
+// a row of scales: arcs across a body from x0 to x1
+function shScales(cc, x0, x1, h, n, rows) {
+  for (let r = 0; r < rows; r++) {
+    const y = (r - (rows - 1) / 2) * h * 0.8;
+    for (let i = 0; i < n; i++) {
+      const x = lerp(x0, x1, (i + (r % 2) * 0.5) / n);
+      cc.moveTo(x + h * 0.35, y - h * 0.3);
+      cc.quadraticCurveTo(x - h * 0.1, y, x + h * 0.35, y + h * 0.3);
+    }
+  }
+}
+// a wavy tentacle from x,y heading a, as a single stroke
+function shTendril(cc, x, y, a, L, amp, ph, n) {
+  const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+  cc.moveTo(x, y);
+  for (let i = 1; i <= (n || 8); i++) {
+    const u = i / (n || 8), w = Math.sin(u * 7 + ph) * amp * u;
+    cc.lineTo(x + ca * L * u + px * w, y + sa * L * u + py * w);
+  }
+}
+
+const SHALLOWS_SPRITE = {
+  // SPRAT -- a small silver fish, the shallows' own filler
+  sprat(c, R, col, core, hurt, o) {
+    neon(c, cc => { cc.beginPath(); shFish(cc, R * 1.1, R * 0.55, R * 0.5); }, col, o);
+    tkLight(c, hurt, cc => { cc.beginPath(); shFish(cc, R, R * 0.5, R * 0.4); }, R * 0.2, -R * 0.15, R, 'rgba(210,240,255,A)', 0.3);
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.7, 0); cc.quadraticCurveTo(0, R * 0.08, -R * 0.6, 0); }, Kc(hurt, '#ffffff'), { lw: 0.9, blur: 5, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); shFin(cc, R * 0.1, -R * 0.42, -Math.PI * 0.75, R * 0.4, R * 0.14); }, col, { lw: 1, blur: 5, core: null, inner: false });
+    tkEyes(c, R * 0.68, 0, 0, 0.01, R * 0.09, Kc(hurt, '#0a1a2a'), hurt);
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.68, -R * 0.02, R * 0.12); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 5, core: null, inner: false });
+  },
+  // KRILL -- a curl of pink with its feelers out in front
+  krill(c, R, col, core, hurt, o) {
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(R * 0.7, s * R * 0.1); cc.quadraticCurveTo(R * 1.4, s * R * 0.3, R * 1.7, s * R * 0.8); } }, col, { lw: 0.8, blur: 4, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.9, 0); cc.quadraticCurveTo(R * 0.2, -R * 0.62, -R * 0.9, -R * 0.2); cc.quadraticCurveTo(-R * 1.2, R * 0.1, -R * 0.8, R * 0.3); cc.quadraticCurveTo(R * 0.1, R * 0.4, R * 0.9, 0); }, col, { lw: 1.6, blur: 9, core: core });
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 4; i++) { const x = R * (0.5 - i * 0.35); cc.moveTo(x, -R * 0.3); cc.lineTo(x - R * 0.08, R * 0.25); } }, Kc(hurt, '#ffd8c8'), { lw: 0.8, blur: 4, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.62, -R * 0.12, R * 0.12); }, Kc(hurt, '#1a0a0a'), { lw: 0.9, blur: 4, core: hurt ? core : '#1a0808', inner: false });
+  },
+  // SCUTTLER -- a crab: claws up, front to you, and it walks sideways
+  scuttler(c, R, col, core, hurt, o) {
+    const pale = Kc(hurt, '#ffd0b0');
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const x0 = R * (0.2 - k * 0.32); cc.moveTo(x0, s * R * 0.5); cc.lineTo(x0 - R * 0.15, s * R * 1.0); cc.lineTo(x0 - R * 0.35, s * R * 1.18); } }, col, { lw: 1.6, blur: 7, core: null, inner: false });
+    // the claws
+    for (const s of [-1, 1]) neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.55, s * R * 0.35); cc.quadraticCurveTo(R * 0.95, s * R * 0.65, R * 1.2, s * R * 0.5); cc.moveTo(R * 1.28, s * R * 0.52); cc.arc(R * 1.18, s * R * 0.5, R * 0.2, 0, TAU); }, col, { lw: 1.8, blur: 9, core: core, inner: false });
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(R * 1.24, s * R * 0.42); cc.lineTo(R * 1.45, s * R * 0.36); cc.moveTo(R * 1.24, s * R * 0.58); cc.lineTo(R * 1.44, s * R * 0.64); } }, pale, { lw: 1.2, blur: 6, core: null, inner: false });
+    const shell = cc => { cc.beginPath(); cc.ellipse(0, 0, R * 0.72, R * 0.92, 0, 0, TAU); };
+    neon(c, shell, col, o);
+    tkLight(c, hurt, shell, R * 0.2, 0, R * 0.9, 'rgba(255,140,90,A)', 0.3);
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.2, -R * 0.7); cc.quadraticCurveTo(-R * 0.25, 0, R * 0.2, R * 0.7); for (let i = 0; i < 3; i++) tkDot(cc, -R * 0.25 + (i - 1) * R * 0.05, (i - 1) * R * 0.35, R * 0.06); }, pale, { lw: 1, blur: 5, core: null, inner: false });
+    for (const s of [-1, 1]) neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.6, s * R * 0.16); cc.lineTo(R * 0.82, s * R * 0.22); tkDot(cc, R * 0.86, s * R * 0.22, R * 0.08); }, pale, { lw: 1, blur: 6, core: hurt ? core : '#ffffff', inner: false });
+  },
+  // ARCHERFISH -- a deep body with bars across it, and a mouth that aims
+  archer(c, R, col, core, hurt, o) {
+    const dark = Kc(hurt, '#1a1206');
+    neon(c, cc => { cc.beginPath(); shFin(cc, -R * 0.1, -R * 0.62, -Math.PI * 0.7, R * 0.55, R * 0.25); shFin(cc, -R * 0.1, R * 0.62, Math.PI * 0.7, R * 0.5, R * 0.22); }, col, { lw: 1.2, blur: 7, core: core, inner: false });
+    const body = cc => { cc.beginPath(); shFish(cc, R * 1.2, R * 0.78, R * 0.6); };
+    neon(c, body, col, o);
+    tkLight(c, hurt, body, R * 0.1, -R * 0.2, R, 'rgba(255,230,120,A)', 0.3);
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 4; i++) { const x = R * (0.45 - i * 0.3); cc.moveTo(x, -R * 0.6 + i * 0.06 * R); cc.quadraticCurveTo(x - R * 0.08, 0, x, R * 0.6 - i * 0.06 * R); } }, dark, { lw: 2.6, blur: 0, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.2, 0); cc.lineTo(R * 0.95, -R * 0.05); }, Kc(hurt, '#ffffff'), { lw: 1.2, blur: 6, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.78, -R * 0.2, R * 0.13); }, Kc(hurt, '#ffffff'), { lw: 1.1, blur: 6, core: hurt ? core : '#101010', inner: false });
+  },
+  // ROE -- a cluster of eggs, and something in every one of them
+  roe(c, R, col, core, hurt, o) {
+    const P = [[0, 0], [0.55, 0], [-0.55, 0], [0.28, 0.48], [-0.28, 0.48], [0.28, -0.48], [-0.28, -0.48]];
+    neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 1.02, 0, TAU); }, col, { lw: 0.8, blur: 8, core: hurt ? core : 'rgba(40,20,8,0.35)', inner: false });
+    neon(c, cc => { cc.beginPath(); for (const [x, y] of P) tkDot(cc, x * R, y * R, R * 0.32); }, col, { lw: 1.4, blur: 10, core: hurt ? core : 'rgba(60,30,10,0.75)', inner: false });
+    neon(c, cc => { cc.beginPath(); for (const [x, y] of P) { cc.moveTo(x * R + R * 0.1, y * R); cc.arc(x * R, y * R, R * 0.1, 0, Math.PI * 1.5); } }, Kc(hurt, '#fff0d8'), { lw: 1, blur: 6, core: null, inner: false });
+  },
+  // FLOUNDER -- flat, fringed, both eyes on one side; you see it when it moves
+  flounder(c, R, col, core, hurt, o) {
+    const spot = Kc(hurt, '#a88850');
+    neon(c, cc => { cc.beginPath(); cc.ellipse(0, 0, R * 1.18, R * 0.86, 0, 0, TAU); }, col, { lw: 1, blur: 6, core: hurt ? core : 'rgba(40,30,16,0.5)', inner: false });
+    const body = cc => { cc.beginPath(); cc.ellipse(R * 0.05, 0, R * 0.95, R * 0.66, 0, 0, TAU); cc.moveTo(-R * 0.85, 0); cc.lineTo(-R * 1.35, -R * 0.35); cc.quadraticCurveTo(-R * 1.2, 0, -R * 1.35, R * 0.35); cc.closePath(); };
+    neon(c, body, col, o);
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 7; i++) { const a = i * 2.3, d = R * 0.45 * Math.sqrt((i + 1) / 7); tkDot(cc, Math.cos(a) * d * 1.2, Math.sin(a) * d, R * (0.07 + (i % 3) * 0.02)); } }, spot, { lw: 1, blur: 4, core: hurt ? core : spot, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.6, -R * 0.18, R * 0.1); tkDot(cc, R * 0.7, R * 0.05, R * 0.09); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 6, core: hurt ? core : '#1a1206', inner: false });
+  },
+  // POLYP -- a stalk and a crown of little arms, budding jellies
+  polyp(c, R, col, core, hurt, o) {
+    const tip = Kc(hurt, '#fff0fa');
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; shTendril(cc, Math.cos(a) * R * 0.45, Math.sin(a) * R * 0.45, a, R * 0.62, R * 0.08, i, 5); } }, col, { lw: 1.3, blur: 7, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; tkDot(cc, Math.cos(a) * R * 1.08, Math.sin(a) * R * 1.08, R * 0.07); } }, tip, { lw: 1, blur: 7, core: hurt ? core : tip, inner: false });
+    const disc = cc => { cc.beginPath(); cc.arc(0, 0, R * 0.5, 0, TAU); };
+    neon(c, disc, col, o);
+    tkLight(c, hurt, disc, 0, 0, R * 0.5, 'rgba(255,140,216,A)', 0.45);
+    neon(c, cc => { cc.beginPath(); cc.ellipse(0, 0, R * 0.16, R * 0.07, 0.4, 0, TAU); }, tip, { lw: 1.2, blur: 8, core: hurt ? core : 'rgba(40,0,20,0.9)', inner: false });
+  },
+  // JELLET -- a jelly the size of a bullet
+  jellet(c, R, col, core, hurt, o) {
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + Math.PI / 4; shTendril(cc, Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6, a, R * 0.9, R * 0.15, i * 2, 5); } }, col, { lw: 0.9, blur: 5, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * TAU, r = R * (i % 2 ? 0.74 : 0.82); i ? cc.lineTo(Math.cos(a) * r, Math.sin(a) * r) : cc.moveTo(Math.cos(a) * r, Math.sin(a) * r); } cc.closePath(); }, col, { lw: 1.4, blur: 9, core: hurt ? core : 'rgba(40,20,60,0.45)' });
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 4; i++) { const a = i / 4 * TAU; cc.moveTo(Math.cos(a) * R * 0.2 + R * 0.12, Math.sin(a) * R * 0.2); cc.arc(Math.cos(a) * R * 0.2, Math.sin(a) * R * 0.2, R * 0.12, 0, TAU); } }, Kc(hurt, '#ffd8f8'), { lw: 1, blur: 6, core: null, inner: false });
+  },
+  // NEEDLEFISH -- all length, and the length is a beak
+  needlefish(c, R, col, core, hurt, o) {
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.8, 0); cc.lineTo(R * 0.7, -R * 0.12); cc.quadraticCurveTo(-R * 0.4, -R * 0.26, -R * 1.1, -R * 0.12); cc.lineTo(-R * 1.45, -R * 0.4); cc.lineTo(-R * 1.3, 0); cc.lineTo(-R * 1.45, R * 0.4); cc.lineTo(-R * 1.1, R * 0.12); cc.quadraticCurveTo(-R * 0.4, R * 0.26, R * 0.7, R * 0.12); cc.closePath(); }, col, { lw: 1.6, blur: 10, core: core });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.7, 0); cc.lineTo(-R * 1.0, 0); }, Kc(hurt, '#ffffff'), { lw: 0.9, blur: 5, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.62, -R * 0.02, R * 0.09); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 5, core: hurt ? core : '#0a1a18', inner: false });
+  },
+  // INKLING -- a small squid, mantle first
+  inkling(c, R, col, core, hurt, o) {
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 6; i++) { const y = (i - 2.5) * R * 0.14; shTendril(cc, -R * 0.35, y, Math.PI + (i - 2.5) * 0.12, R * (i === 1 || i === 4 ? 1.2 : 0.85), R * 0.08, i, 6); } }, col, { lw: 1.1, blur: 6, core: null, inner: false });
+    const mantle = cc => { cc.beginPath(); cc.moveTo(R * 1.25, 0); cc.quadraticCurveTo(R * 0.8, -R * 0.5, -R * 0.35, -R * 0.36); cc.quadraticCurveTo(-R * 0.55, 0, -R * 0.35, R * 0.36); cc.quadraticCurveTo(R * 0.8, R * 0.5, R * 1.25, 0); };
+    neon(c, cc => { cc.beginPath(); shFin(cc, R * 1.0, -R * 0.1, -Math.PI * 0.62, R * 0.45, R * 0.2); shFin(cc, R * 1.0, R * 0.1, Math.PI * 0.62, R * 0.45, R * 0.2); }, col, { lw: 1.1, blur: 6, core: core, inner: false });
+    neon(c, mantle, col, o);
+    tkLight(c, hurt, mantle, R * 0.4, 0, R, 'rgba(150,160,255,A)', 0.3);
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) cc.ellipse(-R * 0.18, s * R * 0.26, R * 0.12, R * 0.08, 0, 0, TAU); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 6, core: hurt ? core : '#0a0a20', inner: false });
+  },
+  // SEAHORSE -- curled, snout out, a crown on its head
+  seahorse(c, R, col, core, hurt, o) {
+    const pale = Kc(hurt, '#ffe0a8');
+    const body = cc => {
+      cc.beginPath();
+      cc.moveTo(R * 1.3, -R * 0.2); cc.lineTo(R * 0.55, -R * 0.35);
+      cc.quadraticCurveTo(R * 0.25, -R * 0.8, -R * 0.2, -R * 0.55);
+      cc.quadraticCurveTo(-R * 0.6, -R * 0.2, -R * 0.3, R * 0.35);
+      cc.quadraticCurveTo(-R * 0.1, R * 0.85, -R * 0.6, R * 0.95);
+      cc.quadraticCurveTo(-R * 0.95, R * 0.8, -R * 0.75, R * 0.55);
+      cc.quadraticCurveTo(-R * 0.45, R * 0.75, -R * 0.55, R * 0.95);
+      cc.quadraticCurveTo(0.2 * R, R * 0.9, R * 0.1, R * 0.3);
+      cc.quadraticCurveTo(R * 0.3, -R * 0.1, R * 0.55, -R * 0.08); cc.lineTo(R * 1.3, -R * 0.12); cc.closePath();
+    };
+    neon(c, body, col, o);
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 5; i++) { const u = i / 5; cc.moveTo(R * (0.15 - u * 0.5), -R * (0.45 - u * 1.1)); cc.lineTo(R * (0.35 - u * 0.5), -R * (0.35 - u * 1.1)); } }, pale, { lw: 1, blur: 5, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); shFin(cc, -R * 0.35, -R * 0.25, Math.PI * 1.1, R * 0.5, R * 0.22); }, pale, { lw: 1, blur: 6, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 3; i++) tkThorn(cc, R * (0.15 + i * 0.12), -R * (0.62 - i * 0.05), -Math.PI / 2 - 0.2 + i * 0.15, R * 0.22, R * 0.04, 0); }, pale, { lw: 1, blur: 6, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.42, -R * 0.35, R * 0.09); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 6, core: hurt ? core : '#1a1004', inner: false });
+  },
+  // GROUPER -- a big slow mouth, and spots
+  grouper(c, R, col, core, hurt, o) {
+    const spot = Kc(hurt, '#4a6a7a');
+    neon(c, cc => { cc.beginPath(); shFin(cc, -R * 0.1, -R * 0.62, -Math.PI * 0.72, R * 0.6, R * 0.3); shFin(cc, -R * 0.1, R * 0.62, Math.PI * 0.72, R * 0.6, R * 0.3); shFin(cc, R * 0.3, -R * 0.5, -Math.PI * 0.35, R * 0.4, R * 0.18); shFin(cc, R * 0.3, R * 0.5, Math.PI * 0.35, R * 0.4, R * 0.18); }, col, { lw: 1.4, blur: 9, core: core, inner: false });
+    const body = cc => { cc.beginPath(); shFish(cc, R * 1.15, R * 0.78, R * 0.55); };
+    neon(c, body, col, { lw: 3, blur: 18, core: core });
+    tkLight(c, hurt, body, R * 0.1, -R * 0.2, R, 'rgba(160,200,220,A)', 0.25);
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 14; i++) { const a = i * 2.2, d = R * 0.5 * Math.sqrt((i + 1) / 14); tkDot(cc, Math.cos(a) * d * 1.3 - R * 0.1, Math.sin(a) * d * 0.9, R * 0.05); } }, spot, { lw: 1, blur: 3, core: hurt ? core : spot, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.15, 0); cc.quadraticCurveTo(R * 0.95, -R * 0.2, R * 0.78, -R * 0.14); cc.moveTo(R * 1.15, 0); cc.quadraticCurveTo(R * 0.95, R * 0.22, R * 0.78, R * 0.16); }, Kc(hurt, '#ffffff'), { lw: 2, blur: 8, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.68, -R * 0.3, R * 0.1); }, Kc(hurt, '#ffffff'), { lw: 1.2, blur: 6, core: hurt ? core : '#081018', inner: false });
+  },
+  // BRISTLING -- a small urchin that gets in the way
+  bristle(c, R, col, core, hurt, o) {
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 14; i++) { const a = i / 14 * TAU; cc.moveTo(Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.5); cc.lineTo(Math.cos(a) * R * (i % 2 ? 1.05 : 1.3), Math.sin(a) * R * (i % 2 ? 1.05 : 1.3)); } }, col, { lw: 1.1, blur: 6, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.55, 0, TAU); }, col, { lw: 1.6, blur: 9, core: core });
+  },
+  // an arm of THE STARFISH, torn off and crawling home
+  stararm(c, R, col, core, hurt, o) {
+    const arm = cc => { cc.beginPath(); cc.moveTo(R * 1.3, 0); cc.quadraticCurveTo(R * 0.4, -R * 0.52, -R * 0.9, -R * 0.62); cc.lineTo(-R * 1.0, -R * 0.2); cc.lineTo(-R * 0.86, 0.05 * R); cc.lineTo(-R * 1.02, R * 0.3); cc.lineTo(-R * 0.9, R * 0.62); cc.quadraticCurveTo(R * 0.4, R * 0.52, R * 1.3, 0); };
+    neon(c, arm, col, o);
+    tkLight(c, hurt, arm, R * 0.2, 0, R, 'rgba(255,170,110,A)', 0.3);
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 6; i++) { const x = R * (1.0 - i * 0.32); for (const s of [-1, 1]) tkDot(cc, x, s * R * 0.16 * (1 - i * 0.05) * (1 + i * 0.4) * 0.6, R * 0.06); } }, Kc(hurt, '#ffe0c8'), { lw: 0.9, blur: 5, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.2, 0); cc.lineTo(-R * 0.8, 0); }, Kc(hurt, '#ffd0a0'), { lw: 1, blur: 5, core: null, inner: false });
+  },
+
+  /* ---- the elites ---- */
+  // SEA TURTLE -- a shell of plates, flippers, and its front rim is the hard part
+  seaturtle(c, R, col, core, hurt, o) {
+    const scute = Kc(hurt, '#c8ffd8'), rim = Kc(hurt, '#e8ffb0');
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { shFin(cc, R * 0.35, s * R * 0.55, s * 1.05, R * 0.95, R * 0.3); shFin(cc, -R * 0.55, s * R * 0.5, Math.PI - s * 1.0, R * 0.5, R * 0.2); } }, col, { lw: 1.6, blur: 10, core: core, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.ellipse(R * 1.02, 0, R * 0.28, R * 0.22, 0, 0, TAU); cc.moveTo(-R * 0.95, 0); cc.lineTo(-R * 1.2, 0); }, col, { lw: 1.8, blur: 10, core: core, inner: false });
+    const shell = cc => { cc.beginPath(); cc.ellipse(0, 0, R * 0.9, R * 0.72, 0, 0, TAU); };
+    neon(c, shell, col, { lw: 2.8, blur: 20, core: core });
+    tkLight(c, hurt, shell, R * 0.1, -R * 0.1, R * 0.9, 'rgba(120,220,160,A)', 0.25);
+    neon(c, cc => { cc.beginPath(); tkHex(cc, 0, 0, R * 0.26, 0); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; tkHex(cc, Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.42, R * 0.2, 0); } }, scute, { lw: 1.1, blur: 6, core: null, inner: false });
+    // the rim it turns to you
+    neon(c, cc => { cc.beginPath(); cc.ellipse(0, 0, R * 0.9, R * 0.72, 0, -0.95, 0.95); }, rim, { lw: 3.2, blur: 14, core: null });
+    tkEyes(c, R * 1.08, 0, 0, R * 0.12, R * 0.04, Kc(hurt, '#101010'), hurt);
+  },
+  // MAN O' WAR -- a float with a crest, and everything that hangs from it
+  manowar(c, R, col, core, hurt, o) {
+    const pink = Kc(hurt, '#ff9ecf');
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 9; i++) { const y = (i - 4) * R * 0.14; shTendril(cc, -R * 0.4, y, Math.PI + (i - 4) * 0.06, R * (0.9 + (i % 3) * 0.25), R * 0.1, i * 1.3, 7); } }, col, { lw: 1.1, blur: 7, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 9; i++) { const y = (i - 4) * R * 0.14, L = R * (0.9 + (i % 3) * 0.25); for (let k = 1; k <= 3; k++) tkDot(cc, -R * 0.4 - L * k / 3.4, y, R * 0.035); } }, pink, { lw: 0.8, blur: 5, core: null, inner: false });
+    const flt = cc => { cc.beginPath(); cc.ellipse(R * 0.2, 0, R * 0.85, R * 0.46, 0, 0, TAU); };
+    neon(c, flt, col, { lw: 2.4, blur: 18, core: hurt ? core : 'rgba(30,14,50,0.55)' });
+    tkLight(c, hurt, flt, R * 0.4, -R * 0.1, R * 0.8, 'rgba(200,160,255,A)', 0.35);
+    neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.5, 0); for (let i = 0; i <= 8; i++) { const x = lerp(-R * 0.5, R * 0.9, i / 8); cc.lineTo(x, (i % 2 ? -1 : 1) * R * 0.06); } }, pink, { lw: 1.4, blur: 8, core: null, inner: false });
+  },
+  // LIONFISH -- fans of spines, and stripes that mean it
+  lionfish(c, R, col, core, hurt, o) {
+    const pale = Kc(hurt, '#fff0e8'), dark = Kc(hurt, '#3a0a04');
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) for (let i = 0; i < 7; i++) { const a = s * (0.5 + i * 0.28); cc.moveTo(R * 0.2, s * R * 0.2); cc.lineTo(R * 0.2 + Math.cos(a) * R * (1.25 - Math.abs(i - 3) * 0.1), s * R * 0.2 + Math.sin(a) * R * (1.25 - Math.abs(i - 3) * 0.1)); } }, pale, { lw: 1.2, blur: 7, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(R * 0.2, s * R * 0.2); for (let i = 0; i <= 7; i++) { const a = s * (0.5 + i * 0.28); cc.lineTo(R * 0.2 + Math.cos(a) * R * (1.1 - Math.abs(i - 3) * 0.1), s * R * 0.2 + Math.sin(a) * R * (1.1 - Math.abs(i - 3) * 0.1)); } cc.closePath(); } }, col, { lw: 1, blur: 6, core: hurt ? core : 'rgba(80,16,8,0.35)', inner: false });
+    const body = cc => { cc.beginPath(); shFish(cc, R * 0.95, R * 0.42, R * 0.4); };
+    neon(c, body, col, o);
+    neon(c, cc => { cc.beginPath(); for (let i = 0; i < 6; i++) { const x = R * (0.6 - i * 0.25); cc.moveTo(x, -R * 0.4); cc.quadraticCurveTo(x - R * 0.1, 0, x, R * 0.4); } }, dark, { lw: 2.4, blur: 0, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.62, -R * 0.14, R * 0.08); }, pale, { lw: 1, blur: 6, core: hurt ? core : '#200404', inner: false });
+  },
+  // SAILFISH -- a bill, a body, and a sail that says it is about to go
+  sailfish(c, R, col, core, hurt, o) {
+    const sail = Kc(hurt, '#a8dcff');
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.6, 0); for (let i = 0; i <= 8; i++) { const u = i / 8, x = lerp(R * 0.6, -R * 0.7, u), h = Math.sin(u * Math.PI) * R * 0.95 + R * 0.1; cc.lineTo(x, -h); } cc.lineTo(-R * 0.7, 0); cc.closePath(); }, sail, { lw: 1.2, blur: 8, core: hurt ? core : 'rgba(20,50,90,0.4)', inner: false });
+    neon(c, cc => { cc.beginPath(); for (let i = 1; i < 8; i++) { const u = i / 8, x = lerp(R * 0.6, -R * 0.7, u); cc.moveTo(x, 0); cc.lineTo(x, -(Math.sin(u * Math.PI) * R * 0.95 + R * 0.1)); } }, sail, { lw: 0.8, blur: 4, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 2.0, 0); cc.lineTo(R * 0.9, -R * 0.12); cc.quadraticCurveTo(-R * 0.2, -R * 0.34, -R * 0.95, -R * 0.1); cc.lineTo(-R * 1.4, -R * 0.55); cc.quadraticCurveTo(-R * 1.18, 0, -R * 1.4, R * 0.55); cc.lineTo(-R * 0.95, R * 0.1); cc.quadraticCurveTo(-R * 0.2, R * 0.34, R * 0.9, R * 0.12); cc.closePath(); }, col, o);
+    neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.72, -R * 0.06, R * 0.07); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 6, core: hurt ? core : '#04101a', inner: false });
+  }
+};
+
+/* ---- the small moving parts of the shallows' rank and file ---- */
+Object.assign(Thicket.drawE, {
+  // the turtle's rim flares when it takes a hit on it: go round
+  seaturtle(c, e) {
+    const u = G.time - (e.platedT || -9);
+    if (u > 0.3) return;
+    const f = e.face || e.rot || 0;
+    c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+    c.beginPath(); c.arc(e.x, e.y, e.r * 0.95 + 6, f - 0.95, f + 0.95);
+    BA.band(c, '#e8ffb0', 3, (1 - u / 0.3) * 0.9, '#ffffff');
+    c.restore();
+  },
+  // flounder: the sand stirs just before it goes
+  flounder(c, e) {
+    if (!(e.tellT > 0)) return;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    c.beginPath(); c.arc(e.x, e.y, e.r + 6 + Math.sin(G.time * 30) * 2, 0, TAU);
+    BA.band(c, '#e8c890', 1.4, 0.6);
+    for (const s of [-1, 1]) BA.glow(c, '#ffffff', e.x + Math.cos(e.face || 0) * e.r * 0.6 - Math.sin(e.face || 0) * s * 5, e.y + Math.sin(e.face || 0) * e.r * 0.6 + Math.cos(e.face || 0) * s * 5, 6, 0.9);
+    c.restore();
+  },
+  polyp(c, e) {
+    if (!(e.puff > 0.02)) return;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    BA.glow(c, '#ff8ad8', e.x, e.y, e.r * (1.5 + (1 - e.puff) * 0.8), e.puff * 0.5);
+    c.restore();
+  },
+  inkling(c, e) {
+    if (!(e.puff > 0.02)) return;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    BA.glow(c, '#9aa4ff', e.x, e.y, e.r * 1.6, e.puff * 0.5);
+    c.restore();
+  },
+  // grouper: its mouth opens, and the water shows going in
+  grouper(c, e) {
+    if (!(e.gulp > 0)) return;
+    const a = e.rot || 0;
+    c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+    c.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const b = a + (i - 2.5) * 0.25, d0 = e.r * 1.4 + ((G.time * 180 + i * 37) % 160);
+      c.moveTo(e.x + Math.cos(b) * d0, e.y + Math.sin(b) * d0); c.lineTo(e.x + Math.cos(b) * (d0 - 26), e.y + Math.sin(b) * (d0 - 26));
+    }
+    BA.line(c, '#bfe6ff', 1.6, 0.6);
+    c.restore();
+  },
+  lionfish(c, e) {
+    if (!(e.flare > 0.02)) return;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    c.beginPath(); c.arc(e.x, e.y, e.r * (1.2 + (1 - e.flare) * 0.8), 0, TAU);
+    BA.band(c, '#ff6a52', 2, e.flare * 0.8);
+    c.restore();
+  },
+  sailfish(c, e) {
+    if (!(e.windT > 0)) return;
+    const a = e.face || 0;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    BA.glow(c, '#ffffff', e.x + Math.cos(a) * e.r * 1.9, e.y + Math.sin(a) * e.r * 1.9, 14, 0.9);
+    c.restore();
+  }
+});
+// fins and pulses: small things move by their own beat
+BOSS_LIVE.jellet = { beat(t, e) { const q = e ? (e.squeeze || 0) : 0; return [1 + q * 0.18, 1 - q * 0.22]; } };
+BOSS_LIVE.krill = { beat(t) { return [1 + Math.sin(t * 18) * 0.05, 1]; } };
+BOSS_LIVE.sprat = { beat(t) { return [1, 1 + Math.sin(t * 9) * 0.06]; } };
+
+/* ------------------------------------------------------------------------
+   The shallows' finales. The body is what it is; the live part is what it
+   is doing -- and in every one the live part is the lesson.
+   ------------------------------------------------------------------------ */
+
+// THE HERMIT -- a borrowed spiral shell with a crab in the door of it.
+// The shell is the body; the crab is live, and it is not there when it hides.
+BOSS_BODY.hermit = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#fff2c8'), pink = Kc(hurt, '#ff9a6a');
+  const shell = cc => {
+    cc.beginPath();
+    cc.moveTo(R * 0.45, -R * 0.62);
+    cc.bezierCurveTo(-R * 0.2, -R * 1.02, -R * 1.2, -R * 0.62, -R * 1.25, 0);
+    cc.bezierCurveTo(-R * 1.2, R * 0.62, -R * 0.2, R * 1.02, R * 0.45, R * 0.62);
+    cc.quadraticCurveTo(R * 0.68, 0, R * 0.45, -R * 0.62);
+  };
+  neon(c, shell, col, { lw: 3, blur: 22, core: 'rgba(20,14,4,0.95)' });
+  tkLight(c, hurt, shell, -R * 0.4, -R * 0.2, R * 1.1, 'rgba(255,220,140,A)', 0.28);
+  // the whorls: a spiral, turning in to the tip
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i <= 60; i++) { const u = i / 60, a = u * TAU * 2.2, r = R * (0.82 - u * 0.72); const x = -R * 0.42 + Math.cos(a) * r, y = Math.sin(a) * r * 0.9; i ? cc.lineTo(x, y) : cc.moveTo(x, y); } }, pale, { lw: 1.6, blur: 10, core: null, inner: false });
+  // ridges, and the pink of the lip
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 9; i++) { const a = Math.PI * 0.55 + i / 8 * Math.PI * 0.9, r0 = R * 0.8, r1 = R * 1.1; cc.moveTo(-R * 0.42 + Math.cos(a) * r0, Math.sin(a) * r0 * 0.9); cc.lineTo(-R * 0.42 + Math.cos(a) * r1, Math.sin(a) * r1 * 0.85); } }, pale, { lw: 1, blur: 5, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.45, -R * 0.62); cc.quadraticCurveTo(R * 0.68, 0, R * 0.45, R * 0.62); }, pink, { lw: 3, blur: 14, core: null });
+};
+BOSS_LIVE.hermit = {
+  under(c, e, o) {
+    if (e.inShell) return;
+    // the crab: legs, a big claw and a small one, and eyes on stalks
+    const R = o.R, t = o.t, walk = Math.min(1, Math.hypot(e.vx, e.vy) / 120);
+    c.save(); c.rotate(o.rot); c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath();
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const g = Math.sin(t * 9 + k * 2 + (s > 0 ? 1 : 0)) * 0.2 * walk;
+      const x0 = R * (0.55 - k * 0.12), y0 = s * R * (0.3 + k * 0.1);
+      c.moveTo(x0, y0); c.lineTo(x0 + R * (0.35 - k * 0.1) + g * R, s * R * (0.72 + k * 0.1)); c.lineTo(x0 + R * (0.2 - k * 0.12) + g * R * 1.4, s * R * (1.0 + k * 0.08));
+    }
+    BA.add(c); BA.band(c, o.col, 2.2, 0.85); BA.norm(c);
+    // claws: the big one on the right
+    for (const s of [-1, 1]) {
+      const big = s > 0 ? 1 : 0.62, cx = R * (0.95 + big * 0.1), cy = s * R * 0.32;
+      c.beginPath(); c.ellipse(cx, cy, R * 0.26 * big, R * 0.18 * big, s * 0.3, 0, TAU);
+      c.fillStyle = 'rgba(40,12,4,0.94)'; c.fill();
+      BA.add(c); BA.band(c, '#ff9a6a', 2, 0.95); BA.norm(c);
+      c.beginPath(); c.moveTo(cx + R * 0.2 * big, cy - s * R * 0.04); c.lineTo(cx + R * 0.42 * big, cy - s * R * 0.14); c.moveTo(cx + R * 0.2 * big, cy + s * R * 0.08); c.lineTo(cx + R * 0.4 * big, cy + s * R * 0.14);
+      BA.add(c); BA.band(c, '#fff2c8', 1.6, 0.9); BA.norm(c);
+    }
+    BA.add(c);
+    c.beginPath(); for (const s of [-1, 1]) { c.moveTo(R * 0.6, s * R * 0.08); c.lineTo(R * 0.86, s * R * 0.14); }
+    BA.band(c, o.col, 1.4, 0.9);
+    for (const s of [-1, 1]) BA.glow(c, '#ffffff', R * 0.88, s * R * 0.14, R * 0.08, 0.95);
+    BA.norm(c);
+    c.restore();
+  },
+  over(c, e, o) {
+    const w = e.warn || 0;
+    if (w <= 0 && !e.inShell) return;
+    // the shell glows before it hides, and while it is hidden it is stone
+    BA.add(c);
+    c.save(); c.rotate(o.rot);
+    c.beginPath(); c.moveTo(o.R * 0.45, -o.R * 0.62);
+    c.bezierCurveTo(-o.R * 0.2, -o.R * 1.02, -o.R * 1.2, -o.R * 0.62, -o.R * 1.25, 0);
+    c.bezierCurveTo(-o.R * 1.2, o.R * 0.62, -o.R * 0.2, o.R * 1.02, o.R * 0.45, o.R * 0.62);
+    BA.band(c, e.inShell ? '#fff2c8' : '#ffffff', 3, e.inShell ? 0.35 : w * (0.6 + Math.sin(o.t * 24) * 0.3));
+    c.restore();
+    BA.norm(c);
+  },
+  rot(e) { return Math.atan2(G.player.y - e.y, G.player.x - e.x); }
+};
+
+// THE BELL -- a moon jelly: a clear bell, four rings of colour inside it,
+// and long lines of sting drifting behind
+function bellBody(c, R, col, core, hurt) {
+  const pink = Kc(hurt, '#ffb0e0'), pale = Kc(hurt, '#eaf6ff');
+  const bell = cc => { cc.beginPath(); for (let i = 0; i <= 48; i++) { const a = i / 48 * TAU, r = R * (0.96 + 0.04 * Math.cos(a * 16)); i ? cc.lineTo(Math.cos(a) * r, Math.sin(a) * r) : cc.moveTo(Math.cos(a) * r, Math.sin(a) * r); } cc.closePath(); };
+  neon(c, bell, col, { lw: 2.4, blur: 20, core: hurt ? core : 'rgba(10,20,40,0.55)' });
+  tkLight(c, hurt, bell, 0, 0, R, 'rgba(180,210,255,A)', 0.22);
+  // canals, out from the middle to the rim
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; cc.moveTo(Math.cos(a) * R * 0.45, Math.sin(a) * R * 0.45); cc.lineTo(Math.cos(a) * R * 0.92, Math.sin(a) * R * 0.92); } }, pale, { lw: 0.9, blur: 5, core: null, inner: false });
+  // the four horseshoes
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * TAU + Math.PI / 4;
+    neon(c, cc => { cc.beginPath(); cc.arc(Math.cos(a) * R * 0.28, Math.sin(a) * R * 0.28, R * 0.2, a + 0.8, a - 0.8 + TAU); }, pink, { lw: 3, blur: 14, core: null, inner: false });
+  }
+  neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.08, 0, TAU); }, pale, { lw: 1.2, blur: 8, core: null, inner: false });
+}
+BOSS_BODY.bell = bellBody;
+BOSS_BODY.bellbud = bellBody;
+const BELL_LIVE = {
+  under(c, e, o) {
+    const R = o.R, t = o.t;
+    const ba = Math.atan2(-(e.vy || 0), -(e.vx || 0)) + (Math.hypot(e.vx || 0, e.vy || 0) < 20 ? Math.PI / 2 : 0);
+    c.save(); c.lineCap = 'round';
+    c.beginPath();
+    const n = G.quality > 0 ? 10 : 6;
+    for (let i = 0; i < n; i++) {
+      const a0 = i / n * TAU, x0 = Math.cos(a0) * R * 0.85, y0 = Math.sin(a0) * R * 0.85;
+      shTendril(c, x0, y0, ba + (i / n - 0.5) * 0.7, R * (1.6 + (i % 3) * 0.3), R * 0.12, t * 2 + i, 9);
+    }
+    BA.add(c); BA.line(c, o.col, 1.3, 0.55); BA.norm(c);
+    c.restore();
+  },
+  beat(t, e) { const q = e ? (e.squeeze || 0) : 0; const b = 1 + Math.sin(t * 2) * 0.02; return [b * (1 - q * 0.12), b * (1 - q * 0.12)]; }
+};
+BOSS_LIVE.bell = BELL_LIVE;
+BOSS_LIVE.bellbud = BELL_LIVE;
+
+// THE EEL -- a head, and a long body that swims behind it, lit in bands
+BOSS_BODY.eel = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#e8ffd0');
+  const head = cc => { cc.beginPath(); cc.moveTo(R * 1.15, 0); cc.quadraticCurveTo(R * 1.05, -R * 0.42, R * 0.3, -R * 0.52); cc.quadraticCurveTo(-R * 0.5, -R * 0.5, -R * 0.6, 0); cc.quadraticCurveTo(-R * 0.5, R * 0.5, R * 0.3, R * 0.52); cc.quadraticCurveTo(R * 1.05, R * 0.42, R * 1.15, 0); };
+  neon(c, head, col, { lw: 3, blur: 22, core: 'rgba(4,16,6,0.96)' });
+  tkLight(c, hurt, head, R * 0.3, 0, R * 0.8, 'rgba(110,240,122,A)', 0.2);
+  neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.12, R * 0.02); cc.quadraticCurveTo(R * 0.8, R * 0.18, R * 0.4, R * 0.16); for (let i = 0; i < 5; i++) { const x = R * (1.0 - i * 0.14); cc.moveTo(x, R * 0.06 + i * 0.02 * R); cc.lineTo(x - R * 0.03, R * 0.14 + i * 0.01 * R); } }, pale, { lw: 1.2, blur: 6, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 3; i++) { const x = -R * (0.05 + i * 0.12); cc.moveTo(x, -R * 0.4); cc.quadraticCurveTo(x - R * 0.06, -R * 0.3, x, -R * 0.2); } }, col, { lw: 1, blur: 5, core: null, inner: false });
+  tkEyes(c, R * 0.62, -R * 0.1, 0, R * 0.22, R * 0.07, Kc(hurt, '#e8ff8a'), hurt);
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 4; i++) tkDot(cc, -R * (0.1 + i * 0.12), R * (0.25 - i * 0.05), R * 0.04); }, Kc(hurt, '#e8ff8a'), { lw: 1, blur: 8, core: null, inner: false });
+};
+BOSS_LIVE.eel = {
+  under(c, e, o) {
+    const R = o.R, t = o.t, n = 11;
+    c.save(); c.rotate(o.rot); c.lineCap = 'round'; c.lineJoin = 'round';
+    const pts = [];
+    for (let i = 0; i <= n; i++) { const u = i / n; pts.push([-R * 0.4 - u * R * 4.2, Math.sin(t * 4 - u * 5) * R * 0.5 * u]); }
+    c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i <= n; i++) c.lineTo(pts[i][0], pts[i][1]);
+    c.strokeStyle = 'rgba(4,16,6,0.95)'; c.lineWidth = R * 0.8; c.stroke();
+    BA.add(c);
+    c.lineWidth = 1;
+    for (const s of [-1, 1]) {
+      c.beginPath();
+      for (let i = 0; i <= n; i++) { const w = R * 0.4 * (1 - i / n * 0.75); i ? c.lineTo(pts[i][0], pts[i][1] + s * w) : c.moveTo(pts[i][0], pts[i][1] + s * w); }
+      BA.band(c, o.col, 1.8, 0.85);
+    }
+    // it carries charge in bands down its length
+    for (let i = 1; i < n; i++) {
+      const u = (i + t * 3) % n, k = Math.floor(u);
+      if (i % 2) continue;
+      BA.glow(c, '#e8ff8a', pts[k][0], pts[k][1], R * 0.18, 0.35);
+    }
+    BA.norm(c);
+    c.restore();
+  }
+};
+
+// THE URCHIN -- the test is the body; the spines are live, and there are
+// exactly as many as its meter says
+BOSS_BODY.urchin = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#f0d8ff');
+  const test = cc => { cc.beginPath(); cc.arc(0, 0, R * 0.62, 0, TAU); };
+  neon(c, test, col, { lw: 3, blur: 22, core: 'rgba(16,6,24,0.96)' });
+  tkLight(c, hurt, test, -R * 0.15, -R * 0.15, R * 0.62, 'rgba(196,124,255,A)', 0.3);
+  // five double rows: the star every urchin carries
+  neon(c, cc => { cc.beginPath(); for (let k = 0; k < 5; k++) { const a = k / 5 * TAU - Math.PI / 2; for (let i = 1; i <= 5; i++) for (const s of [-1, 1]) { const d = R * 0.1 * i, b = a + s * 0.12 * (1 - i * 0.1); tkDot(cc, Math.cos(b) * d, Math.sin(b) * d, R * 0.022); } } }, pale, { lw: 0.9, blur: 5, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); tkHex(cc, 0, 0, R * 0.08, 0); }, pale, { lw: 1.2, blur: 8, core: null, inner: false });
+};
+BOSS_LIVE.urchin = {
+  under(c, e, o) {
+    const R = o.R, n = Math.round(e.spines === undefined ? 20 : e.spines), full = n >= 32;
+    c.save(); c.rotate(e.roll || 0); c.lineCap = 'round';
+    c.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = i * 2.39996, L = R * (1.05 + (i % 3) * 0.12 + (full ? Math.sin(o.t * 30 + i) * 0.03 : 0));
+      c.moveTo(Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6); c.lineTo(Math.cos(a) * L, Math.sin(a) * L);
+    }
+    BA.add(c); BA.band(c, full ? '#ff9ad0' : o.col, 1.8, 0.9, full ? '#ffffff' : null); BA.norm(c);
+    c.restore();
+  },
+  rot() { return 0; }
+};
+
+// THE STARFISH -- a disc in the middle; the arms are live, and a missing
+// one is a torn stub until it comes back
+BOSS_BODY.starfish = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#ffe0c8');
+  const disc = cc => pathBlob(cc, R * 0.46, 10, 0.08, 71);
+  neon(c, disc, col, { lw: 3, blur: 20, core: 'rgba(24,8,2,0.96)' });
+  tkLight(c, hurt, disc, 0, 0, R * 0.46, 'rgba(255,154,92,A)', 0.35);
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 12; i++) { const a = i * 2.39996, d = R * 0.34 * Math.sqrt((i + 0.5) / 12); tkDot(cc, Math.cos(a) * d, Math.sin(a) * d, R * 0.03); } }, pale, { lw: 0.9, blur: 5, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.12, -R * 0.1, R * 0.07); }, Kc(hurt, '#ffffff'), { lw: 1.2, blur: 8, core: null, inner: false });
+};
+BOSS_LIVE.starfish = {
+  under(c, e, o) {
+    const R = o.R, slots = e.slots || [1, 1, 1, 1, 1];
+    c.save(); c.rotate(o.rot); c.lineJoin = 'round';
+    for (let k = 0; k < 5; k++) {
+      const a = k / 5 * TAU - Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+      const L = slots[k] ? R * 1.5 : R * 0.62, W = R * 0.3;
+      c.beginPath();
+      c.moveTo(ca * R * 0.3 + px * W, sa * R * 0.3 + py * W);
+      c.quadraticCurveTo(ca * L * 0.6 + px * W * 0.55, sa * L * 0.6 + py * W * 0.55, ca * L, sa * L);
+      if (!slots[k]) { c.lineTo(ca * L * 0.9 + px * W * 0.2, sa * L * 0.9 + py * W * 0.2); c.lineTo(ca * L - px * W * 0.25, sa * L - py * W * 0.25); }
+      c.quadraticCurveTo(ca * L * 0.6 - px * W * 0.55, sa * L * 0.6 - py * W * 0.55, ca * R * 0.3 - px * W, sa * R * 0.3 - py * W);
+      c.closePath();
+      c.fillStyle = 'rgba(24,8,2,0.96)'; c.fill();
+      BA.add(c); BA.band(c, slots[k] ? o.col : '#ffe0c8', 2.2, slots[k] ? 0.95 : 0.6); BA.norm(c);
+      if (slots[k]) {
+        c.beginPath();
+        for (let i = 1; i <= 6; i++) { const u = 0.3 + i * 0.1; tkDot(c, ca * L * u, sa * L * u, R * 0.035 * (1.2 - u * 0.6)); }
+        BA.add(c); BA.line(c, '#ffe0c8', 1.2, 0.7); BA.norm(c);
+      }
+    }
+    c.restore();
+  },
+  rot(e) { return e.spinA || 0; }
+};
+
+// THE MAELSTROM -- water turning round a dark eye
+BOSS_BODY.maelstrom = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#d6e6ff');
+  neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.92, 0, TAU); }, col, { lw: 1.4, blur: 14, core: hurt ? core : 'rgba(4,10,24,0.7)', inner: false });
+  for (let i = 0; i < 3; i++) neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * (0.3 + i * 0.18), 0, TAU); }, i % 2 ? pale : col, { lw: 1, blur: 6, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.22, 0, TAU); }, pale, { lw: 2.4, blur: 16, core: 'rgba(0,0,4,0.98)' });
+};
+BOSS_LIVE.maelstrom = {
+  over(c, e, o) {
+    const R = o.R, t = e.swirl || o.t;
+    c.save(); c.lineCap = 'round';
+    c.beginPath();
+    for (let k = 0; k < 5; k++) {
+      const a0 = t * 1.2 + k / 5 * TAU;
+      for (let i = 0; i <= 18; i++) {
+        const u = i / 18, a = a0 - u * 2.6, r = R * (0.24 + u * 0.95);
+        i ? c.lineTo(Math.cos(a) * r, Math.sin(a) * r) : c.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+    }
+    BA.add(c); BA.band(c, o.col, 2, 0.85); BA.norm(c);
+    // foam, going round and in
+    BA.add(c);
+    for (let i = 0; i < 8; i++) { const u = (t * 0.3 + i / 8) % 1, a = t * 1.6 + i * 2.1 - u * 3, r = R * (1.2 - u * 0.95); BA.glow(c, '#ffffff', Math.cos(a) * r, Math.sin(a) * r, R * 0.06, (1 - u) * 0.8); }
+    BA.norm(c);
+    c.restore();
+  },
+  rot() { return 0; }
+};
+
+// THE MANTIS -- a mantis shrimp in every colour the sea has: stalked eyes,
+// plated tail, and the club, folded, that you will hear before you see
+BOSS_BODY.mantis = function (c, R, col, core, hurt) {
+  const segs = ['#3fe8c8', '#5ab8ff', '#8a90ff', '#ff5f9a', '#ffb84a', '#b6ff5c'];
+  for (let i = 5; i >= 0; i--) {
+    const x = -R * (0.2 + i * 0.22), w = R * (0.5 - i * 0.04);
+    neon(c, cc => { cc.beginPath(); cc.moveTo(x + R * 0.14, -w); cc.quadraticCurveTo(x - R * 0.14, 0, x + R * 0.14, w); cc.quadraticCurveTo(x - R * 0.16, w * 0.9, x - R * 0.2, 0); cc.quadraticCurveTo(x - R * 0.16, -w * 0.9, x + R * 0.14, -w); }, Kc(hurt, segs[i]), { lw: 1.8, blur: 10, core: 'rgba(4,8,10,0.95)', inner: false });
+  }
+  neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 1.5, 0); cc.lineTo(-R * 1.85, -R * 0.35); cc.quadraticCurveTo(-R * 1.7, 0, -R * 1.85, R * 0.35); cc.closePath(); }, Kc(hurt, '#ffb84a'), { lw: 1.6, blur: 10, core: 'rgba(4,8,10,0.9)', inner: false });
+  const head = cc => { cc.beginPath(); cc.ellipse(R * 0.35, 0, R * 0.52, R * 0.46, 0, 0, TAU); };
+  neon(c, head, col, { lw: 2.8, blur: 18, core: 'rgba(4,8,10,0.96)' });
+  tkLight(c, hurt, head, R * 0.4, 0, R * 0.5, 'rgba(255,95,154,A)', 0.25);
+  // eyes on stalks, banded
+  for (const s of [-1, 1]) {
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.75, s * R * 0.15); cc.lineTo(R * 1.02, s * R * 0.32); }, col, { lw: 2, blur: 8, core: null, inner: false });
+    neon(c, cc => { cc.beginPath(); cc.ellipse(R * 1.08, s * R * 0.36, R * 0.13, R * 0.09, s * 0.5, 0, TAU); }, Kc(hurt, '#8af0ff'), { lw: 1.6, blur: 12, core: hurt ? core : 'rgba(10,40,50,0.9)', inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.98, s * R * 0.36); cc.lineTo(R * 1.18, s * R * 0.36); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 5, core: null, inner: false });
+  }
+};
+BOSS_LIVE.mantis = {
+  over(c, e, o) {
+    // the clubs: folded, cocked back on the windup, flung out on the punch
+    const R = o.R, cock = e.windT > 0 ? 1 : 0, out = e.punchT > 0 ? 1 : 0;
+    c.save(); c.rotate(o.rot); c.lineCap = 'round'; c.lineJoin = 'round';
+    for (const s of [-1, 1]) {
+      const reach = out ? R * 1.35 : (cock ? R * 0.55 : R * 0.8);
+      const bx = R * 0.65, by = s * R * 0.32, kx = bx + (out ? R * 0.4 : -R * 0.1), ky = by + s * R * (out ? 0.1 : 0.35);
+      const ex = R * 0.45 + reach, ey = s * R * (out ? 0.12 : 0.25);
+      c.beginPath(); c.moveTo(bx, by); c.lineTo(kx, ky); c.lineTo(ex, ey);
+      BA.add(c); BA.band(c, o.col, 3, 0.95); BA.norm(c);
+      c.beginPath(); c.arc(ex, ey, R * 0.17, 0, TAU);
+      c.fillStyle = 'rgba(40,6,20,0.95)'; c.fill();
+      BA.add(c); BA.band(c, cock || out ? '#ffffff' : '#ffb84a', 2, 1);
+      if (cock) BA.glow(c, '#ffffff', ex, ey, R * (0.3 + Math.sin(o.t * 30) * 0.05), 0.8);
+      BA.norm(c);
+    }
+    c.restore();
+  }
+};
+
+// THE OCTOPUS -- a mantle with those eyes, and arms curled round it; the
+// ones it lays across the water are drawn by the sweep itself
+BOSS_BODY.octopus = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#dcdcff'), gold = Kc(hurt, '#ffd84a');
+  const mantle = cc => { cc.beginPath(); cc.ellipse(-R * 0.12, 0, R * 0.72, R * 0.6, 0, 0, TAU); };
+  neon(c, mantle, col, { lw: 3, blur: 22, core: 'rgba(6,6,24,0.96)' });
+  tkLight(c, hurt, mantle, -R * 0.3, -R * 0.1, R * 0.7, 'rgba(138,144,255,A)', 0.28);
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 10; i++) { const a = i * 2.39996, d = R * 0.42 * Math.sqrt((i + 0.5) / 10); tkDot(cc, -R * 0.2 + Math.cos(a) * d, Math.sin(a) * d * 0.8, R * (0.03 + (i % 3) * 0.015)); } }, pale, { lw: 0.9, blur: 5, core: null, inner: false });
+  for (const s of [-1, 1]) {
+    neon(c, cc => { cc.beginPath(); cc.ellipse(R * 0.42, s * R * 0.3, R * 0.14, R * 0.11, 0, 0, TAU); }, gold, { lw: 1.6, blur: 12, core: hurt ? core : 'rgba(40,30,0,0.9)', inner: false });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.34, s * R * 0.3); cc.lineTo(R * 0.5, s * R * 0.3); }, Kc(hurt, '#000000'), { lw: 2.2, blur: 0, core: null, inner: false });
+  }
+};
+BOSS_LIVE.octopus = {
+  under(c, e, o) {
+    const R = o.R, t = o.t;
+    let out = 0; for (const A of Shallows.arms) if (A.src === e) out++;
+    const n = Math.max(2, 8 - out * 2);
+    c.save(); c.rotate(o.rot); c.lineCap = 'round';
+    c.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = (i + 0.5) / n * TAU;
+      shTendril(c, Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.45, a + 0.4, R * 0.9, R * 0.22, t * 2 + i * 1.3, 8);
+    }
+    c.strokeStyle = 'rgba(6,6,24,0.9)'; c.lineWidth = R * 0.2; c.stroke();
+    BA.add(c); BA.band(c, o.col, 1.8, 0.85); BA.norm(c);
+    c.restore();
+  },
+  rot(e) { return Math.atan2(G.player.y - e.y, G.player.x - e.x); }
+};
+
+// THE RAY -- a manta: two great wings, horns of fin at the front, a whip of tail
+BOSS_BODY.ray = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#e6fcff');
+  neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.5, 0); cc.quadraticCurveTo(-R * 1.4, R * 0.05, -R * 2.1, -R * 0.1); }, col, { lw: 2, blur: 10, core: null, inner: false });
+  const wings = cc => {
+    cc.beginPath();
+    cc.moveTo(R * 0.72, -R * 0.22);
+    cc.quadraticCurveTo(R * 0.45, -R * 0.9, -R * 0.05, -R * 1.45);
+    cc.quadraticCurveTo(-R * 0.25, -R * 0.75, -R * 0.62, -R * 0.2);
+    cc.quadraticCurveTo(-R * 0.7, 0, -R * 0.62, R * 0.2);
+    cc.quadraticCurveTo(-R * 0.25, R * 0.75, -R * 0.05, R * 1.45);
+    cc.quadraticCurveTo(R * 0.45, R * 0.9, R * 0.72, R * 0.22);
+    cc.closePath();
+  };
+  neon(c, wings, col, { lw: 3, blur: 22, core: 'rgba(4,14,20,0.95)' });
+  tkLight(c, hurt, wings, R * 0.1, 0, R * 1.2, 'rgba(138,240,255,A)', 0.16);
+  // the pale marks on its shoulders
+  neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(R * 0.35, s * R * 0.25); cc.quadraticCurveTo(R * 0.1, s * R * 0.6, -R * 0.05, s * R * 0.72); } cc.moveTo(R * 0.45, 0); cc.lineTo(-R * 0.45, 0); }, pale, { lw: 1.6, blur: 10, core: null, inner: false });
+  // cephalic fins, the horns at the front
+  neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(R * 0.7, s * R * 0.18); cc.quadraticCurveTo(R * 1.0, s * R * 0.2, R * 1.08, s * R * 0.06); } }, col, { lw: 2.4, blur: 12, core: null, inner: false });
+  tkEyes(c, R * 0.62, 0, 0, R * 0.2, R * 0.05, pale, hurt);
+};
+BOSS_LIVE.ray = {
+  beat(t, e) { const g = e && e.gliding > 0 ? 0.5 : 1; return [1, 1 + Math.sin(t * 2.2 * (2 - g)) * 0.08 * g]; },
+  over(c, e, o) {
+    if (!(e.windT > 0)) return;
+    // the shadow goes first
+    const d = (1 - e.windT / G.bossTele(1.0)) * 300;
+    c.save(); c.rotate(o.rot); c.fillStyle = 'rgba(0,0,0,0.35)';
+    c.beginPath(); c.ellipse(o.R * 0.6 + d, 0, o.R * 0.8, o.R * 1.3, 0, 0, TAU); c.fill();
+    c.restore();
+  }
+};
+
+// THE NAUTILUS -- a coiled shell, chambered, striped like a tiger, and a
+// fringe of arms at the door
+BOSS_BODY.nautilus = function (c, R, col, core, hurt) {
+  const stripe = Kc(hurt, '#a85a2a'), pale = Kc(hurt, '#fff4e2');
+  const shell = cc => { cc.beginPath(); for (let i = 0; i <= 72; i++) { const u = i / 72, a = -Math.PI * 0.2 + u * TAU * 1.05, r = R * 1.02 * Math.exp(-u * 1.35); const x = -R * 0.15 + Math.cos(a) * r, y = Math.sin(a) * r; i ? cc.lineTo(x, y) : cc.moveTo(x, y); } cc.closePath(); };
+  neon(c, shell, col, { lw: 3, blur: 22, core: 'rgba(20,14,8,0.96)' });
+  tkLight(c, hurt, shell, -R * 0.2, -R * 0.2, R * 1.05, 'rgba(255,240,220,A)', 0.25);
+  // tiger stripes over the outer whorl
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.1 + i * 0.5, r0 = R * 0.95 * Math.exp(-(a + Math.PI * 0.2) / TAU * 1.35); cc.moveTo(-R * 0.15 + Math.cos(a) * r0, Math.sin(a) * r0); cc.quadraticCurveTo(-R * 0.15 + Math.cos(a + 0.15) * r0 * 0.8, Math.sin(a + 0.15) * r0 * 0.8, -R * 0.15 + Math.cos(a + 0.1) * r0 * 0.6, Math.sin(a + 0.1) * r0 * 0.6); } }, stripe, { lw: 3, blur: 0, core: null, inner: false });
+  // the chambers
+  neon(c, cc => { cc.beginPath(); for (let i = 1; i < 7; i++) { const u = i / 7, a = -Math.PI * 0.2 + u * TAU * 1.05, r = R * 1.02 * Math.exp(-u * 1.35); cc.moveTo(-R * 0.15 + Math.cos(a) * r, Math.sin(a) * r); cc.quadraticCurveTo(-R * 0.15 + Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55 + r * 0.1, -R * 0.15 + Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25); } }, pale, { lw: 1, blur: 6, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.6, -R * 0.35, R * 0.1); }, pale, { lw: 1.2, blur: 8, core: hurt ? core : '#1a1006', inner: false });
+};
+BOSS_LIVE.nautilus = {
+  under(c, e, o) {
+    const R = o.R, t = o.t;
+    c.save(); c.rotate(o.rot); c.lineCap = 'round';
+    c.beginPath();
+    for (let i = 0; i < 9; i++) shTendril(c, R * 0.72, -R * 0.2 + (i - 4) * R * 0.06, (i - 4) * 0.12, R * 0.55, R * 0.06, t * 3 + i, 6);
+    BA.add(c); BA.line(c, '#fff4e2', 1.4, 0.8); BA.norm(c);
+    c.restore();
+  },
+  over(c, e, o) {
+    BA.add(c);
+    c.save(); c.rotate(o.rot);
+    BA.glow(c, o.alt, o.R * 0.75, o.R * 0.15, o.R * 0.3, 0.35 + Math.sin(o.t * 8) * 0.15);
+    c.restore();
+    BA.norm(c);
+  },
+  rot(e) { return Math.atan2(G.player.y - e.y, G.player.x - e.x); }
+};
+
+// THE CLAM -- a giant clam: what is inside is the body; the two valves are
+// live, and they open
+function clamInside(c, R, col, core, hurt, big) {
+  const blue = Kc(hurt, '#6a8aff'), vio = Kc(hurt, '#c090ff');
+  const mantle = cc => { cc.beginPath(); cc.ellipse(0, 0, R * 1.02, R * 0.5, 0, 0, TAU); };
+  neon(c, mantle, blue, { lw: 2, blur: 16, core: hurt ? core : 'rgba(8,10,30,0.95)' });
+  if (!hurt) bodyLight(c, mantle, 0, 0, 0, R, [[0, 'rgba(160,140,255,0.4)'], [0.6, 'rgba(60,90,200,0.2)'], [1, 'rgba(0,0,0,0)']]);
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 16; i++) { const a = i * 2.39996, d = Math.sqrt((i + 0.5) / 16); tkDot(cc, Math.cos(a) * d * R * 0.9, Math.sin(a) * d * R * 0.42, R * (0.03 + (i % 3) * 0.012)); } }, vio, { lw: 1, blur: 8, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * (big ? 0.34 : 0.22), 0, TAU); }, Kc(hurt, '#ffffff'), { lw: 2.4, blur: 20, core: hurt ? core : 'rgba(240,240,255,0.35)' });
+}
+function clamValve(c, R, s, lift, col, warn) {
+  c.save(); c.translate(0, s * lift);
+  c.beginPath();
+  c.moveTo(-R * 1.1, 0);
+  for (let i = 0; i <= 6; i++) { const u = i / 6, x = lerp(-R * 1.1, R * 1.1, u), y = s * R * (0.72 * Math.sin(u * Math.PI) + 0.06); c.quadraticCurveTo(lerp(-R * 1.1, R * 1.1, u - 1 / 12), y + s * R * 0.12, x, y); }
+  c.lineTo(R * 1.1, 0);
+  for (let i = 6; i >= 0; i--) { const u = i / 6, x = lerp(-R * 1.1, R * 1.1, u); c.lineTo(x, s * R * 0.04 * ((i % 2) ? 1 : -1)); }
+  c.closePath();
+  c.fillStyle = 'rgba(20,20,28,0.97)'; c.fill();
+  BA.add(c); BA.band(c, col, 2.6, 0.95, warn > 0 ? '#ffffff' : null);
+  // ribs, fanning from the hinge side
+  c.beginPath();
+  for (let i = 1; i < 6; i++) { const u = i / 6, x = lerp(-R * 1.1, R * 1.1, u); c.moveTo(x * 0.3, s * R * 0.08); c.lineTo(x, s * R * (0.72 * Math.sin(u * Math.PI))); }
+  BA.line(c, '#ffffff', 1, 0.4);
+  if (warn > 0) { c.beginPath(); c.moveTo(-R * 1.05, 0); c.lineTo(R * 1.05, 0); BA.band(c, '#ffffff', 2, warn * (0.6 + Math.sin(G.time * 24) * 0.3)); }
+  BA.norm(c);
+  c.restore();
+}
+BOSS_BODY.clam = function (c, R, col, core, hurt) { clamInside(c, R, col, core, hurt, false); };
+BOSS_LIVE.clam = {
+  over(c, e, o) {
+    const R = o.R, op = e.openA || 0, lift = R * (0.08 + op * 0.4);
+    c.save(); c.rotate(o.rot);
+    clamValve(c, R, -1, lift, o.col, e.warn || 0);
+    clamValve(c, R, 1, lift, o.col, e.warn || 0);
+    c.restore();
+  },
+  rot(e) { return Math.sin(G.time * 0.3 + (e.ph || 0)) * 0.08; }
+};
+
+// THE WHALE -- long, slow, flippers like wings, and a tail that moves the sea
+BOSS_BODY.whale = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#d0fff4');
+  // the flippers, long and knuckled
+  neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(R * 0.3, s * R * 0.3); for (let i = 1; i <= 5; i++) cc.quadraticCurveTo(R * (0.25 - i * 0.12), s * R * (0.3 + i * 0.22 + 0.04), R * (0.2 - i * 0.12), s * R * (0.3 + i * 0.22)); cc.quadraticCurveTo(-R * 0.55, s * R * 1.1, -R * 0.1, s * R * 0.36); } }, col, { lw: 2, blur: 12, core: 'rgba(4,20,16,0.95)', inner: false });
+  const body = cc => { cc.beginPath(); cc.moveTo(R * 1.25, 0); cc.quadraticCurveTo(R * 1.1, -R * 0.5, R * 0.2, -R * 0.52); cc.quadraticCurveTo(-R * 0.9, -R * 0.45, -R * 1.5, -R * 0.1); cc.lineTo(-R * 1.5, R * 0.1); cc.quadraticCurveTo(-R * 0.9, R * 0.45, R * 0.2, R * 0.52); cc.quadraticCurveTo(R * 1.1, R * 0.5, R * 1.25, 0); };
+  neon(c, body, col, { lw: 3, blur: 22, core: 'rgba(4,20,16,0.96)' });
+  tkLight(c, hurt, body, R * 0.2, -R * 0.15, R * 1.2, 'rgba(47,208,176,A)', 0.2);
+  // knobs on the head, and the grooves of the throat
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 7; i++) tkDot(cc, R * (1.05 - i * 0.1), (i % 2 ? 1 : -1) * R * 0.08, R * 0.04); for (const s of [-1, 1]) for (let i = 0; i < 4; i++) { cc.moveTo(R * 1.0, s * R * (0.12 + i * 0.07)); cc.quadraticCurveTo(R * 0.6, s * R * (0.2 + i * 0.07), R * 0.2, s * R * (0.22 + i * 0.06)); } }, pale, { lw: 0.9, blur: 5, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.6, 0); cc.lineTo(-R * 1.3, 0); }, col, { lw: 1, blur: 5, core: null, inner: false });
+  tkEyes(c, R * 0.78, 0, 0, R * 0.4, R * 0.05, pale, hurt);
+  neon(c, cc => { cc.beginPath(); cc.ellipse(R * 0.45, 0, R * 0.06, R * 0.03, 0, 0, TAU); }, pale, { lw: 1, blur: 6, core: null, inner: false });
+};
+BOSS_LIVE.whale = {
+  under(c, e, o) {
+    // the flukes, sweeping
+    const R = o.R, sw = Math.sin(o.t * 1.4) * 0.35;
+    c.save(); c.rotate(o.rot); c.translate(-R * 1.5, 0); c.rotate(sw);
+    c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(-R * 0.3, -R * 0.2, -R * 0.55, -R * 0.62); c.quadraticCurveTo(-R * 0.4, -R * 0.1, -R * 0.62, 0); c.quadraticCurveTo(-R * 0.4, R * 0.1, -R * 0.55, R * 0.62); c.quadraticCurveTo(-R * 0.3, R * 0.2, 0, 0);
+    c.fillStyle = 'rgba(4,20,16,0.95)'; c.fill();
+    BA.add(c); BA.band(c, o.col, 2.4, 0.9); BA.norm(c);
+    c.restore();
+  },
+  over(c, e, o) {
+    // it breathes out
+    const u = (o.t * 0.25) % 1;
+    if (u > 0.3) return;
+    BA.add(c);
+    c.save(); c.rotate(o.rot);
+    for (let i = 0; i < 4; i++) BA.glow(c, '#ffffff', o.R * (0.45 - u * 0.4 - i * 0.05), (i - 1.5) * o.R * 0.12 * u * 3, o.R * 0.12, (0.3 - u) * 2.2);
+    c.restore();
+    BA.norm(c);
+  }
+};
+
+// THE GULL -- wings out, a yellow beak, and its eye on your motes
+BOSS_BODY.gull = function (c, R, col, core, hurt) {
+  const tip = Kc(hurt, '#2a2e38'), beak = Kc(hurt, '#ffd24a');
+  const wing = s => cc => { cc.moveTo(R * 0.15, s * R * 0.15); cc.quadraticCurveTo(R * 0.2, s * R * 0.9, -R * 0.35, s * R * 1.75); cc.quadraticCurveTo(-R * 0.45, s * R * 1.0, -R * 0.4, s * R * 0.2); };
+  neon(c, cc => { cc.beginPath(); wing(-1)(cc); wing(1)(cc); }, col, { lw: 2.4, blur: 16, core: 'rgba(12,14,20,0.95)' });
+  neon(c, cc => { cc.beginPath(); for (const s of [-1, 1]) { cc.moveTo(-R * 0.1, s * R * 1.3); cc.quadraticCurveTo(-R * 0.3, s * R * 1.5, -R * 0.35, s * R * 1.75); cc.quadraticCurveTo(-R * 0.42, s * R * 1.45, -R * 0.4, s * R * 1.2); } }, tip, { lw: 1.6, blur: 0, core: tip, inner: false });
+  const body = cc => { cc.beginPath(); cc.ellipse(-R * 0.1, 0, R * 0.62, R * 0.26, 0, 0, TAU); cc.moveTo(-R * 0.65, 0); cc.lineTo(-R * 0.95, -R * 0.2); cc.lineTo(-R * 0.95, R * 0.2); cc.closePath(); };
+  neon(c, body, col, { lw: 2.4, blur: 16, core: 'rgba(12,14,20,0.96)' });
+  neon(c, cc => { cc.beginPath(); cc.arc(R * 0.55, 0, R * 0.2, 0, TAU); }, col, { lw: 2, blur: 12, core: 'rgba(12,14,20,0.96)', inner: false });
+  neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.72, -R * 0.06); cc.lineTo(R * 1.02, 0); cc.lineTo(R * 0.72, R * 0.06); }, beak, { lw: 1.6, blur: 10, core: beak, inner: false });
+  neon(c, cc => { cc.beginPath(); tkDot(cc, R * 0.6, -R * 0.08, R * 0.035); tkDot(cc, R * 0.6, R * 0.08, R * 0.035); }, Kc(hurt, '#ffffff'), { lw: 1, blur: 6, core: null, inner: false });
+};
+BOSS_LIVE.gull = {
+  beat(t, e) { const d = e && e.diving > 0; return [1, d ? 0.62 : 0.82 + 0.18 * Math.abs(Math.sin(t * 3.2))]; },
+  over(c, e, o) {
+    if (!(e.bag > 0)) return;
+    // what it has taken, glinting in its beak
+    BA.add(c);
+    c.save(); c.rotate(o.rot);
+    BA.glow(c, '#9ef7ff', o.R * 0.95, 0, o.R * (0.12 + Math.min(0.2, e.bag * 0.01)), 0.9);
+    c.restore();
+    BA.norm(c);
+  }
+};
+
+// THE KING CRAB -- spined, long-legged, one claw bigger than the other,
+// and its shell to you
+BOSS_BODY.kingcrab = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#ffd0a0'), rim = Kc(hurt, '#ffe0b0');
+  const shell = cc => { cc.beginPath(); cc.moveTo(R * 0.72, 0); cc.quadraticCurveTo(R * 0.7, -R * 0.7, 0, -R * 0.78); cc.quadraticCurveTo(-R * 0.7, -R * 0.66, -R * 0.72, 0); cc.quadraticCurveTo(-R * 0.7, R * 0.66, 0, R * 0.78); cc.quadraticCurveTo(R * 0.7, R * 0.7, R * 0.72, 0); };
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; tkThorn(cc, Math.cos(a) * R * 0.68, Math.sin(a) * R * 0.72, a, R * 0.16, R * 0.04, 0); } }, pale, { lw: 1.1, blur: 6, core: null, inner: false });
+  neon(c, shell, col, { lw: 3, blur: 22, core: 'rgba(24,6,2,0.96)' });
+  tkLight(c, hurt, shell, R * 0.1, 0, R * 0.8, 'rgba(255,90,60,A)', 0.28);
+  neon(c, cc => { cc.beginPath(); for (let i = 0; i < 9; i++) { const a = i * 2.39996, d = R * 0.5 * Math.sqrt((i + 0.5) / 9); tkThorn(cc, Math.cos(a) * d, Math.sin(a) * d, a, R * 0.1, R * 0.03, 0); } }, pale, { lw: 1, blur: 5, core: null, inner: false });
+  neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.72, 0); cc.quadraticCurveTo(R * 0.7, -R * 0.7, 0, -R * 0.78); cc.moveTo(R * 0.72, 0); cc.quadraticCurveTo(R * 0.7, R * 0.7, 0, R * 0.78); }, rim, { lw: 3.4, blur: 14, core: null });
+  tkEyes(c, R * 0.8, 0, 0, R * 0.12, R * 0.05, Kc(hurt, '#ffffff'), hurt);
+};
+BOSS_LIVE.kingcrab = {
+  under(c, e, o) {
+    const R = o.R, t = o.t, walk = Math.min(1, Math.hypot(e.vx, e.vy) / 80);
+    c.save(); c.rotate(o.rot); c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath();
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const g = Math.sin(t * 6 + k * 2.1 + (s > 0 ? 0.8 : 0)) * 0.25 * walk;
+      const x0 = R * (0.25 - k * 0.3), y0 = s * R * 0.6;
+      c.moveTo(x0, y0); c.lineTo(x0 + R * (0.1 + g), s * R * 1.25); c.lineTo(x0 - R * (0.25 - g), s * R * 1.75);
+    }
+    c.strokeStyle = 'rgba(24,6,2,0.9)'; c.lineWidth = R * 0.12; c.stroke();
+    BA.add(c); BA.band(c, o.col, 2, 0.85); BA.norm(c);
+    // the claws: the right one is the crusher
+    const snap = e.attackT < 0.8 ? 1 : 0;
+    for (const s of [-1, 1]) {
+      const big = s > 0 ? 1.25 : 0.85, cx = R * (1.0 + 0.1 * big), cy = s * R * 0.5;
+      c.beginPath(); c.ellipse(cx, cy, R * 0.28 * big, R * 0.2 * big, s * 0.35, 0, TAU);
+      c.fillStyle = 'rgba(30,6,2,0.96)'; c.fill();
+      BA.add(c); BA.band(c, o.col, 2.2, 0.95);
+      c.beginPath(); const open = snap ? 0.1 : 0.3;
+      c.moveTo(cx + R * 0.22 * big, cy); c.lineTo(cx + R * 0.52 * big, cy - s * R * open * big); c.moveTo(cx + R * 0.22 * big, cy + s * R * 0.06); c.lineTo(cx + R * 0.5 * big, cy + s * R * (0.14 + open * 0.3) * big);
+      BA.band(c, '#ffd0a0', 1.8, 0.95);
+      BA.norm(c);
+    }
+    c.restore();
+  },
+  over(c, e, o) {
+    const u = G.time - (e.platedT || -9);
+    if (u > 0.3) return;
+    BA.add(c);
+    c.save(); c.rotate(o.rot);
+    c.beginPath(); c.arc(0, 0, o.R * 0.9, -0.95, 0.95);
+    BA.band(c, '#ffe0b0', 3.4, (1 - u / 0.3) * 0.95, '#ffffff');
+    c.restore();
+    BA.norm(c);
+  }
+};
+
+// THE SCHOOL -- one life, a thousand fish, and the shape they make is the attack
+BOSS_BODY.school = function (c, R, col, core, hurt) {
+  const pale = Kc(hurt, '#ffffff');
+  neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.85, 0, TAU); }, col, { lw: 1, blur: 12, core: hurt ? core : 'rgba(6,20,30,0.55)', inner: false });
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.39996, d = R * 0.6 * Math.sqrt((i + 0.5) / 9);
+    c.save(); c.translate(Math.cos(a) * d, Math.sin(a) * d); c.rotate(0.3);
+    neon(c, cc => { cc.beginPath(); shFish(cc, R * 0.22, R * 0.1, R * 0.08); }, i % 3 ? col : pale, { lw: 1.1, blur: 7, core: hurt ? core : 'rgba(6,20,30,0.9)', inner: false });
+    c.restore();
+  }
+};
+BOSS_LIVE.school = {
+  over(c, e, o) {
+    const R = o.R, t = o.t, sh = e.shape || 'swirl', n = G.quality > 0 ? 28 : 16;
+    c.save(); c.rotate(o.rot);
+    c.beginPath();
+    for (let i = 0; i < n; i++) {
+      let x, y, a;
+      if (sh === 'arrow') { const row = Math.floor(i / 2) + 1, s = i % 2 ? 1 : -1; x = -row * R * 0.28; y = s * row * R * 0.18; a = 0; }
+      else if (sh === 'wall') { x = R * 0.2 * Math.sin(t * 3 + i); y = (i - n / 2) * R * 0.2; a = 0; }
+      else if (sh === 'ring') { const b = i / n * TAU + t * 1.5; x = Math.cos(b) * R * 1.9; y = Math.sin(b) * R * 1.9; a = b + Math.PI / 2; }
+      else { const b = i * 2.39996 + t * (0.8 + (i % 3) * 0.2), d = R * (0.9 + (i % 5) * 0.18); x = Math.cos(b) * d; y = Math.sin(b) * d; a = b + Math.PI / 2; }
+      const ca = Math.cos(a), sa = Math.sin(a), L = R * 0.2;
+      c.moveTo(x + ca * L, y + sa * L); c.lineTo(x - ca * L * 0.6 - sa * L * 0.35, y - sa * L * 0.6 + ca * L * 0.35);
+      c.lineTo(x - ca * L * 0.6 + sa * L * 0.35, y - sa * L * 0.6 - ca * L * 0.35); c.closePath();
+    }
+    c.fillStyle = 'rgba(6,20,30,0.9)'; c.fill();
+    BA.add(c); BA.band(c, o.col, 1.3, 0.85); BA.norm(c);
+    c.restore();
+  }
+};
+
+/* ---- THE MOTHER OF PEARL, in her four bodies ---- */
+// I -- THE SHELL: the clam the size of the pool, and the pearl inside it
+BOSS_BODY.pearl = function (c, R, col, core, hurt) { clamInside(c, R, col, core, hurt, true); };
+BOSS_LIVE.pearl = {
+  over(c, e, o) {
+    const R = o.R, op = e.openA || 0, lift = R * (0.08 + op * 0.42);
+    c.save(); c.rotate(o.rot);
+    if (op > 0.2) { BA.add(c); BA.glow(c, '#ffffff', 0, 0, R * (0.5 + op * 0.3), op * 0.5); BA.norm(c); }
+    clamValve(c, R, -1, lift, o.col, e.warn || 0);
+    clamValve(c, R, 1, lift, o.col, e.warn || 0);
+    c.restore();
+  },
+  rot() { return 0; }
+};
+// II -- THE TIDE: nothing but water, curling
+BOSS_BODY.pearl2 = function (c, R, col, core, hurt) {
+  const foam = Kc(hurt, '#e6fffc');
+  const mass = cc => pathBlob(cc, R * 0.92, 11, 0.12, 97);
+  neon(c, mass, col, { lw: 3, blur: 22, core: 'rgba(2,20,22,0.9)' });
+  tkLight(c, hurt, mass, 0, 0, R * 0.9, 'rgba(79,232,216,A)', 0.3);
+  neon(c, cc => { cc.beginPath(); tkCoil(cc, R * 0.08, R * 0.8, 1.6, 0, 60); }, foam, { lw: 2, blur: 12, core: null, inner: false });
+};
+BOSS_LIVE.pearl2 = {
+  over(c, e, o) {
+    const R = o.R, t = o.t;
+    c.save(); c.rotate(t * 0.6); c.lineCap = 'round';
+    c.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * TAU;
+      c.moveTo(Math.cos(a) * R * 0.92, Math.sin(a) * R * 0.92);
+      c.quadraticCurveTo(Math.cos(a + 0.35) * R * 1.35, Math.sin(a + 0.35) * R * 1.35, Math.cos(a + 0.7) * R * 1.1, Math.sin(a + 0.7) * R * 1.1);
+      c.quadraticCurveTo(Math.cos(a + 0.62) * R * 0.98, Math.sin(a + 0.62) * R * 0.98, Math.cos(a + 0.55) * R * 1.02, Math.sin(a + 0.55) * R * 1.02);
+    }
+    BA.add(c); BA.band(c, '#e6fffc', 2, 0.9); BA.norm(c);
+    c.restore();
+  },
+  beat(t) { return [1 + Math.sin(t * 1.6) * 0.04, 1 + Math.sin(t * 1.6 + 1.3) * 0.04]; },
+  rot() { return 0; }
+};
+// III -- THE PEARL: a perfect orb that shows you every colour at once
+BOSS_BODY.pearl3 = function (c, R, col, core, hurt) {
+  const orb = cc => { cc.beginPath(); cc.arc(0, 0, R * 0.95, 0, TAU); };
+  neon(c, orb, col, { lw: 3, blur: 26, core: hurt ? core : 'rgba(30,30,40,0.95)' });
+  if (!hurt) bodyLight(c, orb, -R * 0.3, -R * 0.35, 0, R * 1.2, [[0, 'rgba(255,255,255,0.85)'], [0.35, 'rgba(230,220,255,0.45)'], [0.75, 'rgba(160,190,230,0.2)'], [1, 'rgba(40,40,60,0.1)']]);
+  neon(c, cc => { cc.beginPath(); cc.arc(-R * 0.3, -R * 0.35, R * 0.16, 0, TAU); }, Kc(hurt, '#ffffff'), { lw: 1.4, blur: 14, core: 'rgba(255,255,255,0.9)', inner: false });
+};
+BOSS_LIVE.pearl3 = {
+  over(c, e, o) {
+    const R = o.R, t = o.t, cols = ['#ff9ecf', '#8af0ff', '#ffe27a', '#c9a3ff', '#9dffcf'];
+    c.save(); c.lineCap = 'round';
+    BA.add(c);
+    for (let i = 0; i < cols.length; i++) {
+      const a = t * (0.6 + i * 0.13) + i * 1.3;
+      c.beginPath(); c.arc(0, 0, R * (0.55 + i * 0.07), a, a + 1.4);
+      BA.line(c, cols[i], 3, 0.55);
+    }
+    BA.norm(c);
+    c.restore();
+  },
+  rot() { return 0; }
+};
+// IV -- THE GRAIN: the grain of sand it was all grown round
+BOSS_BODY.pearl4 = function (c, R, col, core, hurt) {
+  const grain = cc => { cc.beginPath(); const P = [[1.1, 0.1], [0.55, -0.85], [-0.4, -0.95], [-1.05, -0.2], [-0.7, 0.75], [0.3, 0.95]]; P.forEach(([x, y], i) => i ? cc.lineTo(x * R, y * R) : cc.moveTo(x * R, y * R)); cc.closePath(); };
+  neon(c, grain, col, { lw: 3, blur: 24, core: 'rgba(30,20,4,0.95)' });
+  if (!hurt) bodyLight(c, grain, 0, 0, 0, R, [[0, 'rgba(255,230,160,0.7)'], [1, 'rgba(120,80,10,0.1)']]);
+  neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.1, R * 0.1); cc.lineTo(-R * 0.1, 0); cc.lineTo(-R * 0.4, -R * 0.95); cc.moveTo(-R * 0.1, 0); cc.lineTo(-R * 0.7, R * 0.75); }, Kc(hurt, '#ffffff'), { lw: 1.2, blur: 10, core: null, inner: false });
+};
+BOSS_LIVE.pearl4 = {
+  over(c, e, o) {
+    BA.add(c);
+    const s = 0.5 + 0.5 * Math.sin(o.t * 11);
+    BA.glow(c, '#ffffff', o.R * 0.5, -o.R * 0.3, o.R * (0.4 + s * 0.3), 0.5 + s * 0.4);
+    BA.norm(c);
+  },
+  rot(e) { return G.time * 1.5; }
+};
+// under the water: only a shadow, and the surface moving over it
+Thicket.boss.whale.art = function (c, e) {
+  if (!e.hidden) return;
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.35)';
+  c.beginPath(); c.ellipse(e.x, e.y, e.r * 1.3, e.r * 0.6, e.face || 0, 0, TAU); c.fill();
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 3; i++) {
+    const u = (G.time * 1.2 + i / 3) % 1;
+    c.beginPath(); c.arc(e.x, e.y, e.r * (0.4 + u * 1.2), 0, TAU);
+    BA.line(c, e.def.col, 2, (1 - u) * 0.5);
+  }
+  c.restore();
+};
+
 /* ========================================================================
    GAME
    ======================================================================== */
@@ -14976,7 +17710,11 @@ const BOSS_BULLET = {
   chrysalis: '#ffb3e6', chrysmoth: '#ffb3e6', pitcher: '#c8ff4a', strangler: '#ff7ab8', stanchor: '#ff7ab8',
   burl: '#8a9dff', trapper: '#ffcf5a', amberwright: '#ffd24a', whitestag: '#ff5a7a', comb: '#b06bff', combfrag: '#b06bff',
   graft: '#ff4f9e', molt: '#ffb3e6', pack: '#ffb86b',
-  hunter: '#ffd06b', hunter2: '#ff7ab8', hunter3: '#9ad0ff', hunter4: '#ffd166'
+  hunter: '#ffd06b', hunter2: '#ff7ab8', hunter3: '#9ad0ff', hunter4: '#ffd166',
+  hermit: '#ffd84a', bell: '#e0b8ff', bellbud: '#e0b8ff', eel: '#8affa0', urchin: '#d8a0ff', starfish: '#ffb070',
+  maelstrom: '#8ac8ff', mantis: '#ff8ab8', octopus: '#b0b4ff', ray: '#bff8ff', nautilus: '#ffd8a8', clam: '#f4f0ff',
+  whale: '#7affe0', gull: '#e8eef8', kingcrab: '#ff9a6a', school: '#c8f4ff',
+  pearl: '#f4f0ff', pearl2: '#8af0ff', pearl3: '#fff4fe', pearl4: '#ffe0a0'
 };
 const RUN_GOAL = 720;        // 12:00 reference
 
@@ -15165,7 +17903,18 @@ const Game = {
     if (this.rel('leechroot'))    S.dr *= 1.15;
     if (this.rel('barkskin'))     S.magnet *= 0.7;
     if (this.rel('swarmheart'))   S.areaMul *= 0.85;
-    this.dashCdMul = (this.rel('tailwind') ? 1.3 : 1) * (this.rel('snare') ? 1.4 : 1);
+    // the shallows'
+    if (this.rel('spareshell'))   S.speed *= 0.92;
+    if (this.rel('stinger'))      S.maxHp = Math.max(30, Math.round(S.maxHp * 0.9));
+    if (this.rel('static'))       S.cdMul *= 1.10;
+    if (this.rel('spineback'))    S.dr *= 1.10;
+    if (this.rel('regrowth'))     S.maxHp = Math.max(30, Math.round(S.maxHp * 0.9));
+    if (this.rel('undertow'))     S.magnet *= 2;
+    if (this.rel('inksac'))       S.maxHp = Math.max(30, Math.round(S.maxHp * 0.9));
+    if (this.rel('buoyancy'))     S.xpMul *= 1.12;
+    if (this.rel('orbpearl'))     S.magnet *= 0.8;
+    this.dashCdMul = (this.rel('tailwind') ? 1.3 : 1) * (this.rel('snare') ? 1.4 : 1)
+      * (this.rel('clubstrike') ? 1.2 : 1) * (this.rel('sonar') ? 1.25 : 1);
     // ---- covenants -------------------------------------------------------
     if (this.cov('openhand'))   S.dmgMul *= 1.55;
     if (this.cov('longbreath')) { S.maxHp = Math.round(S.maxHp * 1.8); S.cdMul *= 1.2; }
@@ -15286,7 +18035,7 @@ const Game = {
     const S = this.stats;
     // a BRIARBACK's plating faces forward: hits from in front of it glance off
     // its bark is on its front: 60% of a hit from ahead is lost in it
-    if (e.def.ai === 'briar' && e.face !== undefined && this.player) {
+    if ((e.def.ai === 'briar' || e.def.plate) && e.face !== undefined && this.player) {
       const ka = o.kbAngle === undefined ? Math.atan2(e.y - this.player.y, e.x - this.player.x) : o.kbAngle;
       if (Math.abs(angDiff(e.face, ka + Math.PI)) < 1.0) { dmg *= 0.4; e.platedT = G.time; }
     }
@@ -16102,7 +18851,7 @@ const Game = {
   sowerStart(b) {
     // THE SOWER and THE HUNTER are the same kind of fight: four bodies, each
     // one held for a while before it can break
-    const FS = b.def.bossKind === 'hunter' ? HUNTER_FORMS : SOWER_FORMS;
+    const FS = CORE_FORMS[b.def.bossKind] || SOWER_FORMS;
     b.forms = FS;
     b.form = 0;
     // spawnBoss sized it as a generic finale; a core sizes its own bodies
@@ -16482,6 +19231,7 @@ const Game = {
     const t = this.time;
     let m = (1 + Math.pow(t / 60, 1.33) * 0.38) * this.D.hp;
     if (this.planet) m *= THREAT_HP[this.planet.threat] || 1;
+    if (this.rel('buoyancy')) m *= 1.1;
     if (this.endless) m *= Math.pow(1 + TIDE.hp, this.tide);
     if (this.actII) m *= Math.pow(1.11, this.og);
     if (this.postBloom) m *= 1 + Math.max(0, t - BOSS_T) / 260;
@@ -16665,7 +19415,7 @@ const Game = {
     const FSr = (this.boss && this.boss.forms) || SOWER_FORMS;
     const rampT = this.coop ? Coop.rampT() : (this.solo ? ((FSr[(this.boss && this.boss.form) | 0] || FSr[0]).t) : this.time);
     this.dmgScale = (1 + rampT / 260 * D.dmgRamp) * dEase * (this.endless ? (1 + this.tide * TIDE.dmg) : 1);
-    this.enemySpeedMul = (1 + Math.min(0.55, this.time / 1250) * D.spdRamp) * D.spd * this.tideMul('spd', 1.9) * (this.rel('bait') ? 1.1 : 1);
+    this.enemySpeedMul = (1 + Math.min(0.55, this.time / 1250) * D.spdRamp) * D.spd * this.tideMul('spd', 1.9) * (this.rel('bait') ? 1.1 : 1) * (this.rel('undertow') ? 1.08 : 1);
     // the tide: endless escalation, forever
     if (this.endless && !this.over) {
       this.tideT -= dt;
@@ -17109,13 +19859,13 @@ const Game = {
       const firstTake = Conquest.takeCore(this.planet, this.score, this.time);
       this.conquered = { planet: this.planet, first: firstTake };
       if (this.planet === EVENTIDE) Ach.grant('eventide');
-      else Thicket.coreWon(this.planet);
+      else { const GM = galOf(this.planet).mod; if (GM && GM.coreWon) GM.coreWon(this.planet); }
     } else if (win && this.planet) {
       const firstTake = Conquest.conquer(this.planet, this.score, this.time);
       this.conquered = { planet: this.planet, first: firstTake };
       const gp = galOf(this.planet);
       if (gp.id === 'garden' && Conquest.count(gp) >= gp.planets.length) Ach.grant('conqueror');
-      if (gp.id === 'thicket') Thicket.worldWon(this.planet);
+      if (gp.mod && gp.mod.worldWon) gp.mod.worldWon(this.planet);
     }
     const sc = Math.round(this.score);
     if (sc > d.best) d.best = sc;
@@ -17251,6 +20001,25 @@ const ACHS = [
   { id: 'thk_beekeeper', n: 'BEEKEEPER', d: 'Beat THE COMB before a royal cell hatches', c: '#ffd23f', g: 'THE THICKET' },
   { id: 'thk_untouched', n: 'NOT GORED', d: 'Beat THE WHITE STAG without it ever running you down', c: '#f4f8ff', g: 'THE THICKET' },
 
+  /* --- the shallows --------------------------------------------------- */
+  { id: 'shl_first', n: 'FEET WET', d: 'Take your first world in THE SHALLOWS', c: '#4fe8d8', g: 'THE SHALLOWS' },
+  { id: 'shl_all', n: 'HIGH TIDE', d: 'Take every world in THE SHALLOWS', c: '#2fd0b0', g: 'THE SHALLOWS',
+    prog: () => { const g = GAL_BY_ID.shallows; return [Conquest.count(g), g.planets.length]; } },
+  { id: 'shl_key', n: 'THE TIDE KEY', d: 'Hold THE SPIRAL, THE NACRE and THE SONG', c: '#f4f0ff', g: 'THE SHALLOWS' },
+  { id: 'shl_core', n: 'MOTHER OF PEARL', d: 'Bring up the pearl from the bottom of MOONPOOL', c: '#dff0ff', g: 'THE SHALLOWS', skin: 'nacre' },
+  { id: 'shl_window', n: 'IN THE WINDOW', d: 'Beat THE HERMIT without being hit while it is out of its shell', c: '#f2d27a', g: 'THE SHALLOWS' },
+  { id: 'shl_wake', n: 'CLEAN WAKE', d: 'Beat THE BELL without touching a sting it left behind', c: '#b8d8ff', g: 'THE SHALLOWS' },
+  { id: 'shl_grounded', n: 'GROUNDED', d: 'Beat THE EEL without being caught in its current', c: '#6af07a', g: 'THE SHALLOWS' },
+  { id: 'shl_nopop', n: 'NO BURST', d: 'Beat THE URCHIN before it ever reaches full', c: '#c47cff', g: 'THE SHALLOWS' },
+  { id: 'shl_crush', n: 'NOTHING GROWS BACK', d: 'Beat THE STARFISH without letting an arm regrow', c: '#ff9a5c', g: 'THE SHALLOWS' },
+  { id: 'shl_swim', n: 'AGAINST THE CURRENT', d: 'Beat THE MAELSTROM without once touching its middle', c: '#4f9cff', g: 'THE SHALLOWS' },
+  { id: 'shl_parry', n: 'THROUGH THE PUNCH', d: 'Dash straight through THE MANTIS as it punches', c: '#ff5f9a', g: 'THE SHALLOWS' },
+  { id: 'shl_sweep', n: 'KEEP AHEAD', d: 'Beat THE OCTOPUS without an arm ever touching you', c: '#8a90ff', g: 'THE SHALLOWS' },
+  { id: 'shl_shadow', n: 'OUT OF ITS SHADOW', d: 'Beat THE RAY without it ever gliding into you', c: '#8af0ff', g: 'THE SHALLOWS' },
+  { id: 'shl_catch', n: 'HOME SAFE', d: 'Beat THE CLAM without its pearl touching you', c: '#f4f0ff', g: 'THE SHALLOWS' },
+  { id: 'shl_dry', n: 'DRY LAND', d: 'Beat THE WHALE without being caught by a breach', c: '#2fd0b0', g: 'THE SHALLOWS' },
+  { id: 'shl_gull', n: 'NOT A CRUMB', d: 'Beat THE GULL before it takes a single mote', c: '#e8eef8', g: 'THE SHALLOWS' },
+
   /* --- the daily ------------------------------------------------------ */
   { id: 'pilgrim', n: 'PILGRIM', d: 'Clear a DAILY CHALLENGE', c: '#ffb347', g: 'THE DAILY', skin: 'meridian' },
   { id: 'devout', n: 'DEVOUT', d: 'Run the daily on five different days', c: '#ffb347', g: 'THE DAILY', prog: () => [Math.min(5, dailyDays()), 5] },
@@ -17286,7 +20055,10 @@ const ALL_BOSS_IDS = ['choir', 'gravewalker', 'weep', 'nullarch', 'loom', 'carri
   // THE THICKET. Adding these does not take ARCHIVIST from anyone who already
   // holds it -- an achievement, once granted, is never re-checked
   'pruner', 'dandelion', 'lure', 'thousandfoot', 'chrysalis', 'pitcher', 'strangler', 'burl',
-  'trapper', 'amberwright', 'whitestag', 'comb', 'graft', 'molt', 'pack', 'hunter'];
+  'trapper', 'amberwright', 'whitestag', 'comb', 'graft', 'molt', 'pack', 'hunter',
+  // THE SHALLOWS
+  'hermit', 'bell', 'eel', 'urchin', 'starfish', 'maelstrom', 'mantis', 'octopus',
+  'ray', 'nautilus', 'clam', 'whale', 'gull', 'kingcrab', 'school', 'pearl'];
 function bossSeenCount() {
   const s = Save.data.bossSeen || {};
   let n = 0; for (const id of ALL_BOSS_IDS) if (s[id]) n++;
@@ -17767,6 +20539,63 @@ function drawPlanetBody(c, x, y, r, pl, t, rot) {
       hg.addColorStop(0, 'rgba(255,220,160,' + (0.5 + b2 * 0.4) + ')'); hg.addColorStop(1, 'rgba(255,120,40,0)');
       c.fillStyle = hg; c.beginPath(); c.arc(ox, oy, r * 0.45, 0, TAU); c.fill();
     }
+  } else if (F === 'sand' || F === 'kelp' || F === 'wake') {
+    // SANDBAR's ripples; KELPWOOD's strands; THE REACHES' swells
+    c.lineWidth = Math.max(0.5, r * (F === 'kelp' ? 0.05 : 0.025));
+    c.strokeStyle = F === 'sand' ? 'rgba(255,240,200,0.35)' : F === 'kelp' ? 'rgba(160,255,170,0.34)' : 'rgba(230,252,255,0.4)';
+    for (let i = 0; i < 9; i++) {
+      const k = (i - 4) / 4.5, ph2 = R() * TAU;
+      c.beginPath();
+      for (let j = 0; j <= 20; j++) {
+        const u = j / 20 * 2 - 1;
+        const x2 = F === 'kelp' ? x + k * r + Math.sin(u * 3 + ph2 + t * 0.9) * r * 0.06 : x + u * r * 1.1;
+        const y2 = F === 'kelp' ? y + u * r * 1.1 : y + k * r + Math.sin(u * (F === 'wake' ? 4 : 9) + ph2 + rot * 2) * r * 0.04;
+        j ? c.lineTo(x2, y2) : c.moveTo(x2, y2);
+      }
+      c.stroke();
+    }
+  } else if (F === 'jelly' || F === 'ink' || F === 'spines' || F === 'star') {
+    // GLASSWATER's jellies; INKWELL's clouds; the urchins; the stars on the floor
+    for (let i = 0; i < 12; i++) {
+      const lon = R() * TAU, lat = (R() - 0.5) * 1.7, sz = R(), sp = R();
+      const ca = Math.cos(lon + rot); if (ca <= 0.08) continue;
+      const cx = x + Math.sin(lon + rot) * r * Math.cos(lat), cy = y + Math.sin(lat) * r, rr = r * (0.05 + sz * 0.08);
+      c.globalAlpha = Math.min(1, ca * 1.6);
+      c.beginPath();
+      if (F === 'jelly') { c.arc(cx, cy, rr, Math.PI, TAU); c.closePath(); c.fillStyle = 'rgba(255,200,240,0.4)'; c.fill(); }
+      else if (F === 'ink') { c.ellipse(cx, cy, rr * 2.4 * ca, rr * 1.6, sp, 0, TAU); c.fillStyle = 'rgba(4,4,20,0.5)'; c.fill(); }
+      else {
+        const n2 = F === 'star' ? 5 : 10, r2 = F === 'star' ? rr * 1.4 : rr * 1.6;
+        for (let k = 0; k < n2 * 2; k++) { const a = sp * 6 + k / (n2 * 2) * TAU, q = k % 2 ? r2 * 0.4 : r2; k ? c.lineTo(cx + Math.cos(a) * q * ca, cy + Math.sin(a) * q) : c.moveTo(cx + Math.cos(a) * q * ca, cy + Math.sin(a) * q); }
+        c.closePath(); c.fillStyle = F === 'star' ? 'rgba(255,180,120,0.7)' : 'rgba(20,6,30,0.75)'; c.fill();
+      }
+    }
+    c.globalAlpha = 1;
+  } else if (F === 'whirl' || F === 'spiral' || F === 'song' || F === 'moon' || F === 'reef' || F === 'nacre') {
+    // THE WHIRL; NAUTILUS SHELF; WHALEFALL's rings; MOONPOOL; the reef; the nacre of the pearl beds
+    if (F === 'whirl' || F === 'spiral') {
+      c.strokeStyle = F === 'whirl' ? 'rgba(200,225,255,0.4)' : 'rgba(140,70,30,0.55)'; c.lineWidth = Math.max(0.6, r * (F === 'whirl' ? 0.035 : 0.06));
+      for (let k = 0; k < (F === 'whirl' ? 4 : 1); k++) {
+        c.beginPath();
+        for (let j = 0; j <= 40; j++) { const u = j / 40, a = (F === 'whirl' ? t * 0.8 : 0) + k / 4 * TAU + u * TAU * 1.4, rr = r * (0.08 + u * 0.95); j ? c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : c.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+        c.stroke();
+      }
+    } else if (F === 'song') {
+      c.strokeStyle = 'rgba(180,255,236,0.35)'; c.lineWidth = Math.max(0.6, r * 0.03);
+      for (let k = 0; k < 4; k++) { const u = ((t * 0.25 + k / 4) % 1); c.beginPath(); c.arc(x - r * 0.2, y - r * 0.1, r * (0.15 + u * 1.2), 0, TAU); c.globalAlpha = 1 - u; c.stroke(); }
+      c.globalAlpha = 1;
+    } else if (F === 'moon') {
+      c.fillStyle = 'rgba(30,50,70,0.4)';
+      for (let i = 0; i < 9; i++) { const lon = R() * TAU, lat = (R() - 0.5) * 1.6, cr = r * (0.06 + R() * 0.12), ca = Math.cos(lon + rot); if (ca <= 0.06) continue; c.beginPath(); c.ellipse(x + Math.sin(lon + rot) * r * Math.cos(lat), y + Math.sin(lat) * r, cr * ca, cr, 0, 0, TAU); c.fill(); }
+      c.strokeStyle = 'rgba(190,230,255,0.35)'; c.lineWidth = Math.max(0.6, r * 0.025);
+      for (let k = 0; k < 3; k++) { const u = (t * 0.3 + k / 3) % 1; c.beginPath(); c.arc(x + r * 0.2, y + r * 0.3, r * u * 0.9, 0, TAU); c.stroke(); }
+    } else if (F === 'reef') {
+      c.fillStyle = 'rgba(255,120,180,0.35)';
+      for (let i = 0; i < 14; i++) { const lon = R() * TAU, lat = (R() - 0.5) * 1.7, cr = r * (0.06 + R() * 0.1), ca = Math.cos(lon + rot); if (ca <= 0.06) continue; c.beginPath(); c.ellipse(x + Math.sin(lon + rot) * r * Math.cos(lat), y + Math.sin(lat) * r, cr * ca, cr, 0, 0, TAU); c.fill(); }
+    } else {
+      const cols2 = ['rgba(255,170,220,0.3)', 'rgba(150,240,255,0.3)', 'rgba(255,240,170,0.3)', 'rgba(200,170,255,0.3)'];
+      for (let k = 0; k < 8; k++) { c.fillStyle = cols2[k % 4]; c.beginPath(); c.ellipse(x, y + (k - 3.5) * r * 0.24, r * 1.1, r * 0.09, Math.sin(t * 0.3 + k) * 0.2, 0, TAU); c.fill(); }
+    }
   } else if (bite) {
     c.strokeStyle = '#ff4f7f'; c.shadowColor = '#ff2d6d'; c.shadowBlur = r * 0.7;
     c.lineWidth = Math.max(0.9, r * 0.075);
@@ -18210,6 +21039,96 @@ vec3 surface(int ty, vec3 n, vec3 base, float tt, out float emis){
     c = mix(base*1.05, base*0.28, smoothstep(0.08, 0.42, hd));
     c += vec3(1.0,0.9,0.5) * edge;
     emis = edge*0.6 + smoothstep(0.2, 0.0, hd)*0.3;
+  } else if(ty==25){                            // SANDBAR: ripples in wet sand, pools the tide left
+    float rip = 0.5 + 0.5*sin(dot(n, vec3(26.0, 8.0, 14.0)) + f*9.0);
+    c = mix(base*0.62, base*1.18, rip*0.6 + f*0.4);
+    float pool = smoothstep(0.60, 0.66, fbm4(pn*1.4 + 3.1));
+    c = mix(c, vec3(0.10,0.34,0.44), pool*0.85);
+    c += vec3(1.0,0.95,0.8) * step(0.975, h31(floor(n*22.0))) * 0.8 * (1.0 - pool);
+    emis = pool*0.12;
+  } else if(ty==26){                            // GLASSWATER: caustics, and jellies drifting in them
+    float ca1 = abs(sin(dot(n, vec3(11.0,7.0,5.0)) + tt*0.6 + f*4.0));
+    float ca2 = abs(sin(dot(n, vec3(-6.0,12.0,8.0)) - tt*0.5 + f*3.0));
+    float caus = pow(1.0 - min(ca1, ca2), 8.0);
+    c = mix(base*0.35, base*0.95, f);
+    c += vec3(0.85,0.95,1.0) * caus * 0.7;
+    vec3 gj = n*9.0 + vec3(0.0, tt*0.05, 0.0);
+    float jel = step(0.9, h31(floor(gj))) * smoothstep(0.22, 0.05, length(fract(gj) - 0.5));
+    c += vec3(1.0,0.75,0.95) * jel * 0.9;
+    emis = caus*0.4 + jel*0.8;
+  } else if(ty==27){                            // KELPWOOD: a forest of kelp, swaying
+    float sway = sin(n.y*6.0 + tt*0.9) * 0.08;
+    float kelp = smoothstep(0.72, 0.95, 0.5 + 0.5*sin((n.x + sway)*38.0 + f*4.0));
+    c = mix(base*0.18, base*0.62, f);
+    c = mix(c, base*1.4, kelp);
+    c += vec3(0.9,1.0,0.6) * step(0.97, h31(floor(n*18.0))) * kelp * 0.9;
+    emis = kelp*0.25;
+  } else if(ty==28){                            // URCHIN FLATS: every dark star is one of them
+    c = mix(base*0.35, base*1.05, f);
+    vec3 gu = n*11.0; vec3 fu = fract(gu) - 0.5; float hu = step(0.72, h31(floor(gu)));
+    float du = length(fu);
+    float spike = smoothstep(0.34, 0.0, du) * (0.5 + 0.5*pow(abs(sin(atan(fu.y, fu.x)*7.0)), 8.0));
+    c = mix(c, base*0.08, hu*spike*0.9);
+    float eye = hu * smoothstep(0.06, 0.0, du);
+    c += vec3(1.0,0.8,1.0) * eye * 1.2;
+    emis = eye*0.9;
+  } else if(ty==29){                            // STARFALL: stars on the sea floor, five arms each
+    c = mix(base*0.3, base*1.0, f);
+    vec3 gs = n*8.0; vec3 fs = fract(gs) - 0.5; float hs2 = h31(floor(gs)*1.3);
+    float a2 = atan(fs.y, fs.x) + hs2*6.28;
+    float star = step(0.62, hs2) * smoothstep(0.03, 0.0, length(fs.xy) - (0.10 + 0.14*pow(abs(cos(a2*2.5)), 3.0)));
+    c = mix(c, vec3(1.0,0.62,0.36)*1.3, star);
+    emis = star*0.5;
+  } else if(ty==30){                            // THE WHIRL: everything on its way to the middle
+    vec3 ax = normalize(vec3(0.2, 0.5, 0.84)), t1 = normalize(cross(ax, vec3(0.0,0.0,1.0))), t2 = cross(ax, t1);
+    float wu = dot(n, t1), wv = dot(n, t2), wr = length(vec2(wu, wv));
+    float spw = 0.5 + 0.5*sin(atan(wv, wu)*3.0 + wr*22.0 - tt*1.4 + f*2.0);
+    c = mix(base*0.25, base*1.1, spw*0.7 + f*0.3);
+    c += vec3(0.85,0.95,1.0) * smoothstep(0.9, 1.0, spw) * 0.5;
+    c = mix(c, vec3(0.0,0.02,0.06), smoothstep(0.16, 0.05, wr) * step(0.0, dot(n, ax)));
+    emis = smoothstep(0.9, 1.0, spw)*0.3;
+  } else if(ty==31){                            // SMASHING REEF: coral, bright on the ridges
+    float cr = ridge(pn*2.2);
+    c = mix(base*0.22, base*0.8, f);
+    c = mix(c, base*1.5, smoothstep(0.62, 0.8, cr));
+    c += vec3(0.4,1.0,0.85) * smoothstep(0.84, 0.95, fbm4(pn*5.0 + 7.0)) * 0.6;
+    emis = smoothstep(0.7, 0.85, cr)*0.3;
+  } else if(ty==32){                            // INKWELL: clouds of ink, and lights in the dark of them
+    float ink = smoothstep(0.45, 0.7, fbm4(pn*1.6 + vec3(tt*0.03, 0.0, 0.0)));
+    c = mix(base*1.0, base*0.06, ink);
+    float hk = h31(floor(n*17.0));
+    float lit = step(0.95, hk) * ink * (0.6 + 0.4*sin(tt*2.0 + hk*50.0));
+    c += vec3(0.6,0.7,1.0) * lit * 1.4;
+    emis = lit*0.9;
+  } else if(ty==33){                            // THE REACHES: open water, long swells
+    float sw2 = 0.5 + 0.5*sin(n.y*14.0 + n.x*4.0 + f*3.0 - tt*0.4);
+    c = mix(base*0.35, base*1.1, sw2);
+    float cap = smoothstep(0.93, 1.0, sw2) * smoothstep(0.55, 0.8, fbm4(pn*4.0));
+    c += vec3(1.0) * cap * 0.8;
+    emis = cap*0.2;
+  } else if(ty==34){                            // NAUTILUS SHELF: striped like the shells that live on it
+    float st = 0.5 + 0.5*sin(n.x*18.0 + fbm4(pn*1.5)*6.0);
+    c = mix(base*1.1, vec3(0.45,0.22,0.1), smoothstep(0.6, 0.8, st));
+    c *= 0.75 + 0.35*f;
+    c += vec3(1.0,0.95,0.85) * step(0.97, h31(floor(n*12.0))) * 0.6;
+  } else if(ty==35){                            // PEARL BEDS: nacre, every colour at once
+    float pp = dot(n, vec3(3.0, 5.0, 2.0)) + f*4.0 + tt*0.1;
+    vec3 iri = 0.5 + 0.5*cos(vec3(0.0, 2.1, 4.2) + pp*2.0);
+    c = mix(base*0.8, iri*1.1, 0.45);
+    c *= 0.7 + 0.4*f;
+    emis = 0.15;
+  } else if(ty==36){                            // WHALEFALL: it sings, and the rings go out
+    float dk2 = length(n - normalize(vec3(-0.3, 0.4, 0.86)));
+    float ring = smoothstep(0.44, 0.5, abs(fract(dk2*5.0 - tt*0.25) - 0.5));
+    c = mix(base*0.18, base*0.8, f);
+    c += vec3(0.7,1.0,0.92) * ring * 0.8;
+    emis = ring*0.6;
+  } else if(ty==37){                            // MOONPOOL: a moon, under water
+    c = mix(base*0.7, vec3(0.92,0.96,1.0), smoothstep(0.3, 0.75, f));
+    c -= vec3(0.25) * smoothstep(0.03, 0.0, abs(fbm4(pn*3.1 + 4.0) - 0.62));
+    float rp = 0.5 + 0.5*sin(length(n.xy - vec2(0.2,0.3))*40.0 - tt*1.2);
+    c += vec3(0.6,0.85,1.0) * smoothstep(0.85, 1.0, rp) * 0.35;
+    emis = 0.35 + smoothstep(0.85,1.0,rp)*0.3;
   } else {                                      // THE HEARTWOOD: bark grown over a star
     float bark = fbm4(vec3(n.x*2.2, n.y*9.0, n.z*2.2));
     float crack = smoothstep(0.045, 0.0, abs(bark - 0.5));
@@ -18296,7 +21215,7 @@ vec4 world(vec2 d, float r, vec3 base, int ty, float taken, float tt, float idx)
     float night = smoothstep(0.16, -0.10, dot(n, L));
 
     vec3 lit = c * (0.085 + diff*0.85 + wrap*0.30);
-    float shiny = (ty <= 8 || ty == 17 || ty == 21) ? 1.0 : 0.0;
+    float shiny = (ty <= 8 || ty == 17 || ty == 21 || ty == 26 || ty == 35) ? 1.0 : 0.0;
     lit += vec3(1.0) * spec * 0.30 * shiny;
     lit += c * emis * (0.45 + night*1.60);             // emissive burns through the night side
     lit += base * fres * 2.70;                         // the neon limb
@@ -18328,6 +21247,11 @@ vec4 world(vec2 d, float r, vec3 base, int ty, float taken, float tt, float idx)
     float reach = r*(1.04 + 0.34*sp);
     float beat = pow(0.5 + 0.5*sin(tt*2.6), 6.0);
     acc += base * smoothstep(reach, r, dist) * step(r*0.97, dist) * (0.8 + beat*0.6);
+  }
+  // MOONPOOL: the water stands in rings round it
+  if(ty==37){
+    float rr3 = dist / r;
+    acc += base * smoothstep(0.44, 0.5, abs(fract(rr3*3.0 - tt*0.3) - 0.5)) * smoothstep(2.4, 1.05, rr3) * step(1.0, rr3) * 0.6;
   }
   // ring systems: the ice world, the loom and the thistle's down
   if(ty==7 || ty==6 || ty==13){
@@ -18421,7 +21345,11 @@ const SKY_MOOD = {
   // THE THICKET: 7 is down on the wind, 8 is marsh-light that comes and goes
   hedgemoor: 3, thistledown: 7, lanternfen: 8, wormwood: 1, mothwing: 2, pitcherdeep: 4,
   stranglehold: 3, burlwood: 2, snarelands: 2, ambersea: 4, staglands: 2, wildcomb: 7,
-  heartwood: 1
+  heartwood: 1,
+  // THE SHALLOWS: bubbles rising, plankton that glows, silt on the current
+  sandbar: 4, glasswater: 8, kelpwood: 7, urchinflats: 4, starfall: 2, thewhirl: 7,
+  smashingreef: 4, inkwell: 8, reaches: 7, nautilusshelf: 4, pearlbeds: 8, whalefall: 4,
+  moonpool: 8
 };
 const ARENA_FS = `
 precision highp float;
@@ -19014,7 +21942,7 @@ const Cosmos = {
    has its own twelve surfaces in the shader, from typeBase up */
 const HERO_HOLE = 40;          // the black hole at the bottom of THE GARDEN
 function worldType(pl) {
-  if (pl === HEARTWOOD) return 24;
+  if (pl.core && pl.coreType !== undefined) return pl.coreType;
   const g = galOf(pl);
   return g.typeBase + Math.max(0, g.planets.indexOf(pl));
 }
@@ -19336,7 +22264,7 @@ const Descent = {
       this.sub.style.color = pl.col;
       this.sub.style.textShadow = '0 0 26px ' + pl.col;
     }
-    if (this.cap) this.cap.textContent = pl.hole ? 'GOING ALL THE WAY DOWN' : (pl.core ? 'INTO THE HEARTWOOD' : 'MAKING PLANETFALL');
+    if (this.cap) this.cap.textContent = pl.hole ? 'GOING ALL THE WAY DOWN' : (pl.core ? (pl.descent || 'INTO THE DEEP') : 'MAKING PLANETFALL');
     if (this.halo) {
       this.halo.style.background = 'radial-gradient(ellipse 56% 56% at 50% 44%, ' +
         pl.col + '30 0%, rgba(0,0,0,0) 68%)';
@@ -19912,7 +22840,7 @@ const UI = {
       const tw = 116 * hs;
       this.bar(c, VW / 2 - tw / 2, ty + 25 * hs, tw, 4 * hs, frac, D.color, 'rgba(60,0,44,0.5)');
     } else if (!G.bossSpawned && !G.boss && G.solo) {
-      text(c, G.planet && G.planet.id === 'heartwood' ? 'SOMETHING IN HERE IS BREATHING' : 'IT IS ALREADY DOWN THERE', VW / 2, ty + 17 * hs, { size: 11 * hs, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 });
+      text(c, G.planet && G.planet.soloLine ? G.planet.soloLine : 'IT IS ALREADY DOWN THERE', VW / 2, ty + 17 * hs, { size: 11 * hs, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 });
     } else if (!G.bossSpawned && !G.boss) {
       let nextT = BOSS_T, nextN = 'BLOOM';
       for (const g of GAUNTLET) { if (G.time < g.t) { nextT = g.t; nextN = ENEMY[g.id].name.replace('THE ', ''); break; } }
@@ -20925,14 +23853,14 @@ const UI = {
     });
     row('THREAT', (sx, sy) => {
       tracked(c, 'ABSOLUTE', sx, sy + 15, { size: 13, weight: 900, color: pl.col, glow: pl.col, blur: 12, track: 3 });
-      tracked(c, isHole ? 'past the last star on the chart' : 'where every path in the thicket ends', sx + 124, sy + 15, { size: 9.5, weight: 700, color: PAL.dim, track: 1.4 });
+      tracked(c, isHole ? 'past the last star on the chart' : (pl.where || 'at the middle of it all'), sx + 124, sy + 15, { size: 9.5, weight: 700, color: PAL.dim, track: 1.4 });
     });
     row('WHAT WAITS', (sx, sy) => {
       box(sx, sy, done ? boss.name : '?', pl.col, !done);
       if (done) tracked(c, 'FOUR FORMS', sx + (isHole ? 110 : 118), sy + 14.5, { size: 9.5, weight: 800, color: PAL.dim, track: 2 });
     });
     row('THE RULE', (sx, sy) => {
-      text(c, isHole ? 'Nothing else lives down here.' : 'Nothing else lives in here.', sx, sy + 12, { size: 11.5, weight: 700, color: 'rgba(170,178,208,0.95)' });
+      text(c, isHole ? 'Nothing else lives down here.' : (pl.rule || 'Nothing else lives in here.'), sx, sy + 12, { size: 11.5, weight: 700, color: 'rgba(170,178,208,0.95)' });
       text(c, isHole ? 'It will not stay dead the first three times.' : 'It will not stay down the first three times.', sx, sy + 28, { size: 11.5, weight: 700, color: 'rgba(170,178,208,0.95)' });
     }, 50);
 
@@ -21780,21 +24708,21 @@ const UI = {
     this.dim(c, win ? 0.5 : 0.62);
     const col = win ? PAL.gold : PAL.hp;
     const DD = G.D;
-    const hole = G.planet === EVENTIDE, heart = G.planet === HEARTWOOD;
-    const thk = G.planet && G.planet.gal === 'thicket';
+    const hole = G.planet === EVENTIDE, heart = G.planet && G.planet.core && !G.planet.hole ? G.planet : null;
+    const galN = G.planet ? galOf(G.planet) : null;
     let head = 'THE BLOOM FALLS', sub2 = 'the void is quiet again — for now';
     if (!win) {
-      head = G.endless ? 'THE TIDE CLOSES' : (hole ? 'IT KEPT YOU' : (heart ? 'THE WOODS KEPT YOU' : 'CONSUMED'));
+      head = G.endless ? 'THE TIDE CLOSES' : (hole ? 'IT KEPT YOU' : (heart ? heart.loseHead : 'CONSUMED'));
       sub2 = G.endless ? 'nothing holds back a rising tide'
            : (hole ? 'nothing that falls in ever reports back'
-           : (heart ? 'it is still beating, somewhere under the bark'
-           : (thk ? 'the thicket closes over everything' : 'the garden takes everything eventually')));
+           : (heart ? heart.loseSub
+           : ((galN && galN.loseSub) || 'the garden takes everything eventually')));
     } else if (hole) {
       head = 'THE SOWER IS OUT';
       sub2 = 'you went all the way down, and you came back up';
     } else if (heart) {
-      head = 'THE HUNT IS OVER';
-      sub2 = 'you walked out of the woods. the woods did not';
+      head = heart.winHead;
+      sub2 = heart.winSub;
     } else if (G.planet) {
       head = G.planet.name + ' IS YOURS';
       sub2 = 'one more world out of the dark';
