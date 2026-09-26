@@ -52,6 +52,11 @@ macOS. If it does, you can skip the Terminal line.)*
   Endless, and today's Daily Challenge. Pick a name to show up on them, or
   don't — you'll still see where you'd rank.
 - **News and events** on the title screen, like double-shard weekends.
+- **BLOOM PASS premium.** Every version of the game has the BLOOM PASS: a
+  five-week season of 30 tiers, filled by playing runs and daily quests. The free
+  track is everyone's. In the desktop app you can also unlock the premium track,
+  with a pass key or by buying it. Buying opens a Stripe checkout in your own
+  browser; the game never sees your card. Premium is cosmetic only: skins, pets and shards.
 
 ### Play stats
 

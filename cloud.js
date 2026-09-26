@@ -13,6 +13,11 @@
  *                 server (format, rude words, taken).
  *    LIVE         News and events (double shards...) posted from the
  *                 dashboard, shown on the title screen.
+ *    BLOOM PASS   Whether this player owns a season's premium track, pass
+ *                 keys, and the Stripe checkout. The page asks; the server
+ *                 decides (STATS/pass.sql). A checkout opens in the player's
+ *                 browser, never inside the game window, and only ever on a
+ *                 Stripe payment-link address.
  *
  *  The game reaches all of this through window.vbCloud.call(op, args)
  *  (preload.js), which lands here. The page still never touches the
@@ -21,7 +26,7 @@
  *  the itch and CrazyGames builds look exactly as they always have.
  * ------------------------------------------------------------------ */
 
-const { app, ipcMain, clipboard } = require('electron');
+const { app, ipcMain, clipboard, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -31,6 +36,10 @@ const AUTO_EVERY_MS = 90 * 1000;       // automatic backups: at most this often
 const LIVE_EVERY_MS = 10 * 60 * 1000;  // news / events refresh
 const ME_EVERY_MS = 60 * 1000;
 const CODE_RE = /^VB-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/;
+const SEASON_RE = /^s[1-9][0-9]?$/;
+const PASS_KEY_RE = /^(PASS-?)?[2-9A-HJ-NP-Z]{4}-?[2-9A-HJ-NP-Z]{4}-?[2-9A-HJ-NP-Z]{4}$/;
+// the only address the BUY button may ever open: a Stripe payment link with our reference on it
+const PAY_URL_RE = /^https:\/\/(buy|checkout)\.stripe\.com\/[A-Za-z0-9_\/-]{4,200}\?(?:[A-Za-z0-9_=%.-]+&)*client_reference_id=vbp_[0-9a-f]{24}$/;
 
 let state = { code: null, savedAt: null, hash: null };
 let me = { name: null, hidden: false, banned: false, at: 0 };
@@ -226,6 +235,42 @@ async function handle(op, a) {
       clipboard.writeText(t);
       return { ok: true };
     }
+    /* ---------------------------------------------------- BLOOM PASS */
+    case 'pass': {                 // do I own this season's premium track? can I buy it?
+      if (!SEASON_RE.test(String(a.season || ''))) return { ok: false, error: 'season' };
+      const r = await stats.call('vb_pass_status', { install_id: stats.identity().install_id, season: a.season }, 8000);
+      if (!r.ok) return { ok: false, error: r.error };
+      const d = r.data || {};
+      if (!d.ok) return { ok: false, error: d.error || 'server' };
+      return { ok: true, owned: !!d.owned, via: typeof d.via === 'string' ? d.via.slice(0, 12) : null,
+               buy: !!d.buy, price: typeof d.price === 'string' ? d.price.slice(0, 24) : null };
+    }
+    case 'passkey': {              // redeem a pass key
+      if (!SEASON_RE.test(String(a.season || ''))) return { ok: false, error: 'season' };
+      const key = String(a.key || '').toUpperCase().trim().slice(0, 40);
+      if (!PASS_KEY_RE.test(key)) return { ok: false, error: 'key' };
+      const r = await stats.call('vb_pass_redeem', { install_id: stats.identity().install_id, season: a.season, key: key }, 8000);
+      if (!r.ok) return { ok: false, error: r.error };
+      const d = r.data || {};
+      return d.ok ? { ok: true, season: String(d.season || '') }
+                  : { ok: false, error: String(d.error || 'server').slice(0, 16), season: typeof d.season === 'string' ? d.season.slice(0, 4) : undefined };
+    }
+    case 'passbuy': {              // open the Stripe checkout in the player's own browser
+      if (!SEASON_RE.test(String(a.season || ''))) return { ok: false, error: 'season' };
+      const r = await stats.call('vb_pass_checkout', { install_id: stats.identity().install_id, season: a.season }, 8000);
+      if (!r.ok) return { ok: false, error: r.error };
+      const d = r.data || {};
+      if (!d.ok) return { ok: false, error: String(d.error || 'server').slice(0, 16) };
+      if (!PAY_URL_RE.test(String(d.url || ''))) return { ok: false, error: 'url' };
+      try { await shell.openExternal(d.url); } catch (e) { return { ok: false, error: 'browser' }; }
+      return { ok: true };
+    }
+    case 'paste': {                // the key box: only a pass key ever comes back out of the clipboard
+      const t = String(clipboard.readText() || '').toUpperCase().replace(/\s+/g, '');
+      if (!PASS_KEY_RE.test(t)) return { ok: false };
+      const raw = t.replace(/[^A-Z0-9]/g, '').replace(/^PASS/, '');
+      return { ok: true, text: 'PASS-' + raw.slice(0, 4) + '-' + raw.slice(4, 8) + '-' + raw.slice(8, 12) };
+    }
   }
   return { ok: false, error: 'op' };
 }
@@ -253,4 +298,4 @@ function start() {
   setInterval(() => { refreshLive(true).catch(() => { }); }, LIVE_EVERY_MS);
 }
 
-module.exports = { start, _test: { cleanSnap, cleanLive, CODE_RE } };
+module.exports = { start, _test: { cleanSnap, cleanLive, CODE_RE, PASS_KEY_RE, PAY_URL_RE, handle } };

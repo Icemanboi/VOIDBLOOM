@@ -492,7 +492,7 @@ const Input = {
   prevGp: Object.create(null),
   gpPressed: Object.create(null),
   mx: 0, my: 0, mdown: false, mclick: false, mmoved: false,
-  text: '', textOn: false, textMax: 20,
+  text: '', textOn: false, textMax: 20, wheel: 0,
   touch: { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, dx: 0, dy: 0 },
   dashTouch: false, dashTouchTap: false, anyKey: false, usedPointer: false, pointerT: 0,
 
@@ -506,7 +506,7 @@ const Input = {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'space', 'Tab', '/', 'Backspace'].indexOf(k) >= 0) e.preventDefault();
       if (this.textOn) {
         if (k === 'Backspace') this.text = this.text.slice(0, -1);
-        else if (e.key && e.key.length === 1 && this.text.length < this.textMax &&
+        else if (e.key && e.key.length === 1 && this.text.length < this.textMax && !e.ctrlKey && !e.metaKey &&
                  /[A-Za-z0-9 _-]/.test(e.key)) this.text += e.key.toUpperCase();
       }
       if (!this.keys[k]) this.pressed[k] = true;
@@ -525,6 +525,11 @@ const Input = {
     canvas.addEventListener('mousedown', e => { pos(e); this.mdown = true; this.mclick = true; this.usedPointer = true; this.pointerT = 3.2; });
     addEventListener('mouseup', () => { this.mdown = false; });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
+    // the wheel only scrolls things that scroll sideways (the BLOOM PASS track)
+    canvas.addEventListener('wheel', e => {
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      this.wheel += d * (e.deltaMode === 1 ? 32 : (e.deltaMode === 2 ? 400 : 1));
+    }, { passive: true });
 
     const tpos = (t, r) => ({ x: (t.clientX - r.left) / r.width * VW, y: (t.clientY - r.top) / r.height * VH });
     canvas.addEventListener('touchstart', e => {
@@ -603,7 +608,7 @@ const Input = {
   hit() { for (let i = 0; i < arguments.length; i++) if (this.pressed[arguments[i]]) return true; return false; },
   endFrame() {
     this.pressed = Object.create(null);
-    this.mclick = false; this.anyKey = false; this.dashTouchTap = false;
+    this.mclick = false; this.anyKey = false; this.dashTouchTap = false; this.wheel = 0;
   }
 };
 
@@ -4620,6 +4625,25 @@ const MASTERY = [
     blurb: 'Worn by the ones who were here before the dark had a name.' }
 ];
 for (const m of MASTERY) { m.price = -1; SKINS.push(m); }
+/* ------------------------------------------------------------------------
+   BLOOM PASS SKINS  --  season rewards. They stay out of the wardrobe until
+   you own one, and then they get a shelf of their own.
+   ------------------------------------------------------------------------ */
+const PASS_SKINS = [
+  { id: 'starfall', name: 'STARFALL', pass: 's1', req: 'BLOOM PASS · SEASON 1', short: 'SEASON 1',
+    col: '#ffd166', ring: '#ff7ae6', core: '#fff6d8', halo: 3, haloCol: '#ffd166', pulse: true,
+    trail: { w: 11, len: 40, step: 5, spark: 0.05, cols: ['#fff6d8', '#ffd166', '#ffb86b', '#ff7ae6', '#c9a3ff'] },
+    blurb: 'It was a star once. Then it fell, and kept the light.' },
+  { id: 'meteor', name: 'METEOR', pass: 's1', req: 'BLOOM PASS · SEASON 1', short: 'SEASON 1',
+    col: '#ff9a3c', ring: '#9ef7ff', core: '#fff0c4', halo: 2, haloCol: '#ffd166', anim: true,
+    trail: { w: 13, len: 34, step: 6, spark: 0.06, cols: ['#fff0c4', '#ffd166', '#ff9a3c', '#ff5470', '#9ef7ff'] },
+    blurb: 'Stone that came down burning, and never cooled.' },
+  { id: 'supernova', name: 'SUPERNOVA', pass: 's1', req: 'BLOOM PASS · SEASON 1', short: 'SEASON 1',
+    col: '#ff7ae6', ring: '#9ef7ff', core: '#ffffff', halo: 10, haloCol: '#ffd166', pulse: true, anim: true,
+    trail: { w: 14, len: 50, step: 5, spark: 0.035, cols: ['#ffffff', '#ffd166', '#ff7ae6', '#c9a3ff', '#9ef7ff', '#8dff6b'] },
+    blurb: 'The last thing a star does, and the brightest.' }
+];
+for (const m of PASS_SKINS) { m.price = -1; m.secret = true; SKINS.push(m); }
 
 /* ========================================================================
    PETS  --  purely cosmetic. A pet never damages, never blocks, never picks
@@ -4644,7 +4668,10 @@ const PETS = [
   { id: 'chronid',  name: 'CHRONID',    price: -1, col: '#ffb347', form: 'chronid',  req: 'actii',    reqText: 'Finish an Act II run',              blurb: 'Its hand keeps your time, not the world’s.' },
   { id: 'bloomling',name: 'BLOOMLING',  price: -1, col: '#ff4fd8', form: 'bloomling',req: 'bloom25',  reqText: 'Kill THE BLOOM twenty-five times',   blurb: 'It opens a little wider with every streak.' },
   { id: 'tidewalker',name:'TIDEWALKER', price: -1, col: '#8affd8', form: 'tide',     req: 'tide25',   reqText: 'Reach tide 25 in ENDLESS',          blurb: 'A drop of deep water with your face in it.' },
-  { id: 'daybreak', name: 'DAYBREAK',   price: -1, col: '#ffd166', form: 'daybreak', req: 'daily10',  reqText: 'Clear ten daily challenges',         blurb: 'A small sun that keeps real hours.' }
+  { id: 'daybreak', name: 'DAYBREAK',   price: -1, col: '#ffd166', form: 'daybreak', req: 'daily10',  reqText: 'Clear ten daily challenges',         blurb: 'A small sun that keeps real hours.' },
+  /* ---- BLOOM PASS: hidden until owned ---- */
+  { id: 'wishling', name: 'WISHLING',   price: -1, col: '#ffd166', form: 'wishling', pass: 's1', reqText: 'BLOOM PASS \u00b7 SEASON 1', blurb: 'It grants one wish a day. It hasn\u2019t said what it wants.' },
+  { id: 'starling', name: 'STARLING',   price: -1, col: '#a97bff', form: 'starling', pass: 's1', reqText: 'BLOOM PASS \u00b7 SEASON 1', blurb: 'A bird made of the light that fell. It follows the brightest thing it can find.' }
 ];
 const PET_BY_ID = Object.create(null);
 for (const pt of PETS) PET_BY_ID[pt.id] = pt;
@@ -5417,6 +5444,107 @@ function paintSkin(c, sk, R, t) {
       break;
     }
 
+    /* ---------------------------------------- BLOOM PASS · SEASON 1 */
+    case 'starfall': {
+      // a twinkle star with four swept streaks behind it: when the body
+      // turns, the streaks read as a star still falling
+      for (let i = 0; i < 4; i++) {
+        const a = i / 4 * TAU + Math.PI / 4;
+        neon(c, x => {
+          x.beginPath();
+          x.moveTo(Math.cos(a) * R * 0.42, Math.sin(a) * R * 0.42);
+          x.quadraticCurveTo(Math.cos(a + 0.55) * R * 1.05, Math.sin(a + 0.55) * R * 1.05,
+                             Math.cos(a + 1.05) * R * 1.46, Math.sin(a + 1.05) * R * 1.46);
+        }, i % 2 ? '#c9a3ff' : sk.ring, { lw: 1.5, blur: 12, core: null, inner: false });
+        neon(c, x => { x.beginPath(); x.arc(Math.cos(a + 1.05) * R * 1.46, Math.sin(a + 1.05) * R * 1.46, R * 0.07, 0, TAU); },
+          '#fff6d8', { lw: 1, blur: 8, core: null, inner: false });
+      }
+      // the star: long points up/down/left/right, pinched hard at the waist
+      neon(c, x => {
+        x.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU - Math.PI / 2;
+          const r = i % 2 ? R * 0.26 : R * (i % 4 === 0 ? 1.34 : 1.02);
+          i ? x.lineTo(Math.cos(a) * r, Math.sin(a) * r) : x.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        x.closePath();
+      }, col, { lw: 2.6, blur: 22, core: 'rgba(30,18,4,0.86)' });
+      neon(c, x => pathStar(x, 4, R * 0.48, R * 0.16, Math.PI / 4), sk.ring, { lw: 1.5, blur: 11, core: null, inner: false });
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.12, 0, TAU); }, '#ffffff', { lw: 1.5, blur: 16, core: 'rgba(255,246,216,0.9)' });
+      break;
+    }
+
+    case 'meteor': {
+      // stone that came down burning: a rough rock, ice cracks through it,
+      // and flame tongues licking off the rim (they flicker: sk.anim)
+      const ph = ((t || 0) % 4) / 4 * TAU;
+      for (let i = 0; i < 7; i++) {
+        const a = i / 7 * TAU + 0.4;
+        const fl = 0.5 + 0.5 * Math.sin(ph * (i % 3 + 1) + i * 1.9);
+        const L = R * (1.12 + 0.34 * fl);
+        neon(c, x => {
+          x.beginPath();
+          x.moveTo(Math.cos(a - 0.2) * R * 0.86, Math.sin(a - 0.2) * R * 0.86);
+          x.quadraticCurveTo(Math.cos(a - 0.05) * R * 1.12, Math.sin(a - 0.05) * R * 1.12, Math.cos(a + 0.08) * L, Math.sin(a + 0.08) * L);
+        }, i % 2 ? '#ffd166' : '#ff5470', { lw: 1.3, blur: 12, core: null, inner: false });
+      }
+      // a rock, not a ball: eleven corners at uneven reach
+      const RK = [1.0, 0.8, 0.94, 0.72, 0.9, 1.02, 0.78, 0.96, 0.84, 0.7, 0.92];
+      neon(c, x => {
+        x.beginPath();
+        for (let i = 0; i < RK.length; i++) {
+          const a = i / RK.length * TAU + 0.2, r = R * 0.98 * RK[i];
+          i ? x.lineTo(Math.cos(a) * r, Math.sin(a) * r) : x.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        x.closePath();
+      }, col, { lw: 2.6, blur: 20, core: 'rgba(28,10,4,0.92)' });
+      // the ice caught inside it
+      const cracks = [[[-0.5, -0.2], [-0.12, -0.02], [0.08, -0.46]], [[-0.12, -0.02], [0.2, 0.22], [0.56, 0.12]], [[0.2, 0.22], [0.02, 0.56]]];
+      for (const cr of cracks) {
+        neon(c, x => {
+          x.beginPath();
+          for (let i = 0; i < cr.length; i++) i ? x.lineTo(cr[i][0] * R, cr[i][1] * R) : x.moveTo(cr[i][0] * R, cr[i][1] * R);
+        }, sk.ring, { lw: 1.5, blur: 11, core: null, inner: false });
+      }
+      const hot = 0.6 + 0.4 * Math.sin(ph * 2);
+      neon(c, x => { x.beginPath(); x.arc(-R * 0.12, -R * 0.02, R * (0.1 + hot * 0.05), 0, TAU); }, '#fff0c4', { lw: 1.2, blur: 14, core: 'rgba(255,240,196,0.8)' });
+      break;
+    }
+
+    case 'supernova': {
+      // the top of the season: a shell blown open, eight rays that breathe,
+      // a shock ring that keeps leaving, and a white-hot star in a dark well
+      const ph = ((t || 0) % 4) / 4 * TAU;
+      const u = ((t || 0) % 2) / 2;                       // the shock ring's journey outwards
+      for (let i = 0; i < 6; i++) {
+        const b = ph + i / 6 * TAU;
+        neon(c, x => { x.beginPath(); x.arc(0, 0, R * 1.42, b, b + 0.62); }, i % 2 ? sk.ring : col, { lw: 1.5, blur: 13, core: null, inner: false });
+      }
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU - ph * 0.5;
+        const L = R * (i % 2 ? 1.1 : 1.36) * (1 + 0.08 * Math.sin(ph * 2 + i));
+        neon(c, x => {
+          x.beginPath();
+          x.moveTo(Math.cos(a - 0.1) * R * 0.5, Math.sin(a - 0.1) * R * 0.5);
+          x.lineTo(Math.cos(a) * L, Math.sin(a) * L);
+          x.lineTo(Math.cos(a + 0.1) * R * 0.5, Math.sin(a + 0.1) * R * 0.5);
+          x.closePath();
+        }, i % 2 ? sk.ring : '#ffd166', { lw: i % 2 ? 1.2 : 1.7, blur: i % 2 ? 10 : 16, core: 'rgba(30,8,30,0.55)' });
+      }
+      c.save();
+      c.globalAlpha *= (1 - u) * 0.9;
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * (0.62 + u * 1.05), 0, TAU); }, '#ffffff', { lw: 1.4 * (1 - u) + 0.4, blur: 12, core: null, inner: false });
+      c.restore();
+      c.save(); c.globalCompositeOperation = 'source-over';
+      c.fillStyle = 'rgba(8,4,20,0.82)';
+      c.beginPath(); c.arc(0, 0, R * 0.52, 0, TAU); c.fill();
+      c.restore();
+      neon(c, x => pathPoly(x, 6, R * 0.5, ph * 0.25), sk.ring, { lw: 1.3, blur: 10, core: null, inner: false });
+      neon(c, x => pathStar(x, 6, R * 0.62, R * 0.24, -ph * 0.5), '#ffffff', { lw: 1.9, blur: 20, core: 'rgba(255,230,250,0.35)' });
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.14, 0, TAU); }, '#ffffff', { lw: 1.6, blur: 18, core: 'rgba(255,255,255,0.95)' });
+      break;
+    }
+
     default:
       neon(c, x => pathStar(x, 4, R, R * 0.38, 0), col, o);
   }
@@ -5774,6 +5902,7 @@ class Player {
     let key = 'player_body_' + sk.id;
     if (sk.rainbow) key += '_' + (Math.floor(G.time * 40) % 360 / 12 | 0);
     if (sk.oil) key += '_o' + (Math.floor(G.time * 6) % 48);
+    if (sk.anim) key += '_a' + (Math.floor(G.time * 10) % 40);
     if (sk.id === 'archivist') { try { key += '_' + bossSeenCount(); } catch (e) { } }
     const s = sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, G.time));
     const ring = sprite('player_ring_' + sk.id, 74, 74, cc => {
@@ -6399,6 +6528,89 @@ function petShape(c, pet, x, y, alpha, face, flinch, spin, bright, t) {
     neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 1.5, R * 0.62); cc.lineTo(R * 1.5, R * 0.62); }, '#ffd166', thin(8));
     c.restore();
     neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#ffffff', thin(12));
+
+  } else if (f === 'wishling') {
+    // a small star with a face, trailing three sparkles that twinkle in turn
+    c.save(); c.rotate(face + Math.PI);
+    for (let i = 0; i < 3; i++) {
+      const tw = 0.5 + 0.5 * Math.sin(t * 5.2 - i * 2.1);
+      const d = R * (1.35 + i * 0.72), yy = Math.sin(t * 2.4 - i * 0.9) * R * 0.28 * (i + 1) * 0.5;
+      c.save(); c.translate(d, yy); c.rotate(t * 1.6 + i);
+      c.globalAlpha = alpha * (0.35 + 0.65 * tw) * (1 - i * 0.18);
+      neon(c, cc => pathStar(cc, 4, R * (0.34 - i * 0.06) * (0.7 + 0.5 * tw), R * 0.08), i === 1 ? '#ff7ae6' : '#9ef7ff',
+        { lw: 1, blur: 9, core: null, inner: false });
+      c.restore();
+    }
+    c.restore();
+    const rock = Math.sin(t * 1.8) * 0.16;
+    neon(c, cc => pathStar(cc, 5, R * 1.04, R * 0.5, -Math.PI / 2 + rock), col, { lw: 1.8, blur: 15, core: 'rgba(30,20,4,0.86)' });
+    neon(c, cc => pathStar(cc, 5, R * 0.74, R * 0.36, -Math.PI / 2 + rock), '#ff9a3c', { lw: 0.8, blur: 5, core: null, inner: false });
+    // the face is made of light, so it reads on any floor: two eyes that
+    // blink now and then, and a small pink smile
+    const blink = (t % 3.7) < 0.12;
+    c.save(); c.rotate(rock);
+    c.lineCap = 'round';
+    c.strokeStyle = '#9ef7ff'; c.fillStyle = '#e8fdff'; c.shadowColor = '#9ef7ff'; c.shadowBlur = 6;
+    for (const ex of [-0.21, 0.21]) {
+      if (blink) { c.lineWidth = 1.1; c.beginPath(); c.moveTo(ex * R - R * 0.1, R * 0.02); c.lineTo(ex * R + R * 0.1, R * 0.02); c.stroke(); }
+      else { c.beginPath(); c.arc(ex * R, 0, R * 0.1, 0, TAU); c.fill(); }
+    }
+    c.strokeStyle = '#ff7ae6'; c.shadowColor = '#ff7ae6'; c.lineWidth = 1;
+    c.beginPath(); c.arc(0, R * 0.12, R * 0.13, 0.4, Math.PI - 0.4); c.stroke();
+    c.restore();
+
+  } else if (f === 'starling') {
+    // a bird made of starlight: it faces where it flies, wings beat, and a
+    // tail of three streamers ends in three small stars
+    const dir = Math.cos(face) < 0 ? -1 : 1;
+    const tilt = Math.max(-0.4, Math.min(0.4, Math.sin(face) * 0.4)) * dir;
+    c.save(); c.scale(dir, 1); c.rotate(tilt);
+    const flap = Math.sin(t * 7.5);
+    for (let i = 0; i < 3; i++) {
+      const spread = (i - 1) * 0.34, sw = Math.sin(t * 3.2 - i * 0.8) * R * 0.22;
+      const ex = -R * (1.9 + (i === 1 ? 0.35 : 0)), ey = Math.sin(spread) * R * 1.3 + sw;
+      neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 0.55, 0); cc.quadraticCurveTo(-R * 1.2, sw * 0.6 + spread * R * 0.4, ex, ey); },
+        i === 1 ? '#ffd166' : col, { lw: 1.1, blur: 9, core: null, inner: false });
+      c.save(); c.translate(ex, ey);
+      neon(c, cc => pathStar(cc, 4, R * 0.26, R * 0.08, t * 2 + i), i === 1 ? '#ffd166' : '#fff6d8', { lw: 0.9, blur: 8, core: null, inner: false });
+      c.restore();
+    }
+    // the far wing, then the body, then the near wing on top. Each wing is
+    // swept back from the shoulder and ends in three feather points.
+    const wing = (near) => {
+      const lift = flap * (near ? 1 : 0.8);                    // -1 down .. 1 up
+      const tipY = -R * (0.35 + lift * 1.05), tipX = -R * (0.55 + (near ? 0.25 : 0.1));
+      c.save(); c.globalAlpha = alpha * (near ? 1 : 0.6);
+      neon(c, cc => {
+        cc.beginPath();
+        cc.moveTo(R * 0.25, -R * 0.12);
+        cc.quadraticCurveTo(R * 0.1, tipY * 0.7, tipX + R * 0.3, tipY);
+        for (let k = 0; k < 3; k++) {
+          const fx = tipX + R * 0.3 - k * R * 0.24, fy = tipY + k * R * (0.1 + lift * 0.02);
+          cc.lineTo(fx - R * 0.14, fy - R * 0.16 * (lift >= 0 ? 1 : -0.6));
+          cc.lineTo(fx - R * 0.2, fy + R * 0.06);
+        }
+        cc.quadraticCurveTo(-R * 0.35, -R * 0.05, -R * 0.15, R * 0.06);
+        cc.closePath();
+      }, near ? col : '#6d4fd0', { lw: near ? 1.4 : 1.1, blur: near ? 12 : 8, core: 'rgba(14,8,30,0.8)' });
+      c.restore();
+    };
+    wing(false);
+    // the body: a teardrop, a round head, a gold beak, one bright eye
+    neon(c, cc => {
+      cc.beginPath();
+      cc.moveTo(R * 0.72, -R * 0.2);
+      cc.quadraticCurveTo(R * 0.1, -R * 0.52, -R * 0.7, -R * 0.02);
+      cc.quadraticCurveTo(R * 0.1, R * 0.46, R * 0.72, R * 0.14);
+      cc.closePath();
+    }, col, { lw: 1.6, blur: 13, core: 'rgba(12,8,28,0.86)' });
+    neon(c, cc => { cc.beginPath(); cc.arc(R * 0.78, -R * 0.1, R * 0.34, 0, TAU); }, col, { lw: 1.5, blur: 12, core: 'rgba(12,8,28,0.9)' });
+    neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.08, -R * 0.2); cc.lineTo(R * 1.46, -R * 0.06); cc.lineTo(R * 1.08, R * 0.06); cc.closePath(); }, '#ffd166',
+      { lw: 1.1, blur: 8, core: 'rgba(40,24,2,0.8)', inner: false });
+    c.save(); c.fillStyle = '#ffffff'; c.shadowColor = '#9ef7ff'; c.shadowBlur = 8;
+    c.beginPath(); c.arc(R * 0.86, -R * 0.16, R * 0.09, 0, TAU); c.fill(); c.restore();
+    wing(true);
+    c.restore();
   }
   c.restore();
 }
@@ -10272,6 +10484,7 @@ const Game = {
     Cam.reset(0, 0);
     Flash.a = 0; Flash.vig = 0;
     this.runStats = { dmgDealt: 0, dmgTaken: 0, best: {}, dashes: 0, weaponsTaken: 1, minHpFrac: 1, bossKills: 0, lastBossT: -99, gauntletKills: 0, bossIds: [] };
+    Pass.base = null;          // a new run: nothing of it credited to the pass yet
     Ach.toasts.length = 0;
     this._achT = 1;
     this.state = 'playing';
@@ -12278,6 +12491,14 @@ const Game = {
     const earned = Math.round(shardsFor(sc, win, this.tide) * (this.D.shardMul || 1) * this.lastMul) + firstOfDay;
     d.shards = (d.shards || 0) + earned;
     this.lastEarned = earned;
+    if (!this.coop) {
+      let evoN = 0;
+      for (let i = 0; i < this.weapons.length; i++) if (this.weapons[i].evolved) evoN++;
+      const rsP = this.runStats || {};
+      Pass.runDone({ coop: false, secs: this.time, kills: this.kills, bosses: rsP.bossKills || 0, dashes: rsP.dashes || 0,
+        win: win, diff: this.diff, planet: !!this.planet, daily: !!(this.D && this.D.daily), endless: !!this.endless,
+        tide: this.tide || 0, evolved: evoN, level: this.level });
+    }
     if (!d.owned) d.owned = ['seed'];
     Save.save();
     Ach.sweepMeta();
@@ -12494,7 +12715,7 @@ const Ach = {
       c.save();
       c.globalAlpha = al;
       const tx = x + (narrow ? 46 : 54);
-      tracked(c, a.skin ? 'ACHIEVEMENT  ·  SKIN UNLOCKED' : 'ACHIEVEMENT', tx, y + (narrow ? 17 : 20),
+      tracked(c, a.head ? a.head : a.skin ? 'ACHIEVEMENT  ·  SKIN UNLOCKED' : 'ACHIEVEMENT', tx, y + (narrow ? 17 : 20),
         { size: narrow ? 7.5 : 8.5, weight: 900, color: a.c, track: narrow ? 1.4 : 2, alpha: 0.9 });
       tracked(c, a.n, tx, y + (narrow ? 32 : 37), { size: narrow ? 12.5 : 14, weight: 900, color: '#fff', glow: a.c, blur: 10, track: 1.5 });
       text(c, a.d, tx, y + (narrow ? 45 : 52), { size: narrow ? 9 : 10, weight: 600, color: PAL.dim, alpha: 0.95 });
@@ -14572,6 +14793,398 @@ function leftText(ms) {
   return Math.max(1, m) + 'M LEFT';
 }
 
+/* ========================================================================
+   BLOOM PASS  --  a season of rewards, Brawl-Stars style.
+
+   Two tracks of thirty tiers. FREE is everyone's. PREMIUM is unlocked per
+   season: in the desktop app with a pass key or a Stripe payment (checked
+   on the server), and later in a Google Play build through Play Billing
+   (window.vbPlay -- see PassStore). A browser build has no store, so it
+   shows the free track only and never mentions buying anything.
+
+   Pass XP comes from every finished run (by how long you lasted and what
+   you killed) and from three daily quests. Everything on both tracks is a
+   cosmetic or shards: premium never buys power.
+
+   Progress, claims and quests live in the save like every other unlock.
+   Only the premium unlock -- the thing that costs money -- is asked of
+   the server.
+   ======================================================================== */
+const PASS_TIERS = 30;
+const PASS_BONUS_XP = 1000;                 // past the last tier: a bonus drop every 1000 XP
+const PASS_BONUS_SHARDS = 150;              // ... worth this on each track you own
+/* XP to climb from tier t-1 to tier t. Tier 1 is where everyone starts. */
+function passNeed(t) { return t <= 1 ? 0 : 450 + 25 * t; }
+const PASS_AT = [0, 0];
+for (let t = 2; t <= PASS_TIERS; t++) PASS_AT[t] = PASS_AT[t - 1] + passNeed(t);
+
+const _sh = n => ({ k: 'shards', n: n });
+const _sk = id => ({ k: 'skin', id: id });
+const _pt = id => ({ k: 'pet', id: id });
+
+/* One entry per season. A new season is a new entry with later dates and
+   its own reward lists; everything else follows on its own. */
+const PASS_SEASONS = [
+  { id: 's1', n: 1, name: 'STARFALL',
+    start: Date.UTC(2026, 8, 25), end: Date.UTC(2026, 9, 30),      // 25 Sep - 30 Oct 2026, UTC: five weeks
+    col: '#ffd166', col2: '#9ef7ff', col3: '#ff7ae6',
+    blurb: 'The sky over the garden is coming down, one star at a time.',
+    free: [_sh(100), _sh(100), _sh(150), _sk('ember'), _sh(150), _sh(150), _sh(200), _sh(200), _sh(200), _pt('wishling'),
+           _sh(200), _sh(250), _sh(250), _sh(250), _sk('verdant'), _sh(250), _sh(300), _sh(300), _sh(300), _pt('sprig'),
+           _sh(300), _sh(350), _sh(350), _sh(350), _sh(400), _sh(400), _sh(400), _sh(450), _sh(450), _sk('meteor')],
+    prem: [_sk('starfall'), _sh(200), _sh(250), _sh(250), _pt('cinder'), _sh(300), _sh(300), _sk('tideborn'), _sh(350), _sh(400),
+           _sh(400), _pt('nimbus'), _sh(450), _sh(450), _sh(500), _sk('goldleaf'), _sh(500), _sh(550), _sh(550), _pt('starling'),
+           _sh(600), _sh(600), _sh(650), _pt('revenant'), _sh(700), _sh(700), _sh(750), _sh(800), _sh(900), _sk('supernova')] }
+];
+
+/* ------------------------------------------------------------ daily quests
+   Three a day, the same three for everyone (seeded by the UTC day, like the
+   daily challenge). Progress counts at the end of a run. One reroll a day. */
+const QUESTS = {
+  slay:    { g: [700, 1400], xp: [150, 220], t: n => 'Slay ' + fmtNum(n) + ' enemies',            goal: n => n, inc: (r, n) => r.dk },
+  bosses:  { g: [2, 4],      xp: [160, 240], t: n => 'Kill ' + n + ' bosses',                      goal: n => n, inc: (r, n) => r.db },
+  survive: { g: [6, 9],      xp: [150, 220], t: n => 'Survive ' + n + ' minutes in one run',       goal: () => 1, inc: (r, n) => r.secs >= n * 60 ? 1 : 0 },
+  level:   { g: [18, 26],    xp: [150, 220], t: n => 'Reach level ' + n + ' in one run',          goal: () => 1, inc: (r, n) => r.level >= n ? 1 : 0 },
+  dash:    { g: [80, 160],   xp: [120, 170], t: n => 'Dash ' + n + ' times',                       goal: n => n, inc: (r, n) => r.ddash },
+  runs:    { g: [2, 3],      xp: [140, 190], t: n => 'Finish ' + n + ' runs',                      goal: n => n, inc: (r, n) => r.first ? 1 : 0 },
+  minutes: { g: [20, 35],    xp: [150, 220], t: n => 'Play for ' + n + ' minutes',                 goal: n => n * 60, inc: (r, n) => r.dsecs, secs: true },
+  win:     { g: ['medium', 'hard'], xp: [200, 280], t: n => 'Win a run on ' + DIFFS[n].name + ' or harder', goal: () => 1,
+             inc: (r, n) => r.win && passDiffRank(r.diff) >= passDiffRank(n) ? 1 : 0 },
+  planet:  { g: [1, 1],      xp: [240, 240], t: () => 'Conquer a planet in CONQUEST',             goal: () => 1, inc: r => r.win && r.planet ? 1 : 0 },
+  daily:   { g: [1, 1],      xp: [160, 160], t: () => 'Play today’s DAILY CHALLENGE',         goal: () => 1, inc: r => r.daily ? 1 : 0 },
+  tide:    { g: [5, 9],      xp: [200, 260], t: n => 'Reach tide ' + n + ' in ENDLESS',            goal: () => 1, inc: (r, n) => r.endless && r.tide >= n ? 1 : 0 },
+  evolve:  { g: [1, 1],      xp: [200, 200], t: () => 'Evolve a weapon',                           goal: () => 1, inc: r => r.evolved >= 1 ? 1 : 0 }
+};
+const QUEST_EASY = ['slay', 'bosses', 'survive', 'level', 'dash', 'runs', 'minutes'];
+const QUEST_HARD = ['win', 'planet', 'daily', 'tide', 'evolve', 'bosses', 'survive', 'slay'];
+function passDiffRank(d) {
+  const i = ['easy', 'medium', 'hard', 'impossible', 'hardcore'].indexOf(d);
+  return i < 0 ? (d === 'endless' ? 1 : 1) : i;
+}
+
+/* ------------------------------------------------------------------ store
+   Who can sell the premium track here, and how. Three answers:
+     desktop  the Electron app: window.vbCloud (keys + Stripe, server-checked)
+     play     a future Google Play build: window.vbPlay, a thin bridge over
+              Play Billing that the Android wrapper provides:
+                vbPlay.products(ids) -> Promise<[{ id, price }]>
+                vbPlay.buy(id)       -> Promise<{ ok, error? }>
+                vbPlay.owned()       -> Promise<[id, ...]>
+              Google requires Play Billing for anything bought in a Play app,
+              so that build offers no Stripe button and no key box.
+     null     a browser (itch, CrazyGames): no premium at all.            */
+const PassStore = {
+  info: Object.create(null),     // season id -> { owned, buy, price, via, at }
+  busy: false,
+  kind() {
+    if (window.vbPlay && typeof window.vbPlay.buy === 'function') return 'play';
+    if (Cloud.on()) return 'desktop';
+    return null;
+  },
+  on() { return !!this.kind(); },
+  keys() { return this.kind() === 'desktop'; },
+  pid(S) { return 'bloompass_' + S.id; },
+  get(S) { return this.info[S.id] || null; },
+  refresh(S) {
+    const k = this.kind();
+    if (!k || !S) return Promise.resolve(null);
+    if (k === 'play') {
+      const P = window.vbPlay;
+      return Promise.all([
+        Promise.resolve(P.owned ? P.owned() : []).catch(() => []),
+        Promise.resolve(P.products ? P.products([this.pid(S)]) : []).catch(() => [])
+      ]).then(([own, prods]) => {
+        const pr = (prods || []).find(p => p && p.id === this.pid(S));
+        const inf = { owned: (own || []).indexOf(this.pid(S)) >= 0, buy: !!pr, price: pr ? String(pr.price || '') : null, via: 'play', at: Date.now() };
+        this.info[S.id] = inf;
+        if (inf.owned) Pass.setPrem(S, true);
+        return inf;
+      });
+    }
+    return Cloud.call('pass', { season: S.id }).then(r => {
+      if (!r || !r.ok) return null;
+      const inf = { owned: !!r.owned, buy: !!r.buy, price: r.price || null, via: r.via || null, at: Date.now() };
+      this.info[S.id] = inf;
+      // the server is the word on premium: it can give (a key, a payment)
+      // and it can take back (a refund)
+      Pass.setPrem(S, inf.owned);
+      return inf;
+    });
+  },
+  /* start a purchase. desktop: opens the payment page in the browser and
+     resolves at once -- the unlock arrives later through refresh(). */
+  buy(S) {
+    const k = this.kind();
+    if (k === 'play') {
+      return Promise.resolve(window.vbPlay.buy(this.pid(S))).then(r => {
+        if (r && r.ok) return this.refresh(S).then(() => ({ ok: true, done: true }));
+        return { ok: false, error: (r && r.error) || 'cancel' };
+      }, () => ({ ok: false, error: 'cancel' }));
+    }
+    if (k === 'desktop') return Cloud.call('passbuy', { season: S.id });
+    return Promise.resolve({ ok: false, error: 'off' });
+  },
+  redeem(S, key) {
+    if (this.kind() !== 'desktop') return Promise.resolve({ ok: false, error: 'off' });
+    return Cloud.call('passkey', { season: S.id, key: key }).then(r => {
+      if (r && r.ok && r.season === S.id) Pass.setPrem(S, true);
+      return r;
+    });
+  }
+};
+
+const Pass = {
+  last: null,          // what the run that just ended earned, for the end screen
+  base: null,          // what this run has already been credited (PRESS ON ends a run twice)
+  now() { return Date.now(); },
+
+  /* the season on now; or, between seasons, the one that just ended */
+  season() {
+    const now = this.now();
+    let cur = null;
+    for (const S of PASS_SEASONS) if (S.start <= now) cur = S;
+    return cur;
+  },
+  live(S) { S = S || this.season(); return !!S && this.now() >= S.start && this.now() < S.end; },
+  rec(S) {
+    const d = Save.data;
+    if (!d.pass || typeof d.pass !== 'object') d.pass = {};
+    let r = d.pass[S.id];
+    if (!r) r = d.pass[S.id] = { xp: 0, f: [], p: [], prem: false, bonus: 0, closed: false };
+    if (!Array.isArray(r.f)) r.f = [];
+    if (!Array.isArray(r.p)) r.p = [];
+    return r;
+  },
+  tierOf(xp) {
+    let t = 1;
+    while (t < PASS_TIERS && xp >= PASS_AT[t + 1]) t++;
+    return t;
+  },
+  /* where the bar is: tier, XP into it, XP it needs */
+  progress(S) {
+    const r = this.rec(S), xp = r.xp || 0, t = this.tierOf(xp);
+    if (t >= PASS_TIERS) {
+      const over = xp - PASS_AT[PASS_TIERS];
+      return { tier: t, max: true, into: over % PASS_BONUS_XP, need: PASS_BONUS_XP, frac: (over % PASS_BONUS_XP) / PASS_BONUS_XP, xp: xp };
+    }
+    const into = xp - PASS_AT[t], need = passNeed(t + 1);
+    return { tier: t, max: false, into: into, need: need, frac: into / need, xp: xp };
+  },
+  prem(S) { return !!this.rec(S).prem; },
+  /* premium shows when you have it, or when there's somewhere to get it */
+  premShown(S) { return this.prem(S) || PassStore.on(); },
+  setPrem(S, on) {
+    const r = this.rec(S);
+    if (!!r.prem === !!on) return;
+    r.prem = !!on;
+    Save.save();
+  },
+  reward(S, track, t) { return (track === 'p' ? S.prem : S.free)[t - 1]; },
+  claimed(S, track, t) { return this.rec(S)[track].indexOf(t) >= 0; },
+  reached(S, t) { return this.progress(S).tier >= t; },
+  claimable(S, track, t) {
+    if (!this.reached(S, t) || this.claimed(S, track, t)) return false;
+    return track === 'f' || this.prem(S);
+  },
+  bonusAvail(S) {
+    const r = this.rec(S), over = (r.xp || 0) - PASS_AT[PASS_TIERS];
+    return over < PASS_BONUS_XP ? 0 : Math.max(0, Math.floor(over / PASS_BONUS_XP) - (r.bonus || 0));
+  },
+  pending(S) {
+    S = S || this.season();
+    if (!S) return 0;
+    let n = 0;
+    for (let t = 1; t <= PASS_TIERS; t++) {
+      if (this.claimable(S, 'f', t)) n++;
+      if (this.claimable(S, 'p', t)) n++;
+    }
+    return n + (this.bonusAvail(S) > 0 ? 1 : 0);
+  },
+
+  /* ---------------------------------------------------------- rewards */
+  label(rw) {
+    if (!rw) return '';
+    if (rw.k === 'shards') return fmtNum(rw.n) + ' SHARDS';
+    if (rw.k === 'skin') { const s = SKIN_BY_ID[rw.id]; return s ? s.name : rw.id.toUpperCase(); }
+    if (rw.k === 'pet') { const p = PET_BY_ID[rw.id]; return p ? p.name : rw.id.toUpperCase(); }
+    return '';
+  },
+  kindText(rw) {
+    if (!rw) return '';
+    if (rw.k === 'shards') return 'shards';
+    const x = rw.k === 'skin' ? SKIN_BY_ID[rw.id] : PET_BY_ID[rw.id];
+    return (x && x.pass ? 'season ' : '') + (rw.k === 'skin' ? 'skin' : 'pet');
+  },
+  exclusive(rw) {
+    if (!rw || rw.k === 'shards') return false;
+    const x = rw.k === 'skin' ? SKIN_BY_ID[rw.id] : PET_BY_ID[rw.id];
+    return !!(x && x.pass);
+  },
+  /* already have it? then it pays out its shop price (or 300 for anything
+     that was never in the shop) instead */
+  owns(rw) {
+    const d = Save.data;
+    if (rw.k === 'skin') return rw.id === 'seed' || (d.owned || []).indexOf(rw.id) >= 0;
+    if (rw.k === 'pet') return petOwned(rw.id);
+    return false;
+  },
+  dupeValue(rw) {
+    const x = rw.k === 'skin' ? SKIN_BY_ID[rw.id] : PET_BY_ID[rw.id];
+    return x && x.price > 0 ? x.price : 300;
+  },
+  grant(rw) {
+    const d = Save.data;
+    if (rw.k === 'shards') { d.shards = (d.shards || 0) + rw.n; return { k: 'shards', n: rw.n }; }
+    if (this.owns(rw)) {
+      const v = this.dupeValue(rw);
+      d.shards = (d.shards || 0) + v;
+      return { k: 'shards', n: v, dupe: rw };
+    }
+    if (rw.k === 'skin') { if (!d.owned) d.owned = ['seed']; d.owned.push(rw.id); return { k: 'skin', id: rw.id }; }
+    if (!Array.isArray(d.pets)) d.pets = ['mote'];
+    d.pets.push(rw.id);
+    return { k: 'pet', id: rw.id };
+  },
+  claim(S, track, t) {
+    if (!this.claimable(S, track, t)) return null;
+    const r = this.rec(S);
+    r[track].push(t);
+    const got = this.grant(this.reward(S, track, t));
+    Save.save();
+    Ach.sweepMeta();
+    return got;
+  },
+  claimBonus(S) {
+    if (this.bonusAvail(S) <= 0) return null;
+    const r = this.rec(S);
+    r.bonus = (r.bonus || 0) + 1;
+    const n = PASS_BONUS_SHARDS * (this.prem(S) ? 2 : 1);
+    Save.data.shards = (Save.data.shards || 0) + n;
+    Save.save();
+    return { k: 'shards', n: n, bonus: true };
+  },
+  claimAll(S) {
+    const out = [];
+    for (let t = 1; t <= PASS_TIERS; t++) {
+      for (const tr of ['f', 'p']) { const g = this.claim(S, tr, t); if (g) out.push(Object.assign({ t: t, tr: tr }, g)); }
+    }
+    while (this.bonusAvail(S) > 0) { const g = this.claimBonus(S); if (g) out.push(g); else break; }
+    return out;
+  },
+
+  /* ------------------------------------------------------------- XP */
+  addXp(S, n) {
+    if (!S || !(n > 0)) return;
+    const r = this.rec(S);
+    const t0 = this.tierOf(r.xp || 0);
+    r.xp = Math.round((r.xp || 0) + n);
+    const t1 = this.tierOf(r.xp);
+    if (t1 > t0) {
+      let rw = 0;
+      for (let t = t0 + 1; t <= t1; t++) rw += 1 + (this.prem(S) ? 1 : 0);
+      this.toast('TIER ' + t1 + ' REACHED', rw + (rw === 1 ? ' reward' : ' rewards') + ' waiting in the BLOOM PASS', S.col);
+    }
+  },
+  toast(n, d, col) {
+    Ach.toasts.push({ a: { n: n, d: d, c: col || '#ffd166', head: 'BLOOM PASS' }, t: 0, life: 4.4 });
+    while (Ach.toasts.length > 3) Ach.toasts.shift();
+    Sound.achieve();
+  },
+
+  /* ---------------------------------------------------------- quests */
+  quests() {
+    const d = Save.data, day = dailyKey();
+    let q = d.quests;
+    if (!q || q.day !== day || !Array.isArray(q.list)) {
+      q = d.quests = { day: day, list: this.roll(day), rer: 1 };
+      Save.save();
+    }
+    return q;
+  },
+  roll(day) {
+    const R = mulberry32(dailySeed('bloompass:' + day));
+    const pickFrom = (arr, not) => { const a = arr.filter(id => not.indexOf(id) < 0); return a[(R() * a.length) | 0]; };
+    const ids = [];
+    ids.push(pickFrom(QUEST_EASY, ids));
+    ids.push(pickFrom(R() < 0.5 ? QUEST_EASY : QUEST_HARD, ids));
+    ids.push(pickFrom(QUEST_HARD, ids));
+    return ids.map((id, i) => this.make(id, i === 0 ? 0 : (i === 2 ? 1 : (R() < 0.5 ? 0 : 1))));
+  },
+  make(id, v) {
+    const Q = QUESTS[id], n = Q.g[v];
+    return { id: id, v: v, n: n, goal: Q.goal(n), prog: 0, done: false, xp: Q.xp[v] };
+  },
+  qtext(q) { const Q = QUESTS[q.id]; return Q ? Q.t(q.n) : ''; },
+  reroll(i) {
+    const q = this.quests(), cur = q.list[i];
+    if (!cur || cur.done || !(q.rer > 0)) return false;
+    const R = mulberry32(dailySeed('bloompass:' + q.day + ':re:' + i + ':' + q.rer));
+    const pool = (cur.v ? QUEST_HARD : QUEST_EASY).filter(id => !q.list.some(x => x.id === id));
+    if (!pool.length) return false;
+    q.list[i] = this.make(pool[(R() * pool.length) | 0], cur.v);
+    q.rer--;
+    Save.save();
+    return true;
+  },
+
+  /* ------------------------------------------------ a run just ended
+     sum: { coop, secs, kills, bosses, dashes, win, diff, planet, daily,
+            endless, tide, evolved, level }. PRESS ON ends a run twice, so
+     everything counted is the part not yet credited (this.base). */
+  runDone(sum) {
+    const S = this.season();
+    this.last = null;
+    if (!S || !this.live(S)) return null;
+    const b = this.base || { secs: 0, kills: 0, bosses: 0, dashes: 0 };
+    const r = Object.assign({}, sum, {
+      first: b.secs === 0,
+      dsecs: Math.max(0, sum.secs - b.secs), dk: Math.max(0, sum.kills - b.kills),
+      db: Math.max(0, sum.bosses - b.bosses), ddash: Math.max(0, (sum.dashes || 0) - b.dashes)
+    });
+    this.base = { secs: sum.secs, kills: sum.kills, bosses: sum.bosses, dashes: sum.dashes || 0 };
+    const rec = this.rec(S);
+    const t0 = this.tierOf(rec.xp || 0);
+    // a run is worth its minutes; a minute's grace keeps instant deaths from farming the base
+    let xp = Math.round(Math.min(r.dsecs, 1500) / 60 * 10);
+    if (r.first && sum.secs >= 60) xp += 20;
+    if (r.win) xp += 60;
+    xp += 15 * Math.min(r.db, 6);
+    const done = [];
+    const qs = this.quests();
+    for (const q of qs.list) {
+      if (q.done) continue;
+      const Q = QUESTS[q.id];
+      if (!Q) continue;
+      q.prog = Math.min(q.goal, q.prog + (Q.inc(r, q.n) || 0));
+      if (q.prog >= q.goal) { q.done = true; done.push(q); }
+    }
+    const qxp = done.reduce((a, q) => a + q.xp, 0);
+    this.addXp(S, xp + qxp);
+    for (const q of done) this.toast('QUEST COMPLETE', '+' + q.xp + ' XP  \u00b7  ' + this.qtext(q), S.col2);
+    Save.save();
+    this.last = { xp: xp + qxp, run: xp, quests: done.length, from: t0, to: this.tierOf(rec.xp), season: S.id };
+    return this.last;
+  },
+
+  /* ----------------------------------------------------------- boot */
+  boot() {
+    const now = this.now();
+    // a season that has ended hands over everything it owed, once
+    for (const S of PASS_SEASONS) {
+      if (S.end > now) continue;
+      const d = Save.data.pass;
+      const r = d && d[S.id];
+      if (!r || r.closed) continue;
+      const got = this.claimAll(S);
+      r.closed = true;
+      Save.save();
+      if (got.length) this.toast('SEASON ' + S.n + ' IS OVER', got.length + ' unclaimed rewards collected for you', S.col);
+    }
+    const S = this.season();
+    if (S && this.live(S)) { this.quests(); PassStore.refresh(S); }
+  }
+};
+
 const UI = {
   sels: Object.create(null), hoverIdx: -1, lastState: '', lockT: 0,
   // the fade between menu screens keeps its own record of where we were;
@@ -14582,11 +15195,11 @@ const UI = {
     return st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' ||
            st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' ||
            st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' ||
-           st === 'boards' || st === 'cloud';
+           st === 'boards' || st === 'cloud' || st === 'pass';
   },
   /* true while an online screen owns the keyboard for typing */
   typing() {
-    return !!(this.nameEntry && (G.state === this.nameEntry.st)) || (G.state === 'cloud' && this.cloudMode === 'restore');
+    return !!(this.nameEntry && (G.state === this.nameEntry.st)) || (G.state === 'cloud' && this.cloudMode === 'restore') || this.passTyping();
   },
   panelPulse: 0,
 
@@ -15139,6 +15752,7 @@ const UI = {
 
     const items = [
       { label: 'START', color: '#9ef7ff', act: () => { Sound.resume(); applySky(null); G.state = 'modes'; UI.lastState = ''; } },
+      { label: () => { const n = Pass.pending(); return 'BLOOM PASS' + (n ? '  \u2022 ' + n : ''); }, color: '#ffd166', act: () => { Sound.resume(); UI.openPass('title'); } },
       { label: () => 'DAILY CHALLENGE' + (Save.dailyRec(dailyKey()).runs ? '' : '  \u2022'), color: '#ffb347', act: () => { Sound.resume(); G.state = 'daily'; UI.lastState = ''; } },
       { label: 'HOW TO PLAY', color: '#c9a3ff', act: () => { G.state = 'how'; UI.lastState = ''; } },
       { label: 'SKINS', color: '#ffd166', act: () => { Sound.resume(); G.state = 'skins'; UI.lastState = ''; } },
@@ -15163,6 +15777,7 @@ const UI = {
     if ((d.shards || 0) > 0 || d.runs > 0) this.shardBadge(c, VW - 24, 40, VW < 520 ? 17 : 21);
     text(c, 'v3.0', VW - 22, VH - 20, { size: 11, color: 'rgba(120,130,170,0.5)', align: 'right' });
     if (!passive && Cloud.on()) this.onlineTitle(c, (d.shards || 0) > 0 || d.runs > 0);
+    if (!passive) this.passCard(c);
   },
 
   /* ------------------------------------------------------- online glyphs */
@@ -15807,6 +16422,8 @@ const UI = {
   pets(c) {
     this.begin('pets');
     const t = G.uiT, d = Save.data;
+    // season pets stay off the wall until you own them
+    const PL = PETS.filter(pt => !pt.pass || petOwned(pt.id));
     c.save();
     c.fillStyle = 'rgba(4,5,12,0.9)'; c.fillRect(0, 0, VW, VH);
 
@@ -15817,22 +16434,22 @@ const UI = {
 
     const cols = VW < 900 ? 3 : 4;
     const gw = Math.min(VW - 60, cols * 210), cw = gw / cols - 12;
-    const rows = Math.ceil(PETS.length / cols);
+    const rows = Math.ceil(PL.length / cols);
     const top = 112, maxH = VH - top - 78;
     const chh = Math.max(84, Math.min(118, maxH / rows - 10));
     const gx = VW / 2 - gw / 2, gy = top + Math.max(0, (maxH - (rows * (chh + 10) - 10)) / 2);
 
     if (this.sels.pets === undefined) this.sels.pets = 0;
     let hover = -1;
-    for (let i = 0; i < PETS.length; i++) {
+    for (let i = 0; i < PL.length; i++) {
       const x = gx + (i % cols) * (cw + 12), y = gy + ((i / cols) | 0) * (chh + 10);
       if (Input.mx >= x && Input.mx <= x + cw && Input.my >= y && Input.my <= y + chh) hover = i;
     }
     if (hover >= 0 && Input.mmoved) this.sels.pets = hover;
-    const sel = Math.min(this.sels.pets, PETS.length - 1);
+    const sel = Math.min(this.sels.pets, PL.length - 1);
 
-    for (let i = 0; i < PETS.length; i++) {
-      const pt = PETS[i];
+    for (let i = 0; i < PL.length; i++) {
+      const pt = PL[i];
       const owned = petOwned(pt.id), on = d.pet === pt.id;
       const mastery = pt.price < 0;
       const x = gx + (i % cols) * (cw + 12), y = gy + ((i / cols) | 0) * (chh + 10);
@@ -15868,14 +16485,14 @@ const UI = {
         { size: 9.5, weight: 700, align: 'center', color: on ? PAL.gold : (owned ? PAL.dim : (mastery ? 'rgba(120,132,175,0.9)' : ((d.shards || 0) >= pt.price ? '#8dff6b' : '#7d5c6a'))) });
     }
 
-    const cur = PETS[sel];
+    const cur = PL[sel];
     text(c, cur.blurb, VW / 2, VH - 44, { size: 12.5, weight: 700, align: 'center', color: 'rgba(160,170,200,0.95)' });
     text(c, 'ENTER to equip or buy  ·  H to hide pets  ·  BACKSPACE to go back',
       VW / 2, VH - 22, { size: 12, weight: 700, align: 'center', color: PAL.dim });
     c.restore();
 
     if (this.lockT > 0) return;
-    const move = dd => { this.sels.pets = (sel + dd + PETS.length) % PETS.length; Sound.ui(true); };
+    const move = dd => { this.sels.pets = (sel + dd + PL.length) % PL.length; Sound.ui(true); };
     if (Input.hit('ArrowRight') || Input.hit('d')) move(1);
     if (Input.hit('ArrowLeft') || Input.hit('a')) move(-1);
     if (Input.hit('ArrowDown') || Input.hit('s')) move(cols);
@@ -15887,7 +16504,7 @@ const UI = {
     const click = Input.mclick && hover >= 0;
     if (click) this.sels.pets = hover;
     if (click || Input.hit('Enter') || Input.hit('space') || Input.gpPressed[0]) {
-      const pt = PETS[Math.min(this.sels.pets, PETS.length - 1)];
+      const pt = PL[Math.min(this.sels.pets, PL.length - 1)];
       this.lockT = 0.18;
       if (petOwned(pt.id)) { d.pet = pt.id; Save.save(); Sound.ui(true); }
       else if (pt.price > 0 && (d.shards || 0) >= pt.price) {
@@ -16689,21 +17306,37 @@ const UI = {
     const w = Math.min(940, VW - 32);
     const ownsIt = id => (d.owned || []).indexOf(id) >= 0;
     const SHOP = SKINS.filter(s => s.price >= 0 && (!s.secret || ownsIt(s.id)));
-    const MAST = SKINS.filter(s => s.price < 0 && (!s.secret || ownsIt(s.id)));
+    const MAST = SKINS.filter(s => s.price < 0 && !s.pass && (!s.secret || ownsIt(s.id)));
+    // season skins get their own shelf, and only once you own one
+    const PASSW = SKINS.filter(s => s.pass && ownsIt(s.id));
     // how many tiles there actually are -- a hidden secret skin is in
-    // SKINS but not in either wall, so NSK overruns the grid
-    const NSK = SHOP.length + MAST.length;
-    const cols = w < 400 ? 3 : (w < 760 ? 4 : 5);
+    // SKINS but not in any wall, so NSK overruns the grid
+    const NSK = SHOP.length + MAST.length + PASSW.length;
+    const nLab = PASSW.length ? 3 : 2;
+    // on a wide window, however many columns give the biggest tiles (a third
+    // shelf would otherwise shrink every tile to fit the height)
+    let cols = w < 400 ? 3 : (w < 760 ? 4 : 5);
+    if (w >= 760) {
+      let best = -1;
+      for (let k = 5; k <= 8; k++) {
+        const rr = Math.ceil(SHOP.length / k) + Math.ceil(MAST.length / k) + Math.ceil(PASSW.length / k);
+        const cwK = (w - 52 - 9 * (k - 1)) / k;
+        const hK = Math.min(VH - 24, Math.max(360, 74 + 22 * nLab + rr * Math.min(112, cwK * 1.02) + 9 * (rr - 1) + 104));
+        const chK = Math.max(40, Math.min(Math.min(112, cwK * 1.02), (hK - 104 - 74 - 22 * nLab - 9 * (rr - 1)) / rr));
+        if (chK > best + 0.5) { best = chK; cols = k; }
+      }
+    }
     const sRows = Math.ceil(SHOP.length / cols);
     const mRows = Math.ceil(MAST.length / cols);
-    const rows = sRows + mRows;
+    const pRows = Math.ceil(PASSW.length / cols);
+    const rows = sRows + mRows + pRows;
     const gap = 9;
     const headH = 74, footH = 104, labelH = 22;
 
     // what the grid would like, and what the window will actually allow
     const cwMax = (w - 52 - gap * (cols - 1)) / cols;
     const chWant = Math.min(112, cwMax * 1.02);
-    const wantH = headH + labelH * 2 + rows * chWant + gap * (rows - 1) + footH;
+    const wantH = headH + labelH * nLab + rows * chWant + gap * (rows - 1) + footH;
     const h = Math.min(VH - 24, Math.max(360, wantH));
     const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
     this.panel(c, x, y, w, h, 'rgba(255,209,102,0.28)');
@@ -16711,7 +17344,7 @@ const UI = {
     this.shardBadge(c, x + w - 24, y + 36, 21);
 
     const headTop = y + headH;
-    const room = (y + h - footH) - headTop - labelH * 2 - gap * (rows - 1);
+    const room = (y + h - footH) - headTop - labelH * nLab - gap * (rows - 1);
     let ch = Math.max(40, Math.min(chWant, room / rows));
     let cw = Math.min(ch / 1.02, cwMax);
     ch = Math.min(ch, cw * 1.02);
@@ -16719,16 +17352,17 @@ const UI = {
     const gx = VW / 2 - gw / 2;
     const sy = headTop + labelH;
     const my = sy + sRows * (ch + gap) + labelH;
+    const ppy = my + mRows * (ch + gap) + labelH;
 
     const slot = i => {
-      const shop = i < SHOP.length;
-      const k = shop ? i : i - SHOP.length;
+      const wall = i < SHOP.length ? 0 : (i < SHOP.length + MAST.length ? 1 : 2);
+      const k = wall === 0 ? i : (wall === 1 ? i - SHOP.length : i - SHOP.length - MAST.length);
       const col = k % cols, row = Math.floor(k / cols);
       return {
-        sk: shop ? SHOP[k] : MAST[k], shop: shop, col: col,
-        gr: shop ? row : sRows + row,
+        sk: [SHOP, MAST, PASSW][wall][k], shop: wall === 0, col: col,
+        gr: [row, sRows + row, sRows + mRows + row][wall],
         cx: gx + col * (cw + gap),
-        cy: (shop ? sy : my) + row * (ch + gap)
+        cy: [sy, my, ppy][wall] + row * (ch + gap)
       };
     };
     const atRC = (gr, col) => {
@@ -16788,10 +17422,13 @@ const UI = {
       c.save(); c.globalAlpha = 0.16; c.strokeStyle = col; c.lineWidth = 1;
       c.beginPath(); c.moveTo(gx + tracked(c, s, 0, 0, { size: 10.5, weight: 900, track: 3, measureOnly: true }) + 12, yy - 4);
       c.lineTo(gx + gw, yy - 4); c.stroke(); c.restore();
-      if (note) text(c, note, gx + gw, yy, { size: 9.5, weight: 700, align: 'right', color: PAL.dim, alpha: 0.7 });
+      setFont(c, 9.5, 700);
+      if (note && tracked(c, s, 0, 0, { size: 10.5, weight: 900, track: 3, measureOnly: true }) + 24 + c.measureText(note).width < gw)
+        text(c, note, gx + gw, yy, { size: 9.5, weight: 700, align: 'right', color: PAL.dim, alpha: 0.7 });
     };
     lbl('BOUGHT WITH SHARDS', sy - 8, PAL.gold, 'finish runs to earn them');
     lbl('MASTERY', my - 8, '#ff6bd0', 'earned, never bought');
+    if (PASSW.length) lbl('BLOOM PASS', ppy - 8, '#ffd166', 'season rewards');
 
     // ---- the tiles
     for (let i = 0; i < NSK; i++) {
@@ -17283,6 +17920,1062 @@ const UI = {
     if (fire && this.lockT <= 0) G.takeCard(G.cards[G.cardSel]);
   },
 
+  /* ============================================================ BLOOM PASS
+     Two lanes of thirty tiers on a rail, free above and premium below,
+     scrolling sideways; three daily quests under them; premium, key entry,
+     the wait for a payment and every new cosmetic open over the top.   */
+  openPass(from) {
+    const S = Pass.season();
+    if (!S) return;
+    this.passFrom = from || 'title';
+    this.passMode = 'main';
+    this.passMsg = null;
+    this.passFx = [];
+    this.passReveal = null; this.passRevealQ = [];
+    this.passBanner = null;
+    let t0 = Pass.progress(S).tier, lane = 'f';
+    for (let t = 1; t <= PASS_TIERS; t++) {
+      if (Pass.claimable(S, 'f', t)) { t0 = t; lane = 'f'; break; }
+      if (Pass.claimable(S, 'p', t)) { t0 = t; lane = 'p'; break; }
+    }
+    this.passSel = { t: t0, lane: lane, row: 'track', q: 0 };
+    this.passScroll = null;
+    this.passDrag = null;
+    G.state = 'pass'; this.lastState = '';
+    if (Pass.live(S)) Pass.quests();
+    PassStore.refresh(S);
+  },
+  leavePass() {
+    Input.textOn = false; Input.text = ''; Input.textMax = 20;
+    this.passMode = 'main'; this.passWait = null;
+    G.state = this.passFrom || 'title'; this.lastState = ''; Sound.ui(false);
+  },
+  /* ESC / BACKSPACE: out of whatever is open, one layer at a time */
+  passBack() {
+    const m = this.passMode;
+    if (m === 'reveal') { this.passNextReveal(); return; }
+    if (m === 'key' || m === 'wait') { Input.textOn = false; Input.text = ''; Input.textMax = 20; this.passMode = 'premium'; this.passWait = null; this.passMsg = null; this.lockT = 0.2; Sound.ui(false); return; }
+    if (m === 'premium') { this.passMode = 'main'; this.passMsg = null; this.lockT = 0.2; Sound.ui(false); return; }
+    this.leavePass();
+  },
+  passTyping() { return G.state === 'pass' && this.passMode === 'key'; },
+
+  /* ------------------------------------------------------------ glyphs */
+  // the season sigil: a turning star inside a counter-turning broken ring
+  passSigil(c, x, y, r, S, t) {
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.34 + 0.08 * Math.sin(t * 2);
+    c.drawImage(glowSprite(S.col), x - r * 2.4, y - r * 2.4, r * 4.8, r * 4.8);
+    c.restore();
+    c.save(); c.translate(x, y);
+    c.rotate(-t * 0.4);
+    for (let i = 0; i < 3; i++) neon(c, cc => { cc.beginPath(); cc.arc(0, 0, r, i * TAU / 3, i * TAU / 3 + 1.5); }, S.col2, { lw: 1.6, blur: 10, core: null, inner: false });
+    c.rotate(t * 0.9);
+    neon(c, cc => pathStar(cc, 8, r * 0.8, r * 0.36), S.col, { lw: 1.8, blur: 14, core: 'rgba(24,14,4,0.9)', inner: false });
+    c.rotate(-t * 1.6);
+    neon(c, cc => pathStar(cc, 4, r * 0.42, r * 0.12), S.col3, { lw: 1.2, blur: 9, core: null, inner: false });
+    c.restore();
+    text(c, String(S.n), x, y + r * 0.2, { size: r * 0.58, weight: 900, align: 'center', color: '#ffffff', glow: S.col, blur: 10 });
+  },
+  // a small padlock: shackle, body, keyhole
+  passLock(c, x, y, s, col, a) {
+    c.save();
+    c.globalAlpha *= a === undefined ? 1 : a;
+    c.lineWidth = Math.max(1, s * 0.16); c.strokeStyle = col; c.shadowColor = col; c.shadowBlur = 8;
+    c.beginPath(); c.arc(x, y - s * 0.28, s * 0.36, Math.PI, 0); c.stroke();
+    c.fillStyle = 'rgba(14,10,4,0.92)';
+    roundRect(c, x - s * 0.55, y - s * 0.28, s * 1.1, s * 0.86, s * 0.16); c.fill(); c.stroke();
+    c.shadowBlur = 0; c.fillStyle = col;
+    c.beginPath(); c.arc(x, y + 0.08 * s, s * 0.12, 0, TAU); c.fill();
+    c.fillRect(x - s * 0.04, y + 0.08 * s, s * 0.08, s * 0.24);
+    c.restore();
+  },
+  // claimed: a check in a green ring
+  passCheck(c, x, y, s) {
+    c.save();
+    c.fillStyle = 'rgba(6,18,10,0.95)';
+    c.beginPath(); c.arc(x, y, s, 0, TAU); c.fill();
+    c.strokeStyle = '#8dff6b'; c.shadowColor = '#8dff6b'; c.shadowBlur = 8; c.lineWidth = 1.4;
+    c.stroke();
+    c.lineWidth = Math.max(1.4, s * 0.26); c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(x - s * 0.45, y + s * 0.02); c.lineTo(x - s * 0.1, y + s * 0.38); c.lineTo(x + s * 0.5, y - s * 0.36); c.stroke();
+    c.restore();
+  },
+  // a pet drawn bigger than life, in its own tile (see petTile for why)
+  passPet(c, pet, x, y, k, t) {
+    if (!this._ppt) this._ppt = new Map();
+    const size = Math.ceil(PET_TILE * k), s = Math.min(2, DPR || 1), key = pet.id + '|' + k;
+    let e = this._ppt.get(key);
+    if (!e) {
+      const cv = makeCanvas(size * s, size * s);
+      e = { cv: cv, c: cv.getContext('2d'), t: -1 };
+      this._ppt.set(key, e);
+      if (this._ppt.size > 24) this._ppt.delete(this._ppt.keys().next().value);
+    }
+    if (e.t !== t) {
+      e.t = t;
+      const g = e.c;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, e.cv.width, e.cv.height);
+      g.setTransform(s * k, 0, 0, s * k, 0, 0);
+      g.save(); g.globalCompositeOperation = 'lighter';
+      petShape(g, pet, PET_TILE / 2, PET_TILE / 2, 1, 0, 0, 0, 0, t);
+      g.restore();
+    }
+    // source-over, not 'lighter': the pet keeps its dark core on a bright backdrop
+    c.drawImage(e.cv, x - size / 2, y - size / 2, size, size);
+  },
+  // a skin, at any size; the animated ones keep animating
+  passSkin(c, sk, x, y, pr, rot, t, alpha) {
+    const key = 'passkin_' + sk.id + '_' + Math.round(pr) + (sk.anim ? '_a' + (Math.floor(t * 10) % 40) : '') + (sk.oil ? '_o' + (Math.floor(t * 6) % 48) : '');
+    const spr = sprite(key, pr * 5, pr * 5, cc => paintSkin(cc, sk, pr, sk.anim || sk.oil ? t : 0));
+    c.save();
+    if (alpha !== undefined) c.globalAlpha *= alpha;
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha *= 0.45 + 0.08 * Math.sin(t * 3);
+    c.drawImage(glowSprite(sk.rainbow ? skinCol(sk, t) : sk.col), x - pr * 2, y - pr * 2, pr * 4, pr * 4);
+    c.restore();
+    c.save();
+    if (alpha !== undefined) c.globalAlpha *= alpha;
+    c.translate(x, y); c.rotate(rot || 0);
+    c.drawImage(spr, -spr.width / 2, -spr.height / 2);
+    c.restore();
+    if (alpha === undefined || alpha > 0.6) drawSkinHalo(c, sk, x, y, pr, t, 1.15, 0.55);
+  },
+  // a ribbon drawn along a looping path, so a skin's trail can be seen on a menu
+  passRibbon(c, TR, cx, cy, rx, ry, t, w) {
+    const n = 28, P = [];
+    for (let i = 0; i < n; i++) {
+      const u = t * 1.1 - (n - 1 - i) * 0.055;
+      P.push(cx + Math.sin(u) * rx, cy + Math.sin(u * 2) * ry);
+    }
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    const NC = TR.cols.length, B = 5;
+    for (let b = 0; b < B; b++) {
+      const i0 = Math.max(0, Math.floor(b * (n - 1) / B) - 1), i1 = Math.min(n, Math.floor((b + 1) * (n - 1) / B) + 1);
+      const col = TR.cols[(Math.floor(b / B * NC + t * 2.2) % NC + NC) % NC];
+      const tt = i1 / (n - 1);
+      for (const [wm, am, bl] of [[1, 0.3, 14], [0.34, 0.85, 6]]) {
+        c.beginPath(); c.moveTo(P[i0 * 2], P[i0 * 2 + 1]);
+        for (let i = i0 + 1; i < i1; i++) c.lineTo(P[i * 2], P[i * 2 + 1]);
+        c.strokeStyle = col; c.shadowColor = col; c.shadowBlur = bl;
+        c.globalAlpha = am * (0.1 + tt * tt * 0.9);
+        c.lineWidth = Math.max(0.6, w * wm * (0.14 + tt * 0.96));
+        c.stroke();
+      }
+    }
+    c.restore();
+    return [P[(n - 1) * 2], P[(n - 1) * 2 + 1]];
+  },
+
+  /* ------------------------------------------------------ reward icons */
+  passIcon(c, rw, x, y, s, t, on, dim) {
+    const a = dim ? 0.42 : 1;
+    if (rw.k === 'shards') {
+      const n = rw.n, many = n >= 600 ? 3 : (n >= 300 ? 2 : 1), r = s * (0.13 + Math.min(1, n / 900) * 0.07);
+      c.save(); c.globalAlpha *= a;
+      if (many === 3) { this.shardGem(c, x - r * 1.35, y + r * 0.35, r * 0.78, t + 1.3); this.shardGem(c, x + r * 1.35, y + r * 0.35, r * 0.78, t + 2.1); }
+      else if (many === 2) this.shardGem(c, x + r * 1.1, y + r * 0.4, r * 0.72, t + 1.7);
+      this.shardGem(c, x - (many === 2 ? r * 0.35 : 0), y - (many > 1 ? r * 0.2 : 0), r, t);
+      c.restore();
+      return;
+    }
+    if (rw.k === 'skin') {
+      const sk = SKIN_BY_ID[rw.id];
+      if (sk) this.passSkin(c, sk, x, y, s * 0.17, on ? t * 0.7 : 0, t, a);
+      return;
+    }
+    const pt = PET_BY_ID[rw.id];
+    if (pt) { c.save(); c.globalAlpha *= a; this.passPet(c, pt, x, y, Math.max(0.7, s / 70), t); c.restore(); }
+  },
+
+  /* one reward cell. st: 'done' | 'ready' | 'locked' (premium you don't have) | 'future' */
+  passCell(c, S, rw, x, y, s, st, lane, on, t) {
+    const col = lane === 'p' ? S.col : S.col2;
+    const ex = Pass.exclusive(rw);
+    const ready = st === 'ready';
+    c.save();
+    c.fillStyle = ready ? 'rgba(18,16,40,0.96)' : (st === 'done' ? 'rgba(10,12,24,0.78)' : 'rgba(9,10,22,0.86)');
+    roundRect(c, x, y, s, s, 12); c.fill();
+    if (ex) {
+      // the season's own cosmetics wear a two-colour frame
+      const g = c.createLinearGradient(x, y, x + s, y + s);
+      g.addColorStop(0, S.col3); g.addColorStop(0.5, col); g.addColorStop(1, S.col2);
+      c.strokeStyle = g;
+    } else c.strokeStyle = ready ? col : (st === 'future' || st === 'locked' ? 'rgba(125,134,171,0.28)' : 'rgba(141,255,107,0.3)');
+    c.lineWidth = ready || on ? 2 : (ex ? 1.5 : 1);
+    if (ready) { c.shadowColor = col; c.shadowBlur = 14 + 8 * Math.sin(t * 5); }
+    c.globalAlpha = st === 'future' && !ex ? 0.8 : 1;
+    c.stroke();
+    c.restore();
+    if (ready) {
+      // light pooling in the cell
+      c.save();
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = 0.1 + 0.05 * Math.sin(t * 4);
+      const g = c.createRadialGradient(x + s / 2, y + s * 0.42, 0, x + s / 2, y + s * 0.42, s * 0.62);
+      g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g; roundRect(c, x, y, s, s, 12); c.fill();
+      c.restore();
+    }
+    if (on) {
+      c.save();
+      c.strokeStyle = '#ffffff'; c.globalAlpha = 0.6 + 0.3 * Math.sin(t * 6); c.lineWidth = 1.4;
+      roundRect(c, x - 4, y - 4, s + 8, s + 8, 15); c.stroke();
+      c.restore();
+    }
+    // the icon stays inside its cell (a pet's embers and a skin's halo wander)
+    c.save();
+    roundRect(c, x + 1, y + 1, s - 2, s - 2, 11); c.clip();
+    const bob = ready ? Math.sin(t * 3 + x * 0.05) * s * 0.03 : 0;
+    this.passIcon(c, rw, x + s / 2, y + s * 0.38 + bob, s, t, on || ready, st === 'done' || st === 'locked' || st === 'future');
+    c.restore();
+    // what it is
+    let lab = rw.k === 'shards' ? fmtNum(rw.n) : Pass.label(rw);
+    const fs = Math.max(8.5, s * 0.105);
+    setFont(c, fs, 900);
+    const lw = c.measureText(lab).width;
+    const k = lw > s - 10 ? (s - 10) / lw : 1;
+    text(c, lab, x + s / 2, y + s * 0.76, { size: fs * k, weight: 900, align: 'center',
+      color: st === 'done' || st === 'future' || st === 'locked' ? PAL.dim : (rw.k === 'shards' ? '#c9a3ff' : '#ffffff') });
+    if (rw.k !== 'shards') {
+      const dup = st !== 'done' && Pass.owns(rw);
+      text(c, dup ? 'OWNED → ' + fmtNum(Pass.dupeValue(rw)) : (rw.k === 'skin' ? 'SKIN' : 'PET'), x + s / 2, y + s * 0.875,
+        { size: Math.max(7, s * 0.075), weight: 800, align: 'center', color: dup ? '#c9a3ff' : (ex ? S.col3 : PAL.dim), alpha: st === 'done' ? 0.6 : 0.9 });
+    }
+    if (ex && st !== 'done') {
+      // a corner ribbon for the season's own things
+      c.save();
+      c.beginPath(); c.moveTo(x + 12, y); c.lineTo(x + s * 0.42, y); c.lineTo(x, y + s * 0.42); c.lineTo(x, y + 12); c.arcTo(x, y, x + 12, y, 12); c.closePath();
+      c.fillStyle = S.col3; c.globalAlpha = 0.9; c.fill();
+      c.restore();
+      c.save(); c.translate(x + s * 0.13, y + s * 0.13); c.rotate(-Math.PI / 4);
+      text(c, 'NEW', 0, s * 0.03, { size: Math.max(7, s * 0.08), weight: 900, align: 'center', color: '#1a0618' });
+      c.restore();
+    }
+    if (st === 'done') this.passCheck(c, x + s - 13, y + 13, Math.max(6, s * 0.08));
+    else if (st === 'locked') this.passLock(c, x + s - 14, y + 16, Math.max(7, s * 0.09), S.col, 0.95);
+    if (ready) {
+      const cw = s * 0.62, ch = Math.max(14, s * 0.17), cy = y + s + ch * 0.28;
+      c.save();
+      c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 12 + 6 * Math.sin(t * 5);
+      roundRect(c, x + s / 2 - cw / 2, cy - ch / 2, cw, ch, ch / 2); c.fill();
+      c.restore();
+      text(c, 'CLAIM', x + s / 2, cy + ch * 0.3, { size: ch * 0.62, weight: 900, align: 'center', color: '#0a0716' });
+    }
+  },
+
+  /* ---------------------------------------------------- the effects layer */
+  passBurst(x, y, col, n, gems) {
+    for (let i = 0; i < n; i++) {
+      const a = rnd(TAU), v = rnd(60, 260);
+      this.passFx.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, life: rnd(0.4, 0.9), max: 0.9, col: i % 3 ? col : '#ffffff', k: 's' });
+    }
+    if (gems) for (let i = 0; i < gems; i++) {
+      const a = -Math.PI / 2 + rnd(-1.1, 1.1), v = rnd(120, 260);
+      this.passFx.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.6, 1), max: 1, col: '#c9a3ff', k: 'g', r: rnd(3, 5) });
+    }
+    while (this.passFx.length > 220) this.passFx.shift();
+  },
+  passPop(x, y, s, col) { this.passFx.push({ x: x, y: y, vx: 0, vy: -46, life: 1.2, max: 1.2, col: col, k: 't', s: s }); },
+  passFxDraw(c, dt) {
+    const F = this.passFx;
+    if (!F || !F.length) return;
+    c.save();
+    for (let i = F.length - 1; i >= 0; i--) {
+      const p = F[i];
+      p.life -= dt;
+      if (p.life <= 0) { F.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.k !== 't') { p.vy += 240 * dt; p.vx *= 1 - dt * 1.5; }
+      const a = Math.min(1, p.life / (p.max * 0.5));
+      if (p.k === 't') {
+        text(c, p.s, p.x, p.y, { size: 17, weight: 900, align: 'center', color: '#ffffff', glow: p.col, blur: 12, alpha: a });
+      } else if (p.k === 'g') {
+        c.globalCompositeOperation = 'source-over'; c.globalAlpha = a;
+        c.save(); c.translate(p.x, p.y); c.scale(0.5 + 0.5 * Math.abs(Math.cos(p.life * 9)), 1);
+        c.fillStyle = 'rgba(14,8,34,0.9)'; c.strokeStyle = '#c9a3ff'; c.lineWidth = 1.2;
+        c.beginPath(); c.moveTo(-p.r, -p.r * 0.3); c.lineTo(-p.r * 0.56, -p.r * 0.82); c.lineTo(p.r * 0.56, -p.r * 0.82); c.lineTo(p.r, -p.r * 0.3); c.lineTo(0, p.r); c.closePath();
+        c.fill(); c.stroke(); c.restore();
+      } else {
+        c.globalCompositeOperation = 'lighter'; c.globalAlpha = a;
+        c.fillStyle = p.col;
+        c.beginPath(); c.arc(p.x, p.y, 1.2 + a * 1.8, 0, TAU); c.fill();
+      }
+    }
+    c.restore();
+  },
+
+  /* ------------------------------------------------------------ claiming */
+  passClaim(S, lane, t, x, y) {
+    const got = Pass.claim(S, lane, t);
+    if (!got) return false;
+    this.passGot(S, got, x, y);
+    return true;
+  },
+  passGot(S, got, x, y) {
+    const col = got.k === 'shards' ? '#c9a3ff' : S.col3;
+    this.passBurst(x, y, col, got.k === 'shards' ? 16 : 34, got.k === 'shards' ? 6 : 0);
+    if (got.k === 'shards') {
+      this.passPop(x, y - 10, '+' + fmtNum(got.n) + (got.dupe ? '  (DUPLICATE)' : ''), '#c9a3ff');
+      Sound.coin();
+    } else {
+      Flash.hit(col, 0.18);
+      this.passRevealQ.push(got);
+      if (this.passMode !== 'reveal') this.passNextReveal();
+    }
+  },
+  passNextReveal() {
+    const g = this.passRevealQ.shift();
+    if (!g) { this.passMode = 'main'; this.passReveal = null; this.lockT = 0.25; return; }
+    this.passReveal = { got: g, at: G.uiT };
+    this.passMode = 'reveal'; this.lockT = 0.45; this.sels.passrv = 0;
+    Sound.fanfare(true);
+  },
+  passClaimAll(S, geo) {
+    const got = Pass.claimAll(S);
+    if (!got.length) return;
+    let shards = 0;
+    for (const g of got) {
+      if (g.k === 'shards') shards += g.n;
+      if (g.t && geo) {
+        const p = geo.cellAt(g.t, g.tr);
+        if (p) this.passBurst(p.x, p.y, g.k === 'shards' ? '#c9a3ff' : S.col3, 10, g.k === 'shards' ? 2 : 0);
+      }
+      if (g.k !== 'shards') this.passRevealQ.push(g);
+    }
+    if (shards) { this.passPop(VW / 2, geo ? geo.trackMid : VH / 2, '+' + fmtNum(shards) + ' SHARDS', '#c9a3ff'); Sound.coin(); }
+    if (this.passRevealQ.length) this.passNextReveal();
+  },
+
+  /* ================================================================ screen */
+  pass(c) {
+    this.begin('pass');
+    const S = Pass.season();
+    if (!S) { G.state = 'title'; this.lastState = ''; return; }
+    const t = G.uiT, dt = Math.min(0.1, Math.max(0, t - (this._passT === undefined ? t : this._passT)));
+    this._passT = t;
+    const live = Pass.live(S), prem = Pass.prem(S), showP = Pass.premShown(S);
+    const pr = Pass.progress(S);
+    const modal = this.passMode !== 'main';
+    const act = !modal && this.lockT <= 0;
+    this.dim(c, 0.84);
+
+    // ------------------------------------------------------------ geometry
+    const narrow = VW < 720, short = VH < 600;
+    const w = Math.min(1220, VW - (narrow ? 12 : 24)), h = VH - (short ? 10 : 20);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
+    this.panel(c, x, y, w, h, 'rgba(255,209,102,0.26)');
+    const headH = narrow ? 128 : (short ? 84 : 100);
+    const footH = narrow ? 92 : 50;
+    const qCards = 3, qStack = narrow;
+    const qH = live ? (qStack ? 30 + qCards * 46 : (short ? 92 : 112)) : 56;
+    const gut = narrow ? 0 : 96;
+    const vx0 = x + gut + 14, vx1 = x + w - 16, vw = vx1 - vx0;
+    const infoH = 26;
+    const room = h - headH - qH - footH - infoH - 24;
+    const railH = narrow ? 30 : 34, capH = 22;       // capH: room for the CLAIM chip under a lane
+    const lanes = showP ? 2 : 1;
+    const cs = clamp((room - railH - capH * lanes - (narrow ? 34 : 6)) / lanes, 54, narrow ? 128 : 118);
+    const colW = cs + (narrow ? 12 : 16);
+    // whatever height is left over is shared out: a little above the track,
+    // more between it and the quests, so nothing huddles at the top
+    const pGap = narrow ? 16 : 2;                    // narrow: the PREMIUM label sits between rail and lane
+    const trackH = (showP ? cs * 2 + capH * 2 + railH + pGap : cs + capH + railH) + 2;
+    const slack = Math.max(0, h - headH - footH - (narrow ? 24 : 6) - trackH - infoH - 14 - qH - 8);
+    const trackTop = y + headH + (narrow ? 24 : 6) + slack * 0.3;
+    const fy = trackTop, ry = fy + cs + capH + railH / 2 - 4, py = ry + railH / 2 + pGap;
+    const trackBot = (showP ? py + cs + capH : ry + railH / 2) + 2;
+    const infoY = trackBot + 16 + slack * 0.15;
+    const qTop = infoY + 14 + slack * 0.3;
+
+    // ------------------------------------------------------------ scrolling
+    const nCols = PASS_TIERS + 1;                     // the last column is the bonus drop
+    const contentW = nCols * colW;
+    const maxScroll = Math.max(0, contentW - vw);
+    const sel = this.passSel || (this.passSel = { t: pr.tier, lane: 'f', row: 'track', q: 0 });
+    const colX = tt => vx0 + (tt - 1) * colW + (colW - cs) / 2 - (this.passScroll || 0);
+    if (this.passScroll === null || this.passScroll === undefined) {
+      this.passScroll = this.passScrollT = clamp((sel.t - 1) * colW - vw * 0.35, 0, maxScroll);
+    }
+    const inTrack = Input.mx > vx0 && Input.mx < vx1 && Input.my > fy - 10 && Input.my < trackBot + 6;
+    if (act && Input.wheel && inTrack) { this.passScrollT += Input.wheel; }
+    const pX = Input.touch && Input.touch.active ? Input.touch.x : Input.mx;
+    if (act && Input.mdown && inTrack && !this.passDrag && Input.mclick) this.passDrag = { x: pX, s: this.passScrollT, moved: false };
+    if (this.passDrag) {
+      if (!Input.mdown) this.passDrag = null;
+      else {
+        const dx = pX - this.passDrag.x;
+        if (Math.abs(dx) > 6) this.passDrag.moved = true;
+        if (this.passDrag.moved) this.passScrollT = this.passDrag.s - dx;
+      }
+    }
+    this.passScrollT = clamp(this.passScrollT, 0, maxScroll);
+    this.passScroll += (this.passScrollT - this.passScroll) * Math.min(1, dt * 12);
+    if (Math.abs(this.passScrollT - this.passScroll) < 0.3) this.passScroll = this.passScrollT;
+
+    const geo = {
+      trackMid: (fy + trackBot) / 2,
+      cellAt: (tt, lane) => {
+        const cx = colX(tt);
+        if (cx + cs < vx0 || cx > vx1) return null;
+        return { x: cx + cs / 2, y: (lane === 'p' ? py : fy) + cs / 2 };
+      }
+    };
+
+    // ------------------------------------------------------------ keyboard
+    const keep = () => {
+      const left = (sel.t - 1) * colW, right = sel.t * colW;
+      if (left < this.passScrollT + colW * 0.3) this.passScrollT = left - colW * 0.3;
+      if (right > this.passScrollT + vw - colW * 0.3) this.passScrollT = right - vw + colW * 0.3;
+    };
+    const tierMax = PASS_TIERS + 1;
+    const selReward = () => sel.t > PASS_TIERS ? null : Pass.reward(S, sel.lane, sel.t);
+    const doSel = () => {
+      if (sel.row === 'quests') return;
+      if (sel.t > PASS_TIERS) {
+        const g = Pass.claimBonus(S);
+        const p = geo.cellAt(sel.t, 'f');
+        if (g) { this.passGot(S, g, p ? p.x : VW / 2, p ? p.y : geo.trackMid); } else Sound.ui(false);
+        return;
+      }
+      const p = geo.cellAt(sel.t, sel.lane) || { x: VW / 2, y: geo.trackMid };
+      if (Pass.claimable(S, sel.lane, sel.t)) this.passClaim(S, sel.lane, sel.t, p.x, p.y);
+      else if (sel.lane === 'p' && !prem && PassStore.on()) { this.passMode = 'premium'; this.passMsg = null; this.lockT = 0.3; this.sels.passprem = 0; Sound.ui(true); }
+      else Sound.ui(false);
+    };
+    if (act) {
+      if (sel.row === 'track') {
+        if (Input.hit('ArrowRight', 'd') || Input.gpPressed[15]) { sel.t = Math.min(tierMax, sel.t + 1); keep(); Sound.ui(false); }
+        if (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14]) { sel.t = Math.max(1, sel.t - 1); keep(); Sound.ui(false); }
+        if (Input.hit('ArrowDown', 's') || Input.gpPressed[13]) {
+          if (sel.lane === 'f' && showP && sel.t <= PASS_TIERS) sel.lane = 'p'; else if (live) sel.row = 'quests';
+          Sound.ui(false);
+        }
+        if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) { if (sel.lane === 'p') { sel.lane = 'f'; Sound.ui(false); } }
+        if (Input.hit('Enter', 'space') || Input.gpPressed[0]) doSel();
+      } else {
+        if (Input.hit('ArrowRight', 'd') || Input.gpPressed[15]) { sel.q = (sel.q + 1) % 3; Sound.ui(false); }
+        if (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14]) { sel.q = (sel.q + 2) % 3; Sound.ui(false); }
+        if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) { sel.row = 'track'; sel.lane = showP ? 'p' : 'f'; Sound.ui(false); }
+        if (Input.hit('ArrowDown', 's') && qStack) { sel.q = Math.min(2, sel.q + 1); }
+        if (Input.hit('r', 'Enter', 'space') || Input.gpPressed[2]) { if (Pass.reroll(sel.q)) { Sound.ui(true); this.passMsg = { t: 'QUEST REROLLED', col: S.col2, at: t }; } else Sound.ui(false); }
+      }
+      if (Input.hit('c') || Input.gpPressed[3]) { if (Pass.pending(S)) this.passClaimAll(S, geo); else Sound.ui(false); }
+      if (Input.hit('u') && !prem && PassStore.on()) { this.passMode = 'premium'; this.passMsg = null; this.lockT = 0.3; this.sels.passprem = 0; Sound.ui(true); }
+    }
+
+    // ------------------------------------------------------------ header
+    // the season's weather: a few stars falling through the header band,
+    // never behind the track or the quests
+    c.save();
+    c.beginPath(); roundRect(c, x + 2, y + 2, w - 4, headH - 4, 14); c.clip();
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round';
+    for (let i = 0; i < 7; i++) {
+      const per = 3.2 + (i % 3) * 0.9, u = ((t + i * 1.37) % per) / per;
+      const sx0 = x + ((i * 0.37 + 0.11) % 1) * w * 1.1, sy0 = y - 20;
+      const L = 60 + (i % 3) * 24;
+      const hx = sx0 - u * headH * 1.1, hy = sy0 + u * (headH + 40);
+      const a2 = Math.sin(u * Math.PI) * 0.5;
+      const gS = c.createLinearGradient(hx + L * 0.7, hy - L * 0.7, hx, hy);
+      const cS = i % 3 === 0 ? S.col : (i % 3 === 1 ? S.col2 : S.col3);
+      gS.addColorStop(0, 'rgba(0,0,0,0)'); gS.addColorStop(1, cS);
+      c.globalAlpha = a2; c.strokeStyle = gS; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(hx + L * 0.7, hy - L * 0.7); c.lineTo(hx, hy); c.stroke();
+      c.fillStyle = '#ffffff'; c.globalAlpha = a2 * 1.4;
+      c.beginPath(); c.arc(hx, hy, 1.6, 0, TAU); c.fill();
+    }
+    c.restore();
+    const sgR = narrow ? 22 : 28;
+    const sgx = x + 20 + sgR, sgy = y + (narrow ? 40 : headH / 2 + 2);
+    this.passSigil(c, sgx, sgy, sgR, S, t);
+    const tx = sgx + sgR + 18;
+    const titleS = narrow ? 17 : 26;
+    tracked(c, 'BLOOM PASS', tx, sgy - (narrow ? 4 : 8), { size: titleS, weight: 900, color: S.col, glow: S.col, blur: 16, track: titleS * (narrow ? 0.16 : 0.24) });
+    tracked(c, 'SEASON ' + S.n + '  ·  ' + S.name, tx, sgy + (narrow ? 13 : 13), { size: narrow ? 10 : 11.5, weight: 900, color: S.col2, track: 2.6 });
+    const left = S.end - Pass.now();
+    text(c, live ? leftText(left) : 'SEASON OVER', tx, sgy + (narrow ? 29 : 31), { size: 10.5, weight: 800, color: live && left < 3 * 86400000 ? PAL.hp : PAL.dim });
+    // tier badge + bar
+    const bw = narrow ? w - 110 : Math.min(360, w * 0.3);
+    const bx = narrow ? x + 86 : x + w - bw - 30, byy = narrow ? y + 94 : sgy + 2;
+    const tbx = bx - (narrow ? 42 : 46), tR = narrow ? 20 : 24;
+    c.save(); c.translate(tbx, byy - 2);
+    c.rotate(t * 0.25);
+    neon(c, cc => pathPoly(cc, 6, tR, 0), S.col, { lw: 2, blur: 14, core: 'rgba(24,16,4,0.95)', inner: false });
+    c.restore();
+    text(c, String(pr.tier), tbx, byy + tR * 0.28, { size: tR * 0.9, weight: 900, align: 'center', color: '#ffffff', glow: S.col, blur: 10 });
+    text(c, 'TIER', tbx, byy + tR + 11, { size: 8.5, weight: 900, align: 'center', color: PAL.dim });
+    const barH = narrow ? 10 : 12;
+    c.save();
+    c.fillStyle = 'rgba(255,255,255,0.07)';
+    roundRect(c, bx, byy - barH / 2, bw, barH, barH / 2); c.fill();
+    const fw = Math.max(barH, bw * (live ? clamp(pr.frac, 0, 1) : 1));
+    const g = c.createLinearGradient(bx, 0, bx + bw, 0);
+    g.addColorStop(0, S.col2); g.addColorStop(1, S.col);
+    c.fillStyle = g; c.shadowColor = S.col; c.shadowBlur = 10;
+    roundRect(c, bx, byy - barH / 2, fw, barH, barH / 2); c.fill();
+    c.shadowBlur = 0;
+    // a glint running along the fill
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.5;
+    const gx = bx + ((t * 0.35) % 1.4) / 1.4 * (fw + 60) - 30;
+    const gg = c.createLinearGradient(gx - 24, 0, gx + 24, 0);
+    gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(0.5, 'rgba(255,255,255,0.9)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gg; roundRect(c, bx, byy - barH / 2, fw, barH, barH / 2); c.fill();
+    c.restore();
+    text(c, !live ? 'FINAL TIER  ' + pr.tier : pr.max ? 'BONUS DROP' : 'TIER ' + (pr.tier + 1), bx, byy - barH / 2 - 7, { size: 10, weight: 900, color: PAL.text });
+    text(c, live ? fmtNum(pr.into) + ' / ' + fmtNum(pr.need) + ' XP' : fmtNum(pr.xp) + ' XP', bx + bw, byy - barH / 2 - 7, { size: 10.5, weight: 900, align: 'right', color: S.col, mono: true });
+    const nx = !live ? 'SEASON ' + S.n + ' TOTAL' : pr.max ? PASS_BONUS_SHARDS * (prem ? 2 : 1) + ' SHARDS EVERY ' + fmtNum(PASS_BONUS_XP) + ' XP'
+      : 'NEXT  ' + Pass.label(Pass.reward(S, 'f', pr.tier + 1)) + (prem ? '  +  ' + Pass.label(Pass.reward(S, 'p', pr.tier + 1)) : '');
+    text(c, nx, bx, byy + barH / 2 + 15, { size: 9.5, weight: 800, color: PAL.dim });
+    // CLAIM ALL: bottom left on a wide window (where it can't sit on the
+    // title), just over the right end of the track on a phone
+    const pend = Pass.pending(S);
+    if (pend > 0) {
+      const lab = 'CLAIM ALL  ' + pend;
+      const cw2 = narrow ? 112 : 150, ch2 = narrow ? 20 : 30;
+      const cx2 = narrow ? vx1 - cw2 / 2 : x + 22 + cw2 / 2, cy2 = narrow ? fy - 12 : y + h - 30;
+      const hov = !modal && Input.mx > cx2 - cw2 / 2 && Input.mx < cx2 + cw2 / 2 && Input.my > cy2 - ch2 / 2 && Input.my < cy2 + ch2 / 2;
+      c.save();
+      c.fillStyle = hov ? S.col : 'rgba(24,18,6,0.95)';
+      c.strokeStyle = S.col; c.lineWidth = 1.5; c.shadowColor = S.col; c.shadowBlur = 10 + 6 * Math.sin(t * 5);
+      roundRect(c, cx2 - cw2 / 2, cy2 - ch2 / 2, cw2, ch2, ch2 / 2); c.fill(); c.stroke();
+      c.restore();
+      tracked(c, lab, cx2, cy2 + (narrow ? 3.5 : 4.5), { size: narrow ? 9.5 : 11.5, weight: 900, align: 'center', color: hov ? '#140c02' : S.col, track: 1.6 });
+      if (!narrow) text(c, 'C', cx2 + cw2 / 2 + 12, cy2 + 4, { size: 10, weight: 800, color: PAL.dim, alpha: 0.6 });
+      if (hov && Input.mclick && act) this.passClaimAll(S, geo);
+    }
+
+    // ------------------------------------------------------------ lanes
+    if (!narrow) {
+      const lane = (yy, label, col, sub, lock) => {
+        tracked(c, label, x + 22, yy + cs * 0.42, { size: 12, weight: 900, color: col, track: 2.4 });
+        text(c, sub, x + 22, yy + cs * 0.42 + 16, { size: 9.5, weight: 700, color: PAL.dim });
+        if (lock) this.passLock(c, x + 30, yy + cs * 0.42 + 36, 9, col, 0.9);
+      };
+      lane(fy, 'FREE', S.col2, 'for everyone', false);
+      if (showP) lane(py, 'PREMIUM', S.col, prem ? 'unlocked' : 'locked', !prem);
+    } else {
+      text(c, 'FREE', vx0, fy - 8, { size: 10, weight: 900, color: S.col2 });
+      if (showP) text(c, prem ? 'PREMIUM' : 'PREMIUM  ·  LOCKED', vx0, py - 7, { size: 10, weight: 900, color: S.col });
+    }
+    c.save();
+    c.beginPath(); c.rect(vx0 - 6, fy - 12, vw + 12, trackBot - fy + 18); c.clip();
+    // the rail
+    const railX0 = colX(1) + cs / 2, railX1 = colX(tierMax) + cs / 2;
+    c.save();
+    c.strokeStyle = 'rgba(255,255,255,0.1)'; c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(railX0, ry); c.lineTo(railX1, ry); c.stroke();
+    const px2 = colX(pr.tier) + cs / 2 + (pr.max ? 0 : colW * clamp(pr.frac, 0, 1));
+    const rg = c.createLinearGradient(railX0, 0, px2, 0);
+    rg.addColorStop(0, S.col2); rg.addColorStop(1, S.col);
+    c.strokeStyle = rg; c.shadowColor = S.col; c.shadowBlur = 10; c.lineWidth = 3.4;
+    c.beginPath(); c.moveTo(railX0, ry); c.lineTo(px2, ry); c.stroke();
+    c.restore();
+    // a spark riding the head of the fill
+    c.save(); c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.7 + 0.3 * Math.sin(t * 8);
+    c.drawImage(glowSprite(S.col), px2 - 14, ry - 14, 28, 28);
+    c.restore();
+
+    let hoverCell = null;
+    for (let tt = 1; tt <= tierMax; tt++) {
+      const cx = colX(tt);
+      if (cx + cs < vx0 - 20 || cx > vx1 + 20) continue;
+      const reached = pr.tier >= tt;
+      // the rail node
+      const nr = narrow ? 11 : 12.5;
+      const ncx = cx + cs / 2;
+      const cur = tt === pr.tier;
+      c.save();
+      c.fillStyle = reached ? 'rgba(26,20,6,0.96)' : 'rgba(10,11,22,0.96)';
+      c.strokeStyle = tt > PASS_TIERS ? S.col3 : (reached ? S.col : 'rgba(125,134,171,0.45)');
+      c.lineWidth = cur ? 2 : 1.3;
+      if (cur) { c.shadowColor = S.col; c.shadowBlur = 12 + 6 * Math.sin(t * 4); }
+      c.translate(ncx, ry); if (cur) c.rotate(t * 0.5);
+      pathPoly(c, 6, cur ? nr * 1.25 : nr, 0); c.fill(); c.stroke();
+      c.restore();
+      text(c, tt > PASS_TIERS ? '+' : String(tt), ncx, ry + 4, { size: cur ? 11.5 : 10, weight: 900, align: 'center', color: reached ? '#ffffff' : PAL.dim });
+      if (tt > PASS_TIERS) {
+        // the bonus drop, past the end
+        const bon = Pass.bonusAvail(S);
+        const st = bon > 0 ? 'ready' : 'future';
+        const rw = { k: 'shards', n: PASS_BONUS_SHARDS * (prem ? 2 : 1) };
+        const on = !modal && sel.row === 'track' && sel.t === tt;
+        this.passCell(c, S, rw, cx, fy, cs, st, 'f', on, t);
+        text(c, bon > 0 ? 'BONUS ×' + bon : 'EVERY ' + fmtNum(PASS_BONUS_XP) + ' XP', cx + cs / 2, fy - 3, { size: 8.5, weight: 900, align: 'center', color: S.col3 });
+        if (Input.mx > cx && Input.mx < cx + cs && Input.my > fy && Input.my < fy + cs && Input.my < trackBot) hoverCell = { t: tt, lane: 'f' };
+        continue;
+      }
+      for (const ln of showP ? ['f', 'p'] : ['f']) {
+        const yy = ln === 'p' ? py : fy;
+        const rw = Pass.reward(S, ln, tt);
+        let st;
+        if (Pass.claimed(S, ln, tt)) st = 'done';
+        else if (ln === 'p' && !prem) st = 'locked';
+        else if (reached) st = 'ready';
+        else st = 'future';
+        const on = !modal && sel.row === 'track' && sel.t === tt && sel.lane === ln;
+        this.passCell(c, S, rw, cx, yy, cs, st, ln, on, t);
+        if (Input.mx > cx && Input.mx < cx + cs && Input.my > yy && Input.my < yy + cs) hoverCell = { t: tt, lane: ln };
+      }
+    }
+    if (!prem && showP) {
+      // the premium lane sits under a veil until it's yours
+      c.save();
+      c.globalCompositeOperation = 'source-over';
+      c.fillStyle = 'rgba(6,5,14,0.34)';
+      c.fillRect(vx0 - 6, py - 4, vw + 12, cs + capH);
+      c.restore();
+    }
+    c.restore();
+    // fade the track out at both edges so the scroll reads as a scroll
+    for (const [ex0, dir] of [[vx0 - 6, 1], [vx1 + 6, -1]]) {
+      const show = dir > 0 ? this.passScroll > 2 : this.passScroll < maxScroll - 2;
+      if (!show) continue;
+      c.save();
+      const eg = c.createLinearGradient(ex0, 0, ex0 + dir * 46, 0);
+      eg.addColorStop(0, 'rgba(8,10,24,0.95)'); eg.addColorStop(1, 'rgba(8,10,24,0)');
+      c.fillStyle = eg; c.fillRect(Math.min(ex0, ex0 + dir * 46), fy - 12, 46, trackBot - fy + 18);
+      c.restore();
+      const ax = ex0 + dir * 16, ay = ry;
+      const ah = !modal && Math.abs(Input.mx - ax) < 18 && Math.abs(Input.my - ay) < 22;
+      tracked(c, dir > 0 ? '<' : '>', ax, ay + 7, { size: 22, weight: 900, align: 'center', color: ah ? '#ffffff' : S.col, glow: S.col, blur: 10 });
+      if (ah && Input.mclick && act) { this.passScrollT += -dir * vw * 0.7; Sound.ui(false); }
+    }
+    const hk = hoverCell ? hoverCell.t + hoverCell.lane : '';
+    if (act && hoverCell && hk !== this._passHover && !this.passDrag) { sel.t = hoverCell.t; sel.lane = hoverCell.lane; sel.row = 'track'; }
+    this._passHover = hk;
+    // a click is a claim, unless it was the end of a drag
+    if (act && hoverCell && Input.mclick && !(this.passDrag && this.passDrag.moved)) {
+      sel.t = hoverCell.t; sel.lane = hoverCell.lane; sel.row = 'track';
+      this._passClickT = hoverCell;
+    }
+    if (this._passClickT && !Input.mdown) {
+      const hc = this._passClickT; this._passClickT = null;
+      if (!(this.passDrag && this.passDrag.moved) && act) doSel();
+    }
+
+    // ------------------------------------------------------------ what's selected
+    if (sel.row === 'track' && !this.passMsg) {
+      const rw = selReward();
+      let a1, a2, col = PAL.text;
+      if (!rw) {
+        const bon = Pass.bonusAvail(S);
+        a1 = 'BONUS DROP'; a2 = bon > 0 ? bon + ' waiting · ENTER to claim' : 'past tier ' + PASS_TIERS + ', every ' + fmtNum(PASS_BONUS_XP) + ' XP drops ' + (PASS_BONUS_SHARDS * (prem ? 2 : 1)) + ' shards';
+        col = S.col3;
+      } else {
+        a1 = Pass.label(rw);
+        const x2 = rw.k === 'skin' ? SKIN_BY_ID[rw.id] : (rw.k === 'pet' ? PET_BY_ID[rw.id] : null);
+        const lane = sel.lane === 'p' ? 'PREMIUM' : 'FREE';
+        let why;
+        if (Pass.claimed(S, sel.lane, sel.t)) why = 'claimed';
+        else if (sel.lane === 'p' && !prem) why = PassStore.on() ? 'premium · ENTER to unlock premium' : 'premium';
+        else if (Pass.reached(S, sel.t)) why = 'ENTER to claim';
+        else why = fmtNum(Math.max(0, PASS_AT[sel.t] - (Pass.rec(S).xp || 0))) + ' XP to go';
+        a2 = lane + ' · TIER ' + sel.t + (x2 && x2.blurb ? '  ·  ' + x2.blurb : '') + '  ·  ' + why;
+        col = Pass.exclusive(rw) ? S.col3 : (rw.k === 'shards' ? '#c9a3ff' : '#ffffff');
+      }
+      const iw = tracked(c, a1, 0, 0, { size: 12.5, weight: 900, track: 1.6, measureOnly: true });
+      setFont(c, 11, 600);
+      let a2s = a2;
+      const maxW = w - 60 - iw - 20;
+      while (c.measureText(a2s).width > maxW && a2s.length > 8) a2s = a2s.slice(0, -2);
+      if (a2s !== a2) a2s = a2s.replace(/\s+\S*$/, '') + '…';
+      const tw2 = iw + 16 + c.measureText(a2s).width;
+      tracked(c, a1, VW / 2 - tw2 / 2, infoY, { size: 12.5, weight: 900, color: col, glow: col, blur: 8, track: 1.6 });
+      text(c, a2s, VW / 2 - tw2 / 2 + iw + 16, infoY, { size: 11, weight: 600, color: PAL.text, alpha: 0.82 });
+    }
+
+    // ------------------------------------------------------------ quests
+    if (live) {
+      const Q = Pass.quests();
+      const ms = 86400000 - (Date.now() % 86400000);
+      tracked(c, 'DAILY QUESTS', x + 22, qTop + 10, { size: 11, weight: 900, color: S.col2, track: 2.6 });
+      const qw0 = tracked(c, 'DAILY QUESTS', 0, 0, { size: 11, weight: 900, track: 2.6, measureOnly: true });
+      text(c, 'new in ' + Math.floor(ms / 3600000) + 'h ' + Math.floor(ms % 3600000 / 60000) + 'm' + (Q.rer > 0 ? '  ·  one reroll left' : ''), x + 22 + qw0 + 12, qTop + 10,
+        { size: 10, weight: 700, color: PAL.dim });
+      const cardsY = qTop + 20;
+      let hoverQ = -1;
+      const gap = 10;
+      const qw = qStack ? w - 44 : (w - 44 - gap * 2) / 3;
+      const qh = qStack ? 40 : qH - 30;
+      for (let i = 0; i < 3; i++) {
+        const q = Q.list[i];
+        if (!q) continue;
+        const qx = x + 22 + (qStack ? 0 : i * (qw + gap)), qy = cardsY + (qStack ? i * (qh + 6) : 0);
+        const on = !modal && sel.row === 'quests' && sel.q === i;
+        const hov = !modal && Input.mx > qx && Input.mx < qx + qw && Input.my > qy && Input.my < qy + qh;
+        if (hov && act && this._passHoverQ !== i) { sel.row = 'quests'; sel.q = i; }
+        if (hov) hoverQ = i;
+        c.save();
+        c.fillStyle = q.done ? 'rgba(8,20,12,0.8)' : 'rgba(10,12,26,0.9)';
+        roundRect(c, qx, qy, qw, qh, 9); c.fill();
+        c.strokeStyle = q.done ? 'rgba(141,255,107,0.5)' : (on ? S.col2 : 'rgba(125,134,171,0.3)');
+        c.lineWidth = on ? 1.6 : 1;
+        if (on) { c.shadowColor = S.col2; c.shadowBlur = 10; }
+        c.stroke();
+        c.restore();
+        // the quest's mark: a turning four-point star, or a check when done
+        const mx = qx + 20, my = qy + qh / 2;
+        if (q.done) this.passCheck(c, mx, my, 8);
+        else {
+          c.save(); c.translate(mx, my); c.rotate(t * 0.8 + i);
+          neon(c, cc => pathStar(cc, 4, 9, 3), i === 2 ? S.col : S.col2, { lw: 1.4, blur: 9, core: 'rgba(6,10,20,0.9)', inner: false });
+          c.restore();
+        }
+        const txt = Pass.qtext(q);
+        const tsz = qStack ? 11.5 : Math.min(12.5, qw / 22);
+        setFont(c, tsz, 800);
+        let tt2 = txt;
+        const tmax = qw - 40 - 70;
+        while (c.measureText(tt2).width > tmax && tt2.length > 6) tt2 = tt2.slice(0, -2);
+        if (tt2 !== txt) tt2 = tt2.trim() + '…';
+        text(c, tt2, qx + 38, qy + (qStack ? 17 : qh * 0.38), { size: tsz, weight: 800, color: q.done ? PAL.dim : PAL.text });
+        // the XP it pays
+        const xl = '+' + q.xp + ' XP';
+        text(c, xl, qx + qw - 12, qy + (qStack ? 17 : qh * 0.38), { size: 11, weight: 900, align: 'right', color: q.done ? PAL.dim : S.col, mono: true });
+        // progress
+        const pbx = qx + 38, pbw = qw - 38 - 12 - (qStack ? 64 : 22), pby = qy + (qStack ? 28 : qh * 0.62);
+        const frac = clamp(q.prog / q.goal, 0, 1);
+        c.save();
+        c.fillStyle = 'rgba(255,255,255,0.08)'; roundRect(c, pbx, pby, pbw, 5, 2.5); c.fill();
+        c.fillStyle = q.done ? '#8dff6b' : S.col2; c.shadowColor = c.fillStyle; c.shadowBlur = frac > 0 ? 8 : 0;
+        if (frac > 0) { roundRect(c, pbx, pby, Math.max(5, pbw * frac), 5, 2.5); c.fill(); }
+        c.restore();
+        const ptxt = q.done ? 'DONE' : (QUESTS[q.id].secs ? Math.floor(q.prog / 60) + ' / ' + Math.floor(q.goal / 60) + ' min' : fmtNum(Math.floor(q.prog)) + ' / ' + fmtNum(q.goal));
+        if (!qStack) text(c, ptxt, pbx, pby + 17, { size: 9.5, weight: 800, color: q.done ? '#8dff6b' : PAL.dim, mono: true });
+        else text(c, ptxt, qx + qw - 12, pby + 5, { size: 8.5, weight: 800, align: 'right', color: q.done ? '#8dff6b' : PAL.dim, mono: true });
+        // reroll
+        if (!q.done && Q.rer > 0) {
+          const rx = qStack ? qx + qw - 78 : qx + qw - 16, ryy = qStack ? qy + 12 : pby + 13;
+          const rh = !modal && Math.abs(Input.mx - rx) < 12 && Math.abs(Input.my - ryy) < 12;
+          if (qStack) { /* stacked cards reroll from the keyboard / R only */ }
+          else {
+            c.save(); c.translate(rx, ryy); c.rotate(rh ? t * 4 : 0);
+            c.strokeStyle = rh ? '#ffffff' : PAL.dim; c.lineWidth = 1.4; c.lineCap = 'round';
+            c.beginPath(); c.arc(0, 0, 6, 0.4, TAU - 0.5); c.stroke();
+            c.beginPath(); c.moveTo(6.2, -3.6); c.lineTo(5.6, 0.6); c.lineTo(2, -1.4); c.stroke();
+            c.restore();
+            if (rh && Input.mclick && act) { if (Pass.reroll(i)) { Sound.ui(true); this.passMsg = { t: 'QUEST REROLLED', col: S.col2, at: t }; } }
+          }
+        }
+      }
+      this._passHoverQ = hoverQ;
+    } else {
+      tracked(c, 'SEASON ' + S.n + ' IS OVER', VW / 2, qTop + 16, { size: 13, weight: 900, align: 'center', color: S.col, glow: S.col, blur: 10, track: 3 });
+      text(c, 'Everything you reached was collected for you. The next season is on its way.', VW / 2, qTop + 36, { size: 11.5, weight: 600, align: 'center', color: PAL.dim });
+    }
+
+    // ------------------------------------------------------------ footer
+    // UNLOCK on the right, CLAIM ALL on the left, BACK centred in what's left
+    const fyb = y + h - 26;
+    let ux = x + w - 22, uw = 0, uy = 0, ulab = '';
+    const showU = !prem && PassStore.on();
+    if (showU) {
+      const inf = PassStore.get(S);
+      ulab = 'UNLOCK PREMIUM' + (inf && inf.buy && inf.price ? '  \u00b7  ' + inf.price : '');
+      uw = tracked(c, ulab, 0, 0, { size: 12.5, weight: 900, track: 2, measureOnly: true }) + 56;
+      ux = narrow ? VW / 2 - uw / 2 : x + w - uw - 22; uy = narrow ? fyb - 52 : fyb - 22;
+    }
+    const leftEnd = !narrow && pend ? x + 22 + 150 + 30 : x + 22;
+    const rightStart = !narrow && showU ? ux : (!narrow && prem ? x + w - 230 : x + w - 22);
+    const backX = narrow ? VW / 2 : clamp((leftEnd + rightStart) / 2, leftEnd + 50, rightStart - 50);
+    {
+      const bw2 = 110, bx2 = backX - bw2 / 2;
+      const backHover = !modal && Input.mx > bx2 && Input.mx < bx2 + bw2 && Input.my > fyb - 18 && Input.my < fyb + 10;
+      tracked(c, 'BACK', backX, fyb, { size: 14, weight: 900, align: 'center', track: 3, color: backHover ? PAL.player : PAL.dim, glow: backHover ? PAL.player : null, blur: 12 });
+      if (backX + 76 < rightStart) text(c, 'ESC', backX + 46, fyb, { size: 10, weight: 800, color: PAL.dim, alpha: 0.5 });
+      if (backHover && Input.mclick && act) { this.leavePass(); return; }
+    }
+    if (VW >= 1100 && !pend) {
+      text(c, '\u2190 \u2192 browse   \u2191 \u2193 lanes & quests   ENTER claim' + (live ? '   R reroll' : ''), x + 22, fyb, { size: 10, weight: 700, color: PAL.dim, alpha: 0.7 });
+    }
+    if (showU) {
+      const uh = 32;
+      const uh2 = !modal && Input.mx > ux && Input.mx < ux + uw && Input.my > uy && Input.my < uy + uh;
+      c.save();
+      const gg2 = c.createLinearGradient(ux, 0, ux + uw, 0);
+      gg2.addColorStop(0, uh2 ? '#ffe39a' : S.col); gg2.addColorStop(1, uh2 ? '#ff9ff0' : S.col3);
+      c.fillStyle = gg2; c.shadowColor = S.col; c.shadowBlur = 14 + 8 * Math.sin(t * 3);
+      roundRect(c, ux, uy, uw, uh, uh / 2); c.fill();
+      c.restore();
+      c.save(); c.translate(ux + 20, uy + uh / 2); c.rotate(t);
+      neon(c, cc => pathStar(cc, 4, 7, 2.4), '#ffffff', { lw: 1.2, blur: 6, core: '#1a0c02', inner: false });
+      c.restore();
+      tracked(c, ulab, ux + 34, uy + uh / 2 + 4.5, { size: 12.5, weight: 900, color: '#170a02', track: 2 });
+      if (uh2 && Input.mclick && act) { this.passMode = 'premium'; this.passMsg = null; this.lockT = 0.3; this.sels.passprem = 0; Sound.ui(true); }
+    } else if (prem) {
+      const lab = 'PREMIUM  \u00b7  UNLOCKED';
+      tracked(c, lab, narrow ? VW / 2 : x + w - 22, narrow ? fyb - 34 : fyb, { size: 11, weight: 900, align: narrow ? 'center' : 'right', color: S.col, glow: S.col, blur: 10, track: 2.4 });
+    }
+    if (this.passMsg) {
+      const am = clamp(1 - (t - this.passMsg.at - 2.2) / 0.8, 0, 1);
+      if (am > 0 && !modal) tracked(c, this.passMsg.t, VW / 2, infoY, { size: 12, weight: 900, align: 'center', color: this.passMsg.col, glow: this.passMsg.col, blur: 10, track: 2.4, alpha: am });
+      if (am <= 0) this.passMsg = null;
+    }
+
+    this.passFxDraw(c, dt);
+    if (this.passBanner) {
+      const B = this.passBanner, u = (t - B.at) / 2.6;
+      if (u >= 1) this.passBanner = null;
+      else {
+        const a = Math.min(1, u * 6) * Math.min(1, (1 - u) * 4);
+        c.save(); c.globalAlpha = a * 0.85; c.fillStyle = 'rgba(6,4,14,0.9)'; c.fillRect(0, VH / 2 - 44, VW, 88); c.restore();
+        tracked(c, B.t, VW / 2, VH / 2 + 10, { size: Math.min(40, VW * 0.07), weight: 900, align: 'center', color: '#ffffff', glow: B.col, blur: 26, track: 9, alpha: a });
+      }
+    }
+
+    // ------------------------------------------------------------ what's on top
+    if (this.passMode === 'premium' || this.passMode === 'key' || this.passMode === 'wait') this.passPremium(c, S);
+    else if (this.passMode === 'reveal') this.passRevealDraw(c, S);
+  },
+
+  /* --------------------------------------------------------- premium panel */
+  passPremium(c, S) {
+    const t = G.uiT, mode = this.passMode, inf = PassStore.get(S) || {};
+    this.dim(c, 0.62);
+    const w = Math.min(680, VW - 24), h = Math.min(mode === 'premium' ? 470 : 360, VH - 20);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
+    c.save(); c.fillStyle = '#05060f'; roundRect(c, x, y, w, h, 16); c.fill(); c.restore();
+    this.panel(c, x, y, w, h, 'rgba(255,209,102,0.45)');
+    const narrow = w < 560;
+    tracked(c, 'PREMIUM PASS', VW / 2, y + 40, { size: Math.min(26, w * 0.05), weight: 900, align: 'center', color: S.col, glow: S.col, blur: 18, track: 7 });
+    text(c, 'SEASON ' + S.n + '  ·  ' + S.name, VW / 2, y + 60, { size: 11, weight: 800, align: 'center', color: S.col2 });
+
+    if (mode === 'premium') {
+      // the showcase: the season's tier-1 premium skin, flying its own ribbon
+      const sk = SKIN_BY_ID[S.prem[0].id];
+      const sx = narrow ? VW / 2 : x + w * 0.27, sy = narrow ? y + 128 : y + h * 0.46;
+      if (sk && sk.trail && !narrow) {
+        const head = this.passRibbon(c, sk.trail, sx, sy, w * 0.13, h * 0.12, t, 10);
+        this.passSkin(c, sk, head[0], head[1], 24, t * 1.4, t);
+      } else if (sk) this.passSkin(c, sk, sx, sy, 22, t * 1.4, t);
+      // the perk list is read off the season's own reward table, so it can't
+      // drift from what the track actually pays
+      const exT = [], shop = [];
+      S.prem.forEach((rw, i) => { if (rw.k === 'shards') return; if (Pass.exclusive(rw)) { if (i) exT.push(i + 1); } else shop.push(rw); });
+      const exN = exT.map(tt => { const rw = S.prem[tt - 1]; return Pass.label(rw) + ' ' + rw.k; });
+      const NUMW = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+      const shopN = shop.length, premSh = S.prem.reduce((a, r) => a + (r.k === 'shards' ? r.n : 0), 0);
+      const perks = [
+        [S.col, Pass.label(S.prem[0]) + ' ' + S.prem[0].k, 'yours the moment you unlock'],
+        [S.col3, exN.join(' + '), 'at tier' + (exT.length > 1 ? 's ' + exT.slice(0, -1).join(', ') + ' and ' + exT[exT.length - 1] : ' ' + exT[0])],
+        ['#c9a3ff', (NUMW[shopN] || shopN) + ' shop cosmetic' + (shopN === 1 ? '' : 's') + ' + ' + fmtNum(premSh) + ' shards', 'on the premium track'],
+        [S.col2, 'Everything you’ve reached', 'unlocks instantly'],
+        [PAL.dim, 'Cosmetic only', 'it never buys power']
+      ];
+      const lx = narrow ? x + 30 : x + w * 0.5, ly0 = narrow ? y + 176 : y + 94, lh = narrow ? 30 : 36;
+      for (let i = 0; i < perks.length; i++) {
+        const [pc, a, b] = perks[i];
+        const ly = ly0 + i * lh;
+        c.save(); c.translate(lx + 7, ly - 4); c.rotate(t * 0.9 + i);
+        neon(c, cc => pathStar(cc, 4, 6.5, 2.2), pc, { lw: 1.2, blur: 8, core: null, inner: false });
+        c.restore();
+        text(c, a, lx + 22, ly, { size: 12.5, weight: 900, color: '#ffffff' });
+        text(c, b, lx + 22, ly + 14, { size: 10.5, weight: 600, color: PAL.dim });
+      }
+      const items = [];
+      if (inf.buy) items.push({ label: 'BUY  ·  ' + (inf.price || 'CHECKOUT'), color: S.col, act: () => this.passBuy(S) });
+      if (PassStore.keys()) items.push({ label: 'I HAVE A PASS KEY', color: S.col2, act: () => { this.passMode = 'key'; this.passMsg = null; Input.text = ''; Input.textMax = 19; Input.textOn = true; this.lockT = 0.25; } });
+      items.push({ label: 'BACK', color: PAL.dim, act: () => { this.passMode = 'main'; this.passMsg = null; this.lockT = 0.2; } });
+      if (!inf.buy && PassStore.keys()) text(c, 'Buying opens soon — pass keys work now.', VW / 2, y + h - 30 - items.length * 34 - 6, { size: 11, weight: 700, align: 'center', color: PAL.dim });
+      if (this.passMsg) tracked(c, this.passMsg.t, VW / 2, y + h - 30 - items.length * 34 - 6, { size: 11.5, weight: 900, align: 'center', color: this.passMsg.col, glow: this.passMsg.col, blur: 8, track: 2 });
+      this.menu(c, items, VW / 2, y + h - 30 - (items.length - 1) * 34, 34, { size: 15, w: Math.min(360, w - 60), id: 'passprem' });
+      return;
+    }
+
+    if (mode === 'key') {
+      Input.textOn = true; Input.textMax = 19;
+      tracked(c, 'TYPE YOUR PASS KEY', VW / 2, y + 112, { size: 11, weight: 800, align: 'center', color: S.col2, track: 2.6 });
+      const fw = Math.min(440, w - 60), fx = VW / 2 - fw / 2, fyy = y + 128;
+      c.save();
+      c.fillStyle = 'rgba(8,10,20,0.92)'; roundRect(c, fx, fyy, fw, 52, 7); c.fill();
+      c.strokeStyle = S.col2; c.globalAlpha = 0.6 + 0.25 * Math.sin(t * 3); c.lineWidth = 1.4; c.shadowColor = S.col2; c.shadowBlur = 10;
+      roundRect(c, fx, fyy, fw, 52, 7); c.stroke();
+      c.restore();
+      const typed = Input.text || '';
+      if (this._passTyped !== undefined && this._passTyped !== typed && !this.passBusy) this.passMsg = null;
+      this._passTyped = typed;
+      const ks = Math.min(21, fw / 17);
+      const kw = tracked(c, typed, 0, 0, { size: ks, weight: 900, track: 2.6, mono: true, measureOnly: true });
+      tracked(c, typed, VW / 2 - kw / 2, fyy + 34, { size: ks, weight: 900, color: '#ffffff', glow: S.col2, blur: 8, track: 2.6, mono: true });
+      if ((t * 2) % 2 < 1) { c.save(); c.fillStyle = S.col2; c.fillRect(VW / 2 + kw / 2 + 3, fyy + 14, 2, 24); c.restore(); }
+      if (!typed) text(c, 'PASS-XXXX-XXXX-XXXX', VW / 2, fyy + 33, { size: ks * 0.8, weight: 700, align: 'center', color: PAL.dim, alpha: 0.5, mono: true });
+      text(c, 'ENTER to unlock  ·  CTRL+V to paste  ·  ESC to go back', VW / 2, fyy + 76, { size: 11, weight: 700, align: 'center', color: PAL.dim });
+      text(c, 'Keys are one use each. One unlocks this season’s premium track for this save.', VW / 2, fyy + 96, { size: 10.5, weight: 600, align: 'center', color: PAL.dim, alpha: 0.75 });
+      if (this.passBusy) {
+        this.orbitGlyph(c, VW / 2, fyy + 140, 13, t * 2.4, S.col2, S.col);
+        text(c, 'checking…', VW / 2, fyy + 174, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+      } else if (this.passMsg) {
+        tracked(c, this.passMsg.t, VW / 2, fyy + 140, { size: 12.5, weight: 900, align: 'center', color: this.passMsg.col, glow: this.passMsg.col, blur: 10, track: 2.2 });
+      }
+      {
+        const bw3 = 180, bx3 = VW / 2 - bw3 / 2, by3 = y + h - 46;
+        const ob = Input.mx > bx3 && Input.mx < bx3 + bw3 && Input.my > by3 && Input.my < by3 + 30;
+        c.save(); c.strokeStyle = ob ? S.col2 : 'rgba(120,128,160,0.5)'; c.globalAlpha = ob ? 0.9 : 0.5; c.lineWidth = 1;
+        roundRect(c, bx3, by3, bw3, 30, 4); c.stroke(); c.restore();
+        tracked(c, 'BACK  \u00b7  ESC', VW / 2, by3 + 20, { size: 12.5, weight: 800, align: 'center', color: ob ? S.col2 : PAL.dim, track: 3 });
+        if (ob && Input.mclick && this.lockT <= 0 && !this.passBusy) { this.passBack(); return; }
+      }
+      if (this.lockT > 0 || this.passBusy) return;
+      if ((Input.keys['Control'] || Input.keys['Meta']) && Input.hit('v')) {
+        Cloud.call('paste', {}).then(r => { if (r && r.ok && r.text) Input.text = String(r.text).toUpperCase().slice(0, 19); });
+        return;
+      }
+      if (Input.hit('Enter')) {
+        const raw = typed.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^PASS/, '');
+        if (raw.length !== 12) { this.passMsg = { t: 'THAT DOESN’T LOOK LIKE A PASS KEY', col: PAL.hp, at: t }; Sound.ui(false); return; }
+        this.passBusy = true; this.passMsg = null;
+        PassStore.redeem(S, typed).then(r => {
+          this.passBusy = false;
+          if (r && r.ok) { this.passUnlocked(S); return; }
+          const e = r && r.error;
+          const M = {
+            unknown: 'NO KEY LIKE THAT — CHECK EVERY LETTER', key: 'THAT DOESN’T LOOK LIKE A PASS KEY',
+            used: 'THAT KEY HAS ALREADY BEEN USED', owned: 'YOU ALREADY HAVE PREMIUM THIS SEASON',
+            season: 'THAT KEY IS FOR SEASON ' + String((r && r.season) || '').replace('s', ''), slow: 'TOO MANY TRIES — WAIT A LITTLE',
+            offline: 'OFFLINE — TRY AGAIN WHEN YOU’RE CONNECTED'
+          };
+          this.passMsg = { t: M[e] || 'SOMETHING WENT WRONG — TRY AGAIN', col: PAL.hp, at: t };
+          Sound.ui(false);
+        });
+      }
+      return;
+    }
+
+    // mode === 'wait': the checkout is open in the browser
+    // polled by the wall clock, not by frames: a struggling machine still hears back
+    const now = Date.now();
+    const W8 = this.passWait || (this.passWait = { at: now, next: now + 3000, n: 0 });
+    this.orbitGlyph(c, VW / 2, y + 150, 22, t * 1.6, S.col, S.col3);
+    tracked(c, 'FINISH PAYING IN YOUR BROWSER', VW / 2, y + 204, { size: 14, weight: 900, align: 'center', color: '#ffffff', glow: S.col, blur: 12, track: 2.6 });
+    text(c, 'Premium unlocks here by itself the moment the payment goes through.', VW / 2, y + 228, { size: 11.5, weight: 600, align: 'center', color: PAL.dim });
+    text(c, 'Closed the page by mistake? Choose BUY again — you’ll only ever be charged once.', VW / 2, y + 246, { size: 10.5, weight: 600, align: 'center', color: PAL.dim, alpha: 0.75 });
+    if (this.passMsg) tracked(c, this.passMsg.t, VW / 2, y + 276, { size: 11.5, weight: 900, align: 'center', color: this.passMsg.col, track: 2 });
+    if (now >= W8.next && !W8.busy && now - W8.at < 20 * 60000) {
+      W8.busy = true; W8.n++;
+      PassStore.refresh(S).then(inf2 => {
+        W8.busy = false; W8.next = Date.now() + (W8.n < 30 ? 4000 : 10000);
+        if (inf2 && inf2.owned) this.passUnlocked(S);
+      });
+    }
+    this.menu(c, [
+      { label: 'CHECK NOW', color: S.col, act: () => { W8.next = 0; this.passMsg = { t: 'CHECKING…', col: PAL.dim, at: t }; } },
+      { label: 'BACK', color: PAL.dim, act: () => { this.passMode = 'premium'; this.passWait = null; this.passMsg = null; this.lockT = 0.2; } }
+    ], VW / 2, y + h - 64, 36, { size: 15, w: Math.min(340, w - 60), id: 'passwait' });
+  },
+  passBuy(S) {
+    if (this.passBusy) return;
+    this.passBusy = true;
+    this.passMsg = { t: 'OPENING THE CHECKOUT…', col: PAL.dim, at: G.uiT };
+    PassStore.buy(S).then(r => {
+      this.passBusy = false;
+      if (r && r.ok && r.done) { this.passUnlocked(S); return; }
+      if (r && r.ok) { this.passMode = 'wait'; this.passWait = null; this.passMsg = null; this.lockT = 0.3; return; }
+      const e = r && r.error;
+      this.passMsg = { t: e === 'owned' ? 'YOU ALREADY HAVE PREMIUM' : e === 'off' ? 'BUYING ISN’T OPEN YET — USE A PASS KEY'
+        : e === 'offline' ? 'OFFLINE — TRY AGAIN WHEN YOU’RE CONNECTED' : e === 'cancel' ? 'CANCELLED' : 'COULDN’T OPEN THE CHECKOUT', col: PAL.hp, at: G.uiT };
+      if (e === 'owned') PassStore.refresh(S);
+    });
+  },
+  passUnlocked(S) {
+    Pass.setPrem(S, true);
+    Input.textOn = false; Input.text = ''; Input.textMax = 20;
+    this.passMode = 'main'; this.passWait = null; this.passMsg = null; this.lockT = 0.4;
+    this.passBanner = { t: 'PREMIUM UNLOCKED', col: S.col, at: G.uiT };
+    this.passSel.lane = 'p';
+    Flash.hit(S.col, 0.35);
+    Sound.fanfare(true);
+    this.passBurst(VW / 2, VH / 2, S.col, 60, 0);
+  },
+
+  /* ------------------------------------------------------ a new cosmetic */
+  passRevealDraw(c, S) {
+    const R = this.passReveal;
+    if (!R) { this.passMode = 'main'; return; }
+    const g = R.got, t = G.uiT, u = Math.min(1, (t - R.at) / 0.5);
+    this.dim(c, 0.7 * u);
+    const w = Math.min(460, VW - 30), h = Math.min(400, VH - 30);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2 + (1 - easeOut(u)) * 30;
+    c.save(); c.globalAlpha = u;
+    c.fillStyle = '#05060f'; roundRect(c, x, y, w, h, 16); c.fill();
+    this.panel(c, x, y, w, h, 'rgba(255,122,230,0.5)');
+    c.restore();
+    const isSkin = g.k === 'skin';
+    const thing = isSkin ? SKIN_BY_ID[g.id] : PET_BY_ID[g.id];
+    if (!thing) { this.passNextReveal(); return; }
+    // rays behind it
+    const cx = VW / 2, cy = y + h * 0.36;
+    c.save(); c.globalCompositeOperation = 'lighter'; c.translate(cx, cy); c.rotate(t * 0.2);
+    for (let i = 0; i < 12; i++) {
+      c.rotate(TAU / 12);
+      const gr = c.createLinearGradient(0, 0, 0, -h * 0.34);
+      gr.addColorStop(0, i % 2 ? S.col3 : S.col); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = gr; c.globalAlpha = 0.14 * u;
+      c.beginPath(); c.moveTo(-5, 0); c.lineTo(-18, -h * 0.34); c.lineTo(18, -h * 0.34); c.lineTo(5, 0); c.fill();
+    }
+    c.restore();
+    tracked(c, isSkin ? 'NEW SKIN' : 'NEW PET', cx, y + 34, { size: 12, weight: 900, align: 'center', color: S.col3, track: 4, alpha: u });
+    if (isSkin) {
+      if (thing.trail) {
+        const head = this.passRibbon(c, thing.trail, cx, cy, w * 0.2, h * 0.08, t, 11);
+        this.passSkin(c, thing, head[0], head[1], 26, t * 1.3, t, u);
+      } else this.passSkin(c, thing, cx, cy, 30, t * 1.3, t, u);
+    } else this.passPet(c, thing, cx, cy, 2.4, t);
+    tracked(c, thing.name, cx, y + h * 0.66, { size: Math.min(28, w * 0.07), weight: 900, align: 'center', color: '#ffffff', glow: thing.col, blur: 18, track: 6, alpha: u });
+    text(c, thing.blurb || '', cx, y + h * 0.66 + 24, { size: 11.5, weight: 600, align: 'center', color: PAL.text, alpha: 0.8 * u });
+    if (this.lockT > 0) return;
+    const items = [
+      { label: 'EQUIP', color: S.col, act: () => {
+        if (isSkin) Save.data.skin = thing.id; else Save.data.pet = thing.id;
+        Save.save(); this.passNextReveal();
+      } },
+      { label: 'KEEP GOING', color: PAL.dim, act: () => this.passNextReveal() }
+    ];
+    this.menu(c, items, cx, y + h - 64, 34, { size: 15, w: Math.min(300, w - 60), id: 'passrv' });
+  },
+
+  /* the title's pass card, bottom left: tier, bar, and what's waiting */
+  passCard(c) {
+    const S = Pass.season();
+    if (!S || VW < 900 || VH < 560) return;
+    const t = G.uiT, pr = Pass.progress(S), pend = Pass.pending(S), live = Pass.live(S);
+    const w = 236, h = 62, x = 20, y = VH - h - 20;
+    const hov = Input.mx > x && Input.mx < x + w && Input.my > y && Input.my < y + h;
+    c.save();
+    c.fillStyle = 'rgba(10,9,24,0.88)';
+    roundRect(c, x, y, w, h, 12); c.fill();
+    c.strokeStyle = pend ? S.col : 'rgba(255,209,102,0.35)'; c.lineWidth = hov || pend ? 1.6 : 1;
+    if (pend || hov) { c.shadowColor = S.col; c.shadowBlur = 12 + 6 * Math.sin(t * 4); }
+    c.stroke();
+    c.restore();
+    this.passSigil(c, x + 31, y + h / 2, 17, S, t);
+    tracked(c, 'BLOOM PASS', x + 58, y + 22, { size: 11.5, weight: 900, color: S.col, track: 2.2 });
+    text(c, live ? 'TIER ' + pr.tier + (pr.max ? '  \u00b7  MAX' : '') : 'SEASON ' + S.n + ' OVER', x + 58, y + 37, { size: 10, weight: 800, color: PAL.text });
+    const bx = x + 58, bw = w - 72, by = y + 45;
+    c.save();
+    c.fillStyle = 'rgba(255,255,255,0.08)'; roundRect(c, bx, by, bw, 5, 2.5); c.fill();
+    const g = c.createLinearGradient(bx, 0, bx + bw, 0);
+    g.addColorStop(0, S.col2); g.addColorStop(1, S.col);
+    c.fillStyle = g; roundRect(c, bx, by, Math.max(5, bw * clamp(pr.frac, 0, 1)), 5, 2.5); c.fill();
+    c.restore();
+    if (pend) {
+      const bxx = x + w - 20, byy = y + 18;
+      c.save();
+      c.fillStyle = S.col3; c.shadowColor = S.col3; c.shadowBlur = 10 + 5 * Math.sin(t * 5);
+      c.beginPath(); c.arc(bxx, byy, 10, 0, TAU); c.fill();
+      c.restore();
+      text(c, String(Math.min(99, pend)), bxx, byy + 4, { size: 11, weight: 900, align: 'center', color: '#1a0618' });
+    } else if (live) {
+      text(c, Pass.quests().list.filter(q => !q.done).length + ' QUESTS', x + w - 12, y + 22, { size: 9, weight: 800, align: 'right', color: PAL.dim });
+    }
+    if (hov && Input.mclick && this.lockT <= 0) { Sound.ui(true); this.openPass('title'); }
+  },
+
   paused(c) {
     this.begin('paused');
     this.dim(c, 0.66);
@@ -17320,7 +19013,8 @@ const UI = {
     text(c, sub2, VW / 2, VH * 0.22 + 28, { size: 13, weight: 600, align: 'center', color: PAL.dim });
     tracked(c, DD.name + ' \u00b7 ' + DD.tag, VW / 2, VH * 0.22 + 48, { size: 11, weight: 900, align: 'center', color: DD.color, alpha: 0.8, track: 4 });
 
-    const w = Math.min(470, VW - 60), h = (G.endless ? 238 : 196) + 42;
+    const PL0 = Pass.last && Pass.last.season;
+    const w = Math.min(470, VW - 60), h = (G.endless ? 238 : 196) + 42 + (PL0 ? 42 : 0);
     const x = VW / 2 - w / 2, y = VH * 0.31;
     this.panel(c, x, y, w, h, win ? 'rgba(255,209,102,0.32)' : 'rgba(255,84,112,0.28)');
     const sc = Math.round(G.score);
@@ -17333,6 +19027,7 @@ const UI = {
     ];
     if (G.endless) rows.push(['TIDE REACHED', '\u00d7' + G.tide]);
     rows.push(['SHARDS EARNED', '+' + fmtNum(G.lastEarned || 0) + (G.lastMul > 1 ? '   \u00d7' + (Math.round(G.lastMul * 100) / 100) + ' EVENT' : '')]);
+    if (PL0) rows.push(['BLOOM PASS', '+' + fmtNum(Pass.last.xp) + ' XP  \u00b7  TIER ' + Pass.last.to + (Pass.last.to > Pass.last.from ? '  \u25b2' : '')]);
     let ry = y + 40;
     for (const [k, v] of rows) {
       text(c, k, x + 34, ry, { size: 13, weight: 700, color: PAL.dim });
@@ -17353,13 +19048,16 @@ const UI = {
       act: () => CG.midgameAd(() => { if (again) Descent.start(again, G.diff); else G.reset(G.diff); }) });
     if (G.D.daily) items.push({ label: 'DAILY STANDINGS', color: '#ffb347', act: () => { G.state = 'daily'; UI.lastState = ''; } });
     else items.push({ label: 'CHANGE DIFFICULTY', color: '#c9a3ff', act: () => { G.state = 'select'; UI.lastState = ''; } });
+    { const pn = Pass.pending(); if (pn) items.push({ label: 'BLOOM PASS  \u2022 ' + pn + ' TO CLAIM', color: '#ffd166', act: () => UI.openPass(G.state) }); }
     items.push({ label: 'SKINS', color: PAL.gold, act: () => { G.state = 'skins'; UI.lastState = ''; } });
     if (Cloud.on()) {
       const re = this._rankE, me = re && re.data && this._rankB && re.data.board === this._rankB.b ? re.data.me : null;
       if (me && !me.name && !me.hidden) items.push({ label: 'CLAIM YOUR SPOT', color: '#ffd166', act: () => this.openName('end') });
     }
     items.push({ label: 'MAIN MENU', color: PAL.dim, act: () => { G.state = 'title'; UI.lastState = ''; } });
-    this.menu(c, items, VW / 2, VH * 0.31 + h + 30, 36, { size: 17, w: 340, id: win ? 'win' : 'dead' });
+    // six or seven rows under a tall panel: tighten up rather than run off the bottom
+    const eTop = VH * 0.31 + h + 30, eGap = clamp((VH - 20 - eTop) / Math.max(1, items.length - 1), 24, 36);
+    this.menu(c, items, VW / 2, eTop, eGap, { size: Math.min(17, eGap * 0.48), w: 340, id: win ? 'win' : 'dead' });
   }
 };
 
@@ -17749,6 +19447,10 @@ function frame(now) {
   }
   if (st !== 'codes' && st !== 'mp' && Input.textOn && !UI.typing()) { Input.textOn = false; Input.text = ''; Input.textMax = 20; }
   if (UI.nameEntry && st !== UI.nameEntry.st) UI.nameEntry = null;
+  if (st === 'pass') {
+    if (Input.hit('Escape') || Input.gpPressed[1]) UI.passBack();
+    else if (Input.hit('Backspace') && !UI.passTyping()) UI.passBack();
+  }
   if ((st === 'boards' || st === 'cloud') && !UI.typing() && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) {
     if (st === 'boards') UI.leaveBoards(); else UI.cloudBack();
   }
@@ -17810,7 +19512,7 @@ function frame(now) {
 
   if (st === 'settings' && UI.settingsFrom === 'paused') {
     UI.world(c); UI.hud(c); UI.settings(c);
-  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud') {
+  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass') {
     Cosmos.req = null;
     const cosOn = Cosmos.show(st === 'conquest' || st === 'planet' || st === 'modes');
     if (cosOn) c.clearRect(0, 0, VW, VH);
@@ -17832,6 +19534,7 @@ function frame(now) {
     else if (st === 'mp') { UI.mp(c); }
     else if (st === 'lobby') { UI.lobby(c); }
     else if (st === 'boards') { UI.boards(c); }
+    else if (st === 'pass') { UI.pass(c); }
     else if (st === 'cloud') { UI.title(c, true); UI.cloud(c); }
     else { UI.title(c, true); UI.records(c); }
     if (UI.menuFade > 0) {
@@ -18891,7 +20594,10 @@ const Coop = {
     if (win) Ach.grant('vaultbreaker');
     Ach.grant('firstlight');
     Save.save();
-    this.result = { win: win, depth: depth, cleared: cleared, time: time, earned: earned, table: table || this.statsTable(), level: G.level };
+    Pass.base = null;
+    const pxP = Pass.runDone({ coop: true, secs: time, kills: this.stats.kills, bosses: cleared, dashes: 0, win: win, diff: 'coop',
+      planet: false, daily: false, endless: false, tide: 0, evolved: 0, level: G.level });
+    this.result = { win: win, depth: depth, cleared: cleared, time: time, earned: earned, table: table || this.statsTable(), level: G.level, passXp: pxP ? pxP.xp : 0 };
     Sound.stopMusic(!win);
     Sound.fanfare(win);
     if (win) { Flash.hit('#fff', 0.8); Cam.shake(1); }
@@ -21964,6 +23670,7 @@ Object.assign(Coop, {
     let key = 'player_body_' + sk.id;
     if (sk.rainbow) key += '_' + (Math.floor(t * 40) % 360 / 12 | 0);
     if (sk.oil) key += '_o' + (Math.floor(t * 6) % 48);
+    if (sk.anim) key += '_a' + (Math.floor(t * 10) % 40);
     return sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, t));
   },
   drawAllies(c) {
@@ -22270,6 +23977,7 @@ Object.assign(Coop, {
     c.save(); c.globalAlpha = 0.14; c.strokeStyle = '#fff'; c.lineWidth = 1;
     c.beginPath(); c.moveTo(x + 30, ry - 14); c.lineTo(x + w - 30, ry - 14); c.stroke(); c.restore();
     const facts = [['TIME', fmtTime(R.time)], ['TEAM LEVEL', String(R.level)], ['DEPTHS CLEARED', R.cleared + ' / 3'], ['SHARDS EARNED', '+' + fmtNum(R.earned)]];
+    if (R.passXp) facts.push(['PASS XP', '+' + fmtNum(R.passXp)]);
     const fw = (w - 40) / facts.length;
     for (let i = 0; i < facts.length; i++) {
       text(c, facts[i][0], x + 20 + fw * i + fw / 2, ry + 14, { size: 10, weight: 800, align: 'center', color: PAL.dim });
@@ -22398,11 +24106,12 @@ function boot() {
       SKINS: SKINS, ACHS: ACHS, Ach: Ach, DIFFS: DIFFS, paintSkin: paintSkin, CG: CG,
       Settings: Settings, MID_BOSSES: MID_BOSSES, DAILY_BOSSES: DAILY_BOSSES,
       shardsFor: shardsFor, dailySeed: dailySeed, dailyKey: dailyKey,
-      NET: NET, Coop: Coop, MEGA: MEGA, Cloud: Cloud
+      NET: NET, Coop: Coop, MEGA: MEGA, Cloud: Cloud, Pass: Pass, PassStore: PassStore, PASS_SEASONS: PASS_SEASONS
     };
   } catch (e) { }
   CG.init();
   Cloud.init();
+  Pass.boot();
   warmSprites();
   const bootEl = document.getElementById('boot');
   if (bootEl) bootEl.className = 'gone';
