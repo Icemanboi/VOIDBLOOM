@@ -59,7 +59,50 @@ if (-not (Test-Path (Join-Path $root '.github\workflows\release.yml'))) {
     Stop-Here "The build script isn't in place." "Step 1 of SETUP.md moves release-workflow.yml into .github\workflows\."
 }
 
+# ---------------------------------------------------------------- 0. catch up with GitHub
+# Anything that reached GitHub from somewhere else - an edit made on
+# github.com, another computer - has to come down first, or the push at the
+# end is refused ("rejected ... fetch first"). Your own commits that never
+# got up are replayed on top of it, so nothing of yours is lost.
+Say "0. catching up with GitHub" 'Cyan'
+
+$branch = (& git rev-parse --abbrev-ref HEAD | Out-String).Trim()
+if ($branch -eq 'HEAD' -or [string]::IsNullOrWhiteSpace($branch)) {
+    Stop-Here "Git isn't on a branch right now." "Run: git checkout main - then run this again."
+}
+if ((Test-Path (Join-Path $root '.git\rebase-merge')) -or (Test-Path (Join-Path $root '.git\rebase-apply'))) {
+    Stop-Here "A catch-up from last time never finished." "Run: git rebase --abort - then run this again."
+}
+
+& git fetch -q origin
+if ($LASTEXITCODE -ne 0) {
+    Stop-Here "Couldn't reach GitHub." "Check the internet connection, then run this again."
+}
+
+& git rev-parse -q --verify "refs/remotes/origin/$branch" | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    $behind = [int]((& git rev-list --count "HEAD..origin/$branch" | Out-String).Trim())
+    $ahead  = [int]((& git rev-list --count "origin/$branch..HEAD" | Out-String).Trim())
+    if ($behind -gt 0) {
+        Info "GitHub has $behind change(s) this computer doesn't - bringing them in"
+        & git pull --rebase --autostash origin $branch
+        if ($LASTEXITCODE -ne 0) {
+            & git rebase --abort
+            Stop-Here "Your changes and the ones on GitHub edit the same lines." "Nothing was lost and nothing was sent. Ask Claude to merge them, then run this again."
+        }
+        Ok "caught up with GitHub"
+    } else {
+        Ok "already up to date with GitHub"
+    }
+    if ($ahead -gt 0) {
+        Info "$ahead earlier update(s) never reached GitHub - they go up with this one"
+    }
+} else {
+    Info "GitHub has no $branch branch yet - this will be the first push"
+}
+
 # ---------------------------------------------------------------- 1. the game file
+Write-Host ""
 Say "1. the game file" 'Cyan'
 
 $dest = Join-Path $root 'game\VOIDBLOOM.html'
@@ -208,9 +251,21 @@ if ($nothingStaged) {
 } else {
     Git-Do @('commit', '-m', $msg) "Set your name and email: git config --global user.name ""Isaac"" and user.email ""you@example.com"""
     Ok "committed"
-    Git-Do @('push') "If this is the first push, run: git push -u origin main"
-    Ok "pushed"
 }
+
+# Push whatever GitHub hasn't got (this commit, and any earlier one whose push
+# failed). If GitHub moved while this was running, catch up once and retry.
+& git push -u origin $branch
+if ($LASTEXITCODE -ne 0) {
+    Info "GitHub changed while this was running - catching up and trying again"
+    & git pull --rebase origin $branch
+    if ($LASTEXITCODE -ne 0) {
+        & git rebase --abort
+        Stop-Here "Your changes and the ones on GitHub edit the same lines." "Your commit is saved on this computer. Ask Claude to merge them, then run this again."
+    }
+    Git-Do @('push', '-u', 'origin', $branch) "Check the internet connection, then run this again."
+}
+Ok "pushed"
 
 Git-Do @('tag', "v$newVer") $null
 Git-Do @('push', 'origin', "v$newVer") $null
