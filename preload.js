@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('vbStats', {
 });
 
 const OPS = { status: 1, backup: 1, newcode: 1, lookup: 1, adopt: 1, board: 1, name: 1, hide: 1, live: 1, copy: 1,
-              pass: 1, passkey: 1, passbuy: 1, paste: 1 };
+              pass: 1, passkey: 1, passbuy: 1, paste: 1, vbux: 1, vbuxbuy: 1, vbuxack: 1 };
 let online = false;
 try { online = ipcRenderer.sendSync('vb-cloud-ready') === true; } catch (e) { }
 if (online) {

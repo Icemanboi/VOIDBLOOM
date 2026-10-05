@@ -13,6 +13,10 @@
  *                 server (format, rude words, taken).
  *    LIVE         News and events (double shards...) posted from the
  *                 dashboard, shown on the title screen.
+ *    VOIDBUX      Voidbux packs bought with Stripe: a checkout opens in the
+ *                 player's browser; paid orders the game has not credited
+ *                 yet come back from 'vbux', and 'vbuxack' marks them done
+ *                 (STATS/vbux.sql). Dormant until a pack has a payment link.
  *    BLOOM PASS   Whether this player owns a season's premium track, pass
  *                 keys, and the Stripe checkout. The page asks; the server
  *                 decides (STATS/pass.sql). A checkout opens in the player's
@@ -40,6 +44,10 @@ const SEASON_RE = /^s[1-9][0-9]?$/;
 const PASS_KEY_RE = /^(PASS-?)?[2-9A-HJ-NP-Z]{4}-?[2-9A-HJ-NP-Z]{4}-?[2-9A-HJ-NP-Z]{4}$/;
 // the only address the BUY button may ever open: a Stripe payment link with our reference on it
 const PAY_URL_RE = /^https:\/\/(buy|checkout)\.stripe\.com\/[A-Za-z0-9_\/-]{4,200}\?(?:[A-Za-z0-9_=%.-]+&)*client_reference_id=vbp_[0-9a-f]{24}$/;
+// ... and the voidbux packs' links, with a voidbux order ref
+const VBX_URL_RE = /^https:\/\/(buy|checkout)\.stripe\.com\/[A-Za-z0-9_\/-]{4,200}\?(?:[A-Za-z0-9_=%.-]+&)*client_reference_id=vbx_[0-9a-f]{24}$/;
+const VBX_PACK_RE = /^vbux_[0-9]{2,5}$/;
+const VBX_REF_RE = /^vbx_[0-9a-f]{24}$/;
 
 let state = { code: null, savedAt: null, hash: null };
 let me = { name: null, hidden: false, banned: false, at: 0 };
@@ -265,6 +273,35 @@ async function handle(op, a) {
       try { await shell.openExternal(d.url); } catch (e) { return { ok: false, error: 'browser' }; }
       return { ok: true };
     }
+    /* ---------------------------------------------------- VOIDBUX */
+    case 'vbux': {                 // which packs can be bought, and paid orders not yet credited
+      const r = await stats.call('vb_vbux_status', { install_id: stats.identity().install_id }, 8000);
+      if (!r.ok) return { ok: false, error: r.error };
+      const d = r.data || {};
+      if (!d.ok) return { ok: false, error: String(d.error || 'server').slice(0, 16) };
+      const packs = (Array.isArray(d.packs) ? d.packs : []).filter(x => x && VBX_PACK_RE.test(String(x.id || '')))
+        .slice(0, 8).map(x => ({ id: String(x.id), price: typeof x.price === 'string' ? x.price.slice(0, 24) : null }));
+      const credit = (Array.isArray(d.credit) ? d.credit : []).filter(x => x && VBX_REF_RE.test(String(x.ref || '')) && Number.isInteger(x.n) && x.n > 0 && x.n <= 5000)
+        .slice(0, 20).map(x => ({ ref: String(x.ref), n: x.n }));
+      return { ok: true, buy: !!d.buy && packs.length > 0, packs: packs, credit: credit };
+    }
+    case 'vbuxbuy': {              // open a pack's Stripe checkout in the player's own browser
+      const pack = String(a.pack || '');
+      if (!VBX_PACK_RE.test(pack)) return { ok: false, error: 'pack' };
+      const r = await stats.call('vb_vbux_checkout', { install_id: stats.identity().install_id, pack: pack }, 8000);
+      if (!r.ok) return { ok: false, error: r.error };
+      const d = r.data || {};
+      if (!d.ok) return { ok: false, error: String(d.error || 'server').slice(0, 16) };
+      if (!VBX_URL_RE.test(String(d.url || ''))) return { ok: false, error: 'url' };
+      try { await shell.openExternal(d.url); } catch (e) { return { ok: false, error: 'browser' }; }
+      return { ok: true };
+    }
+    case 'vbuxack': {              // the game has credited these orders: never again
+      const refs = (Array.isArray(a.refs) ? a.refs : []).map(String).filter(x => VBX_REF_RE.test(x)).slice(0, 20);
+      if (!refs.length) return { ok: false, error: 'refs' };
+      const r = await stats.call('vb_vbux_ack', { install_id: stats.identity().install_id, refs: refs }, 8000);
+      return r.ok ? (r.data || { ok: false }) : { ok: false, error: r.error };
+    }
     case 'paste': {                // the key box: only a pass key ever comes back out of the clipboard
       const t = String(clipboard.readText() || '').toUpperCase().replace(/\s+/g, '');
       if (!PASS_KEY_RE.test(t)) return { ok: false };
@@ -298,4 +335,4 @@ function start() {
   setInterval(() => { refreshLive(true).catch(() => { }); }, LIVE_EVERY_MS);
 }
 
-module.exports = { start, _test: { cleanSnap, cleanLive, CODE_RE, PASS_KEY_RE, PAY_URL_RE, handle } };
+module.exports = { start, _test: { cleanSnap, cleanLive, CODE_RE, PASS_KEY_RE, PAY_URL_RE, VBX_URL_RE, handle } };

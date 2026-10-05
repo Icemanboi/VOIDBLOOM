@@ -59,6 +59,27 @@ if (-not (Test-Path (Join-Path $root '.github\workflows\release.yml'))) {
     Stop-Here "The build script isn't in place." "Step 1 of SETUP.md moves release-workflow.yml into .github\workflows\."
 }
 
+# ---------------------------------------------------------------- clear a crashed git's lock
+# When git is killed mid-write (window closed, PC slept, antivirus grabbed the
+# file) it leaves .git\index.lock behind, and from then on EVERY git add,
+# commit or pull refuses to run: "Unable to create index.lock: File exists".
+# If no git is actually running, the lock is dead - clear it so this script
+# does not trip over it.
+foreach ($lockName in @('index.lock', 'HEAD.lock', 'ORIG_HEAD.lock', 'packed-refs.lock')) {
+    $lockPath = Join-Path $root (".git\" + $lockName)
+    if (Test-Path $lockPath) {
+        if (Get-Process -Name git -ErrorAction SilentlyContinue) {
+            Stop-Here "Another git is still running, so .git\$lockName is in use." "Close any other git, GitHub Desktop or VS Code window on this folder, then run this again."
+        }
+        try {
+            Remove-Item -LiteralPath $lockPath -Force
+            Ok "cleared a stale git lock ($lockName)"
+        } catch {
+            Stop-Here "Couldn't remove .git\$lockName." "Delete that file by hand (turn on hidden files in Explorer), then run this again."
+        }
+    }
+}
+
 # ---------------------------------------------------------------- 0. catch up with GitHub
 # Anything that reached GitHub from somewhere else - an edit made on
 # github.com, another computer - has to come down first, or the push at the
