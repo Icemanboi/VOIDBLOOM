@@ -168,6 +168,14 @@ function refreshLive(force) {
 function cleanLive(d) {
   const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : null;
   const out = { now: str(d.now, 40), news: null, events: [], next: null };
+  // game events switched on from the dashboard: the page gets a short list of plain values
+  if (Array.isArray(d.content)) {
+    out.content = [];
+    for (const c of d.content.slice(0, 8)) {
+      if (!c || typeof c.ref !== 'string' || !/^[a-z0-9_]{3,24}$/.test(c.ref)) continue;
+      out.content.push({ ref: c.ref, title: str(c.title, 40), starts_at: str(c.starts_at, 40), ends_at: str(c.ends_at, 40) });
+    }
+  }
   if (d.news && typeof d.news === 'object') {
     out.news = { id: +d.news.id || 0, title: str(d.news.title, 60), body: str(d.news.body, 180),
                  color: /^#[0-9a-fA-F]{6}$/.test(d.news.color || '') ? d.news.color : null };
