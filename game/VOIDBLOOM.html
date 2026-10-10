@@ -8803,68 +8803,93 @@ function paintSkin(c, sk, R, t) {
       break;
     }
     case 'gourdlight': {
-      // a lantern with wings: a carved gourd, leaf wings that beat, a face lit from inside
+      // a lantern with wings: a ribbed gourd lit from inside, leaf wings with veins that beat, a carved face that flickers
       const ph = ((t || 0) % 4) / 4 * TAU, br = 1 + 0.035 * Math.sin(ph * 2);
-      hglow(c, col, 0, R * 0.06, R * 1.45, 0.16 + 0.05 * Math.sin(ph * 3));
+      hglow(c, col, 0, R * 0.06, R * 1.5, 0.16 + 0.05 * Math.sin(ph * 3));
       for (const sx of [-1, 1]) {
-        const fl = Math.sin(ph * 2 + (sx > 0 ? 0 : 1.2)) * R * 0.08;
+        const fl = Math.sin(ph * 2 + (sx > 0 ? 0 : 1.2)) * R * 0.1;
         neon(c, x => {
           x.beginPath(); x.moveTo(sx * R * 0.5, R * 0.16);
-          x.quadraticCurveTo(sx * R * 1.18, -R * 0.1 + fl, sx * R * 1.08, R * 0.6);
+          x.quadraticCurveTo(sx * R * 1.2, -R * 0.14 + fl, sx * R * 1.1, R * 0.62);
           x.quadraticCurveTo(sx * R * 0.72, R * 0.55, sx * R * 0.45, R * 0.4); x.closePath();
         }, sk.ring, { lw: 2, blur: 13, core: 'rgba(6,26,8,0.92)' });
+        neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.5, R * 0.24); x.quadraticCurveTo(sx * R * 0.86, R * 0.12 + fl * 0.6, sx * R * 1.06, R * 0.4);
+          for (const k of [0.62, 0.8]) { x.moveTo(sx * R * k, R * (0.2 + (k - 0.5) * 0.2)); x.lineTo(sx * R * (k + 0.12), R * (0.4 + (k - 0.5) * 0.5)); } }, col, { lw: 1, blur: 4, core: null, inner: false });
       }
-      neon(c, x => { x.beginPath(); x.ellipse(0, R * 0.08, R * 0.74 * br, R * 0.8 * br, 0, 0, TAU); }, col, { lw: 3, blur: 22, core: 'rgba(26,8,2,0.94)' });
-      c.save(); c.globalAlpha = 0.5;
-      for (const k of [0.34, 0.68]) neon(c, x => { x.beginPath(); x.ellipse(0, R * 0.08, R * 0.74 * k, R * 0.79 * br, 0, 0, TAU); }, col, { lw: 1.2, blur: 6, core: null, inner: false });
+      c.save(); c.translate(0, R * 0.12); c.scale(1, 1.1);
+      hwGourd(c, R * 0.72 * br, false, col, 3);
       c.restore();
-      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.06, -R * 0.66); x.quadraticCurveTo(0, -R * 0.96, R * 0.2, -R * 1.04); x.lineTo(R * 0.28, -R * 0.94); x.quadraticCurveTo(R * 0.12, -R * 0.84, R * 0.1, -R * 0.66); x.closePath(); },
-        sk.ring, { lw: 2, blur: 12, core: 'rgba(6,26,8,0.92)' });
-      c.save(); c.globalAlpha = 0.72 + 0.28 * Math.sin(ph * 3);
-      for (const sx of [-1, 1]) neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.3, R * 0.0); x.lineTo(sx * R * 0.1, R * 0.22); x.lineTo(sx * R * 0.46, R * 0.22); x.closePath(); }, sk.ring, { lw: 1.4, blur: 10, core: 'rgba(235,255,225,0.9)', inner: false });
-      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.4, R * 0.42); for (let i = 0; i <= 6; i++) x.lineTo(-R * 0.4 + i * R * 0.133, R * (0.42 + (i % 2 ? 0.2 : 0.07))); }, sk.ring, { lw: 1.5, blur: 10, core: null, inner: false });
+      c.save(); c.globalAlpha = 0.72 + 0.28 * Math.sin(ph * 3); c.translate(0, R * 0.14);
+      hwCarveLite(c, R * 0.62 * br, sk.ring, false);
       c.restore();
       break;
     }
     case 'witchfire': {
-      // a witch's hat with its fire still burning: a turning ring, a bright band, a green flame, three wisps
+      // a witch's hat with its fire still burning: a turning ring of sparks, a shaded cone, a bright band and buckle, a green flame, three wisps
       const ph = ((t || 0) % 4) / 4 * TAU;
-      c.save(); c.rotate(-ph); neon(c, x => pathPoly(x, 9, R * 1.12, 0), sk.ring, { lw: 1.3, blur: 9, core: null, inner: false }); c.restore();
-      neon(c, x => { x.beginPath(); x.moveTo(-R * 1.0, R * 0.52); x.quadraticCurveTo(0, R * 0.2, R * 1.0, R * 0.52); x.quadraticCurveTo(0, R * 0.84, -R * 1.0, R * 0.52); x.closePath(); }, col, { lw: 2.4, blur: 16, core: 'rgba(14,6,26,0.95)' });
-      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.44, R * 0.48); x.quadraticCurveTo(-R * 0.4, -R * 0.3, -R * 0.06, -R * 0.4); x.quadraticCurveTo(R * 0.14, -R * 0.86, R * 0.34, -R * 1.0); x.quadraticCurveTo(R * 0.34, -R * 0.6, R * 0.44, R * 0.48); x.closePath(); }, col, { lw: 3, blur: 22, core: 'rgba(14,6,26,0.95)' });
-      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.42, R * 0.28); x.lineTo(R * 0.43, R * 0.28); }, '#ff4fd8', { lw: 3, blur: 12, core: null });
-      neon(c, x => { x.beginPath(); x.rect(-R * 0.1, R * 0.2, R * 0.2, R * 0.16); }, '#ffd166', { lw: 1.6, blur: 8, core: null, inner: false });
-      c.save(); c.translate(0, -R * 0.18 + Math.sin(ph * 2) * R * 0.03);
-      neon(c, x => { const s = R * 0.22, sw = Math.sin(ph * 3) * s * 0.2; x.beginPath(); x.moveTo(0, s); x.bezierCurveTo(-s * 0.9, s * 0.35, -s * 0.5 + sw, -s * 0.4, sw * 1.6, -s * 1.25); x.bezierCurveTo(s * 0.5 + sw, -s * 0.4, s * 0.9, s * 0.35, 0, s); x.closePath(); }, sk.ring, { lw: 1.8, blur: 14, core: 'rgba(6,26,8,0.9)' });
+      c.save(); c.rotate(-ph); c.setLineDash([R * 0.26, R * 0.12]); neon(c, x => { x.beginPath(); x.arc(0, 0, R * 1.12, 0, TAU); }, sk.ring, { lw: 1.3, blur: 9, core: null, inner: false }); c.restore();
+      for (let i = 0; i < 3; i++) { const a = -ph + i * TAU / 3 + 0.5; c.save(); c.translate(Math.cos(a) * R * 1.12, Math.sin(a) * R * 1.12); c.rotate(a * 2); neon(c, x => pathStar(x, 4, R * 0.1, R * 0.03, 0), '#ffd166', { lw: 1.2, blur: 6, core: null, inner: false }); c.restore(); }
+      // the brim: a dark underside and a lit top edge
+      neon(c, x => { x.beginPath(); x.moveTo(-R * 1.02, R * 0.54); x.quadraticCurveTo(0, R * 0.16, R * 1.02, R * 0.54); x.quadraticCurveTo(0, R * 0.9, -R * 1.02, R * 0.54); x.closePath(); }, col, { lw: 2.4, blur: 16, core: 'rgba(12,5,24,0.96)' });
+      bodyLight(c, x => { x.beginPath(); x.moveTo(-R * 1.0, R * 0.54); x.quadraticCurveTo(0, R * 0.2, R * 1.0, R * 0.54); x.quadraticCurveTo(0, R * 0.5, -R * 1.0, R * 0.54); x.closePath(); }, -R * 0.4, R * 0.4, 2, R * 1.2, [[0, 'rgba(200,160,255,0.4)'], [1, 'rgba(0,0,0,0)']]);
+      // the cone, bent at the tip, with a gradient from the lit left to the shaded right
+      const cone = x => { x.beginPath(); x.moveTo(-R * 0.46, R * 0.5); x.quadraticCurveTo(-R * 0.42, -R * 0.3, -R * 0.08, -R * 0.42); x.quadraticCurveTo(R * 0.12, -R * 0.9, R * 0.4, -R * 1.02); x.quadraticCurveTo(R * 0.36, -R * 0.6, R * 0.46, R * 0.5); x.closePath(); };
+      neon(c, cone, col, { lw: 3, blur: 22, core: 'rgba(14,6,26,0.96)' });
+      c.save(); cone(c); c.clip();
+      const cg = c.createLinearGradient(-R * 0.5, 0, R * 0.5, 0); cg.addColorStop(0, 'rgba(190,150,255,0.42)'); cg.addColorStop(0.5, 'rgba(100,60,190,0.14)'); cg.addColorStop(1, 'rgba(0,0,0,0.3)');
+      c.fillStyle = cg; c.fillRect(-R, -R * 1.1, R * 2, R * 1.7);
+      c.restore();
+      // a stitched seam and a patch
+      c.save(); c.strokeStyle = 'rgba(255,210,255,0.5)'; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(R * 0.1, -R * 0.62); c.quadraticCurveTo(R * 0.2, -R * 0.1, R * 0.24, R * 0.2); c.stroke(); c.restore();
+      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.2, -R * 0.08); x.lineTo(-R * 0.06, -R * 0.2); x.lineTo(R * 0.02, -R * 0.04); x.closePath(); }, '#ffd166', { lw: 1.2, blur: 5, core: 'rgba(40,26,4,0.9)', inner: false });
+      // the band, the buckle, and a star charm
+      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.45, R * 0.3); x.quadraticCurveTo(0, R * 0.38, R * 0.46, R * 0.3); }, '#ff4fd8', { lw: 4, blur: 12, core: null });
+      neon(c, x => { x.beginPath(); x.rect(-R * 0.11, R * 0.2, R * 0.22, R * 0.2); }, '#ffd166', { lw: 1.7, blur: 8, core: 'rgba(40,26,4,0.95)', inner: false });
+      neon(c, x => { x.beginPath(); x.rect(-R * 0.05, R * 0.25, R * 0.1, R * 0.1); }, '#ffd166', { lw: 1, blur: 3, core: null, inner: false });
+      // the flame at the tip, and wisps orbiting the brim
+      c.save(); c.translate(R * 0.42, -R * 1.02 + Math.sin(ph * 2) * R * 0.03);
+      neon(c, x => { const s = R * 0.2, sw = Math.sin(ph * 3) * s * 0.2; x.beginPath(); x.moveTo(0, s); x.bezierCurveTo(-s * 0.9, s * 0.35, -s * 0.5 + sw, -s * 0.4, sw * 1.6, -s * 1.25); x.bezierCurveTo(s * 0.5 + sw, -s * 0.4, s * 0.9, s * 0.35, 0, s); x.closePath(); }, sk.ring, { lw: 1.8, blur: 14, core: 'rgba(6,26,8,0.9)' });
       c.restore();
       for (let i = 0; i < 3; i++) {
-        const a = ph + i * TAU / 3, wx = Math.cos(a) * R * 0.98, wy = Math.sin(a) * R * 0.28 + R * 0.5, s = R * 0.13;
+        const a = ph + i * TAU / 3, wx = Math.cos(a) * R * 0.98, wy = Math.sin(a) * R * 0.28 + R * 0.54, s = R * 0.13;
         neon(c, x => { x.beginPath(); x.moveTo(wx, wy + s); x.bezierCurveTo(wx - s * 0.9, wy + s * 0.35, wx - s * 0.5, wy - s * 0.4, wx, wy - s * 1.25); x.bezierCurveTo(wx + s * 0.5, wy - s * 0.4, wx + s * 0.9, wy + s * 0.35, wx, wy + s); x.closePath(); }, i % 2 ? sk.ring : '#ff4fd8', { lw: 1.4, blur: 10, core: 'rgba(14,6,26,0.9)', inner: false });
       }
       break;
     }
     case 'harvestmoon': {
-      // the boss moon, tamed: petal blades turning, bat wings, a carved grin, a bite of shadow
+      // the boss moon, tamed: a shaded sphere with craters, two ranks of petals turning against each other, bat wings with bones, a carved grin
       const ph = ((t || 0) % 4) / 4 * TAU;
-      hglow(c, col, 0, 0, R * 1.7, 0.22 + 0.05 * Math.sin(ph * 2));
+      hglow(c, col, 0, 0, R * 1.75, 0.22 + 0.05 * Math.sin(ph * 2));
+      c.save(); c.rotate(-ph);
+      for (let i = 0; i < 6; i++) { c.save(); c.rotate((i + 0.5) * TAU / 6); neon(c, x => { x.beginPath(); x.moveTo(R * 0.62, 0); x.quadraticCurveTo(R * 0.84, -R * 0.12, R * 1.06, 0); x.quadraticCurveTo(R * 0.84, R * 0.12, R * 0.62, 0); }, '#c9a3ff', { lw: 1.6, blur: 9, core: 'rgba(16,8,30,0.94)', inner: false }); c.restore(); }
+      c.restore();
       c.save(); c.rotate(ph);
-      for (let i = 0; i < 6; i++) { c.save(); c.rotate(i * TAU / 6); neon(c, x => { x.beginPath(); x.moveTo(R * 0.62, 0); x.quadraticCurveTo(R * 0.98, -R * 0.2, R * 1.3, 0); x.quadraticCurveTo(R * 0.98, R * 0.2, R * 0.62, 0); }, sk.ring, { lw: 2, blur: 14, core: 'rgba(34,8,4,0.94)' }); c.restore(); }
+      for (let i = 0; i < 6; i++) {
+        c.save(); c.rotate(i * TAU / 6);
+        neon(c, x => { x.beginPath(); x.moveTo(R * 0.62, 0); x.quadraticCurveTo(R * 0.98, -R * 0.2, R * 1.32, 0); x.quadraticCurveTo(R * 0.98, R * 0.2, R * 0.62, 0); }, sk.ring, { lw: 2, blur: 14, core: 'rgba(34,8,4,0.94)' });
+        neon(c, x => { x.beginPath(); x.moveTo(R * 0.74, 0); x.lineTo(R * 1.2, 0); }, '#ffb08a', { lw: 0.9, blur: 3, core: null, inner: false });
+        c.restore();
+      }
       c.restore();
       const fw = Math.sin(ph * 2) * R * 0.05;
-      neon(c, x => {
-        x.beginPath();
-        for (const sx of [1, -1]) {
-          x.moveTo(sx * R * 0.3, R * 0.14); x.quadraticCurveTo(sx * R * 0.78, -R * 0.1 - fw, sx * R * 1.24, R * 0.3 - fw);
-          x.quadraticCurveTo(sx * R * 0.78, R * 0.26, sx * R * 0.62, R * 0.56); x.quadraticCurveTo(sx * R * 0.46, R * 0.34, sx * R * 0.2, R * 0.48);
-        }
-      }, '#c9a3ff', { lw: 2.2, blur: 14, core: 'rgba(10,4,20,0.95)' });
-      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.62, 0, TAU); }, col, { lw: 3.4, blur: 24, core: 'rgba(36,32,12,0.95)' });
-      for (const [cx2, cy2, r2] of [[-0.4, -0.3, 0.07], [0.38, -0.36, 0.05], [0.42, 0.28, 0.08], [-0.38, 0.36, 0.05]]) neon(c, x => { x.beginPath(); x.arc(cx2 * R, cy2 * R, r2 * R, 0, TAU); }, '#c8b765', { lw: 1, blur: 4, core: null, inner: false });
-      c.save(); c.globalAlpha = 0.75 + 0.25 * Math.sin(ph * 3);
-      for (const sx of [-1, 1]) neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.22, -R * 0.2); x.lineTo(sx * R * 0.07, -R * 0.02); x.lineTo(sx * R * 0.32, -R * 0.02); x.closePath(); }, sk.ring, { lw: 1.3, blur: 9, core: 'rgba(255,235,220,0.9)', inner: false });
-      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.3, R * 0.14); for (let i = 0; i <= 6; i++) x.lineTo(-R * 0.3 + i * R * 0.1, R * (0.14 + (i % 2 ? 0.14 : 0.04))); }, sk.ring, { lw: 1.4, blur: 9, core: null, inner: false });
+      for (const sx of [1, -1]) {
+        const wing = x => { x.beginPath(); x.moveTo(sx * R * 0.3, R * 0.14); x.quadraticCurveTo(sx * R * 0.78, -R * 0.1 - fw, sx * R * 1.24, R * 0.3 - fw); x.quadraticCurveTo(sx * R * 0.78, R * 0.26, sx * R * 0.62, R * 0.56); x.quadraticCurveTo(sx * R * 0.46, R * 0.34, sx * R * 0.2, R * 0.48); };
+        neon(c, wing, '#c9a3ff', { lw: 2.2, blur: 14, core: 'rgba(10,4,20,0.95)' });
+        neon(c, x => { x.beginPath(); for (const [px, py] of [[0.78, 0.04], [0.98, 0.2], [0.62, 0.56]]) { x.moveTo(sx * R * 0.32, R * 0.2); x.lineTo(sx * R * px, R * py - (px > 0.9 ? fw : fw * 0.5)); } }, '#ff9a3c', { lw: 0.9, blur: 3, core: null, inner: false });
+      }
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.62, 0, TAU); }, col, { lw: 3.4, blur: 24, core: 'rgba(30,26,8,0.96)' });
+      c.save(); c.beginPath(); c.arc(0, 0, R * 0.6, 0, TAU); c.clip();
+      const mg = c.createRadialGradient(-R * 0.2, -R * 0.22, R * 0.03, 0, 0, R * 0.66); mg.addColorStop(0, 'rgba(255,243,163,0.5)'); mg.addColorStop(0.55, 'rgba(200,170,70,0.2)'); mg.addColorStop(1, 'rgba(10,6,0,0.5)');
+      c.fillStyle = mg; c.fillRect(-R, -R, R * 2, R * 2);
+      for (const [cx2, cy2, r2] of [[-0.44, -0.3, 0.075], [0.42, -0.38, 0.055], [0.46, 0.26, 0.085], [-0.42, 0.34, 0.06], [0.04, -0.52, 0.045]]) {
+        c.fillStyle = 'rgba(40,28,4,0.45)'; c.beginPath(); c.arc(cx2 * R, cy2 * R, r2 * R, 0, TAU); c.fill();
+        c.strokeStyle = 'rgba(255,240,180,0.65)'; c.lineWidth = 1; c.beginPath(); c.arc(cx2 * R, cy2 * R, r2 * R, Math.PI * 0.75, Math.PI * 1.75); c.stroke();
+      }
       c.restore();
-      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.62, -1.2, 1.4); x.arc(R * 0.18, 0, R * 0.54, 1.4, -1.2, true); }, '#ffffff', { lw: 1, blur: 5, core: null, inner: false });
+      c.save(); c.globalAlpha = 0.78 + 0.22 * Math.sin(ph * 3); c.translate(0, R * 0.02); c.scale(0.56, 0.56);
+      hwCarveLite(c, R, sk.ring, false);
+      c.restore();
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.56, Math.PI * 0.95, Math.PI * 1.55); }, '#ffffff', { lw: 1.1, blur: 5, core: null, inner: false });
       break;
     }
     case 'tesseract': {
@@ -30295,12 +30320,260 @@ const STD = {
     { id: 'vb10',  p: 2.5, vb: 10,       col: '#ff4fd8', t: '10 VOIDBUX' },
     { id: 'cos',   p: 1,                 col: '#fff3a3', t: 'A SKIN OR PET' }
   ],
-  DUPE_SHARDS: 10000, DUPE_VB: 200,
+  DUPE_SHARDS: 10000, DUPE_VB: 200, BUY_VB: 60, BUY_DAY: 3,
   CHEST2: { easy: 0, medium: 0.10, hard: 0.25, impossible: 0.40, hardcore: 0.60, daily: 0.10 }
 };
+/* ================================================================ TICKET ICONS
+   Chunky little tickets, like a gacha game's: a dark core, a bright rim, a glossy
+   sheen that sweeps across, a perforated stub. STANDARD is gold with a star; the
+   EVENT ticket is violet with a carved pumpkin whose eyes flicker. The body is a
+   cached sprite; only the sheen and the flicker are drawn live. */
+const TIX = {
+  std: { name: 'STANDARD TICKET', rim: '#ffd166', hi: '#fff3b0', lo: '#ff9a3c', deep: '#3a1c04', glow: '#ffb347' },
+  evt: { name: 'EVENT TICKET',    rim: '#ff9a3c', hi: '#c79bff', lo: '#4a1c8a', deep: '#10061e', glow: '#ff9a3c' }
+};
+const TIX_W = 132, TIX_H = 84;
+function tixPath(g, w, h) {
+  const r = h * 0.17, nr = h * 0.14;
+  g.beginPath();
+  g.moveTo(-w / 2 + r, -h / 2); g.lineTo(w / 2 - r, -h / 2); g.arcTo(w / 2, -h / 2, w / 2, -h / 2 + r, r);
+  g.lineTo(w / 2, -nr); g.arc(w / 2, 0, nr, -Math.PI / 2, Math.PI / 2, true);
+  g.lineTo(w / 2, h / 2 - r); g.arcTo(w / 2, h / 2, w / 2 - r, h / 2, r);
+  g.lineTo(-w / 2 + r, h / 2); g.arcTo(-w / 2, h / 2, -w / 2, h / 2 - r, r);
+  g.lineTo(-w / 2, nr); g.arc(-w / 2, 0, nr, Math.PI / 2, -Math.PI / 2, true);
+  g.lineTo(-w / 2, -h / 2 + r); g.arcTo(-w / 2, -h / 2, -w / 2 + r, -h / 2, r);
+  g.closePath();
+}
+function tixBase(tk) {
+  const K = TIX[tk] || TIX.std, W = TIX_W, H = TIX_H;
+  return hsprite('tix|' + tk, W + 34, H + 34, g => {
+    // the glow, then the dark core
+    g.save(); g.shadowColor = K.glow; g.shadowBlur = 16; g.fillStyle = '#05030a'; tixPath(g, W, H); g.fill(); g.restore();
+    // the body: a vertical gradient, bright at the top edge
+    const bw = W - 7, bh = H - 7, f = g.createLinearGradient(0, -bh / 2, 0, bh / 2);
+    f.addColorStop(0, K.hi); f.addColorStop(0.45, K.lo); f.addColorStop(1, K.deep);
+    g.fillStyle = f; tixPath(g, bw, bh); g.fill();
+    // a darker lower half, so the face of the ticket reads as a plate
+    g.save(); tixPath(g, bw, bh); g.clip();
+    g.fillStyle = 'rgba(6,3,14,0.34)'; g.fillRect(-bw / 2, bh * 0.12, bw, bh);
+    g.restore();
+    // the rim and the inner dashed border
+    g.strokeStyle = K.rim; g.lineWidth = 3; g.lineJoin = 'round'; tixPath(g, W - 2, H - 2); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.78)'; g.lineWidth = 1.3; g.setLineDash([4, 3.4]); tixPath(g, W - 17, H - 17); g.stroke(); g.setLineDash([]);
+    // the stub: a perforation and three dots
+    const sx = -W * 0.27;
+    g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1.5; g.setLineDash([2.6, 3.4]);
+    g.beginPath(); g.moveTo(sx, -H * 0.36); g.lineTo(sx, H * 0.36); g.stroke(); g.setLineDash([]);
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let i = -1; i <= 1; i++) { g.beginPath(); g.arc(-W * 0.385, i * H * 0.17, 2.4, 0, TAU); g.fill(); }
+    // the picture, on the plate
+    const px = W * 0.1, py = 1;
+    if (tk === 'evt') tixPumpkin(g, px, py, H * 0.3);
+    else tixStar(g, px, py, H * 0.34);
+  });
+}
+function tixStar(g, x, y, R) {
+  g.save(); g.translate(x, y);
+  g.shadowColor = '#ff7a1a'; g.shadowBlur = 8;
+  g.fillStyle = '#3a1604'; g.beginPath(); pathStar(g, 5, R * 1.18, R * 0.55, -Math.PI / 2); g.fill();
+  g.shadowBlur = 0;
+  const f = g.createLinearGradient(0, -R, 0, R); f.addColorStop(0, '#ffffff'); f.addColorStop(0.5, '#ffe27a'); f.addColorStop(1, '#ff9a3c');
+  g.fillStyle = f; g.beginPath(); pathStar(g, 5, R, R * 0.46, -Math.PI / 2); g.fill();
+  g.strokeStyle = '#7a3a06'; g.lineWidth = 1.4; g.lineJoin = 'round'; g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(-R * 0.18, -R * 0.2, R * 0.12, 0, TAU); g.fill();
+  g.restore();
+}
+function tixPumpkin(g, x, y, R) {
+  g.save(); g.translate(x, y);
+  g.shadowColor = '#ff6a00'; g.shadowBlur = 8;
+  g.fillStyle = '#1c0a02';
+  for (const dx of [-0.52, 0.52, 0]) { g.beginPath(); g.ellipse(dx * R, 0.04 * R, R * 0.66, R * 0.98, 0, 0, TAU); g.fill(); }
+  g.shadowBlur = 0;
+  const lobes = [[-0.52, 0.92], [0.52, 0.92], [0, 1]];
+  for (const [dx, k] of lobes) {
+    const f = g.createLinearGradient(0, -R, 0, R); f.addColorStop(0, '#ffc15a'); f.addColorStop(0.55, '#ff7a1a'); f.addColorStop(1, '#b03a06');
+    g.fillStyle = f; g.beginPath(); g.ellipse(dx * R, 0.04 * R, R * 0.6 * k, R * 0.92 * k, 0, 0, TAU); g.fill();
+    g.strokeStyle = '#6a2204'; g.lineWidth = 1.2; g.stroke();
+  }
+  // the stem, with a curl
+  g.fillStyle = '#5bd14a'; g.strokeStyle = '#1d5a14'; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(-R * 0.1, -R * 0.84); g.lineTo(R * 0.14, -R * 0.84); g.lineTo(R * 0.24, -R * 1.18); g.lineTo(-R * 0.02, -R * 1.14); g.closePath(); g.fill(); g.stroke();
+  // the carved face: dark cuts
+  g.fillStyle = '#1a0702';
+  g.beginPath(); g.moveTo(-R * 0.62, -R * 0.2); g.lineTo(-R * 0.2, -R * 0.2); g.lineTo(-R * 0.42, -R * 0.56); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(R * 0.62, -R * 0.2); g.lineTo(R * 0.2, -R * 0.2); g.lineTo(R * 0.42, -R * 0.56); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(-R * 0.6, R * 0.2);
+  for (let i = 0; i <= 6; i++) g.lineTo(-R * 0.6 + i * R * 0.2, R * (i % 2 ? 0.2 : 0.52));
+  g.lineTo(R * 0.6, R * 0.2); g.closePath(); g.fill();
+  g.restore();
+}
+/* one ticket, centred on (x, y); s scales the 132 px-wide sprite */
+function ticketIcon(c, x, y, s, tk, t, tilt) {
+  const K = TIX[tk] || TIX.std, e = tixBase(tk), k = s / TIX_H;
+  c.save(); c.translate(x, y); c.rotate((tilt === undefined ? Math.sin(t * 0.9 + (tk === 'evt' ? 1.7 : 0)) * 0.07 : tilt));
+  c.drawImage(e.cv, -e.w * k / 2, -e.h * k / 2, e.w * k, e.h * k);
+  // the sheen sweeps across the plate now and then
+  const ph = (t * 0.55 + (tk === 'evt' ? 0.4 : 0)) % 2.2, sw = ph < 1 ? ph : -1;
+  if (sw >= 0) {
+    c.save(); c.scale(k, k); tixPath(c, TIX_W - 7, TIX_H - 7); c.clip();
+    c.globalCompositeOperation = 'lighter'; c.rotate(0.5);
+    const gx = -TIX_W + sw * TIX_W * 2, gr = c.createLinearGradient(gx - 16, 0, gx + 16, 0);
+    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.42)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(gx - 16, -TIX_H, 32, TIX_H * 2);
+    c.restore();
+  }
+  // the pumpkin's eyes breathe
+  if (tk === 'evt') {
+    const fl = 0.62 + 0.38 * Math.sin(t * 7.3 + Math.sin(t * 2.1) * 2) * Math.sin(t * 3.1), R = TIX_H * 0.3, px = TIX_W * 0.1;
+    c.globalCompositeOperation = 'lighter';
+    const gl = glowSprite('#9dff4a'), gs = R * 0.55 * k;
+    for (const dx of [-0.42, 0.42]) { c.globalAlpha = fl * 0.9; c.drawImage(gl, (px + dx * R) * k - gs, -R * 0.36 * k - gs, gs * 2, gs * 2); }
+    c.globalAlpha = fl * 0.5; const gm = R * 0.9 * k; c.drawImage(gl, px * k - gm, R * 0.4 * k - gm * 0.7, gm * 2, gm * 1.4);
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  }
+  c.restore();
+}
+/* a ticket and a count, for the corner of a screen: ICON x5 */
+function tixCount(c, x, y, h, tk, n, align) {
+  const K = TIX[tk] || TIX.std, s = '×' + n, fs = h * 0.62, col = n ? '#ffffff' : PAL.dim;
+  const tw = tracked(c, s, 0, 0, { size: fs, weight: 900, track: 1, mono: true, measureOnly: true }), iw = h * 1.55;
+  const x0 = align === 'right' ? x - tw - iw - 4 : (align === 'center' ? x - (tw + iw + 4) / 2 : x);
+  ticketIcon(c, x0 + iw / 2, y, h, tk, G.uiT);
+  tracked(c, s, x0 + iw + 4, y + fs * 0.36, { size: fs, weight: 900, color: col, glow: n ? K.glow : null, blur: 8, track: 1, mono: true });
+}
+
+/* ================================================================ BANNER BACKDROP
+   The event roll screen's world: a sky of slow rays, embers rising, bats crossing, and a
+   cached horizon (moon, hills, cornstalks, pumpkins) that is one drawImage. Only the rays
+   (one fill), the embers (a few glow stamps), the bats (a few small paths) and the pumpkin
+   eyes (four stamps) are live, all driven by the UI clock, so the look does not depend on
+   the frame rate. The ember count drops with the adaptive quality. */
+const BAN_EMB = ['#ff9a3c', '#ffd166', '#9dff4a', '#c79bff'];
+function banPumpkins(W, gh) {
+  const out = [], n = Math.max(3, Math.min(7, Math.round(W / 190)));
+  for (let i = 0; i < n; i++) {
+    const f = (i + 0.5) / n, x = W * (0.06 + 0.88 * f) + Math.sin(i * 7.1) * 18, s = (i % 3 === 1 ? 0.78 : (i % 3 === 2 ? 0.58 : 0.95)) * Math.min(1, gh / 120);
+    out.push({ x: x, s: s, y: gh * 0.82 - (i % 2) * 9 });
+  }
+  return out;
+}
+function banHorizon(W, VH, col) {
+  const gh = Math.round(Math.max(88, Math.min(170, VH * 0.22))), H = gh + 190;
+  return hsprite('banhor|' + Math.round(W) + '|' + gh + '|' + col, W, H, g => {
+    g.translate(-W / 2, -H / 2);                       // origin at the top-left now
+    const base = H;                                    // the sprite's floor
+    // the moon, half-hidden behind the hills
+    const wide = W >= 900, mx = wide ? W * 0.83 : W * 0.5, my = base - gh * (wide ? 0.7 : 0.42), mr = Math.min(96, W * (wide ? 0.09 : 0.17));
+    const hg = g.createRadialGradient(mx, my, mr * 0.6, mx, my, mr * 1.9);
+    hg.addColorStop(0, 'rgba(255,200,110,0.34)'); hg.addColorStop(1, 'rgba(255,150,60,0)');
+    g.fillStyle = hg; g.fillRect(mx - mr * 1.95, my - mr * 1.95, mr * 3.9, mr * 3.9);
+    const mg = g.createRadialGradient(mx - mr * 0.3, my - mr * 0.3, mr * 0.1, mx, my, mr);
+    mg.addColorStop(0, '#fff3c4'); mg.addColorStop(0.6, '#ffc870'); mg.addColorStop(1, '#d9772a');
+    g.globalAlpha = 0.55; g.fillStyle = mg; g.beginPath(); g.arc(mx, my, mr, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(120,50,10,0.45)';
+    for (const [dx, dy, r] of [[-0.35, -0.2, 0.2], [0.3, 0.1, 0.14], [-0.05, 0.4, 0.12], [0.38, -0.38, 0.09]]) { g.beginPath(); g.arc(mx + dx * mr, my + dy * mr, r * mr, 0, TAU); g.fill(); }
+    g.globalAlpha = 1;
+    // a far ridge, then the near hill, both dark, each with a thin lit edge
+    const ridge = (y0, amp, ph, fill, edge) => {
+      g.beginPath(); g.moveTo(0, base);
+      for (let x = 0; x <= W; x += 12) g.lineTo(x, y0 - Math.sin(x / W * 5.2 + ph) * amp - Math.sin(x / W * 13 + ph * 2) * amp * 0.3);
+      g.lineTo(W, base); g.closePath(); g.fillStyle = fill; g.fill();
+      g.strokeStyle = edge; g.lineWidth = 1.4; g.stroke();
+    };
+    ridge(base - gh * 0.62, gh * 0.12, 1, '#0a0514', 'rgba(255,140,60,0.28)');
+    // cornstalks along the near hill: tapered, with a couple of leaves, a lit edge
+    g.lineCap = 'round';
+    for (let x = 6, i = 0; x < W; x += 15 + (i * 7) % 9, i++) {
+      const h = gh * (0.32 + ((i * 37) % 17) / 17 * 0.3), y0 = base - gh * 0.3 + Math.sin(x / W * 9) * 5, lean = Math.sin(i * 2.3) * 4;
+      g.strokeStyle = '#07030d'; g.lineWidth = 3; g.beginPath(); g.moveTo(x, base); g.quadraticCurveTo(x + lean * 0.3, y0 - h * 0.4, x + lean, y0 - h); g.stroke();
+      g.lineWidth = 2.4;
+      g.beginPath(); g.moveTo(x, y0 - h * 0.35); g.quadraticCurveTo(x + 10, y0 - h * 0.5, x + 16, y0 - h * 0.34);
+      g.moveTo(x, y0 - h * 0.5); g.quadraticCurveTo(x - 10, y0 - h * 0.64, x - 15, y0 - h * 0.5); g.stroke();
+      g.strokeStyle = 'rgba(255,170,80,0.22)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(x + 1, y0 - h * 0.9); g.lineTo(x + lean + 1, y0 - h); g.stroke();
+    }
+    ridge(base - gh * 0.26, gh * 0.08, 3, '#06030b', 'rgba(255,120,40,0.4)');
+    // pumpkins sitting on the hill: dark bodies with a lit rim and a carved mouth
+    for (const p of banPumpkins(W, gh)) {
+      const R = 22 * p.s * 1.2, px = p.x, py = base - gh + p.y;
+      g.save(); g.translate(px, py);
+      g.fillStyle = '#0b0410'; g.strokeStyle = 'rgba(255,125,40,0.75)'; g.lineWidth = 1.6;
+      for (const dx of [-0.55, 0.55, 0]) { g.beginPath(); g.ellipse(dx * R, 0, R * 0.62, R * 0.86, 0, 0, TAU); g.fill(); g.stroke(); }
+      g.fillStyle = '#0b0410'; g.fillRect(-R * 0.1, -R * 1.22, R * 0.22, R * 0.4);
+      g.fillStyle = '#ff7a1a'; g.globalAlpha = 0.9;
+      g.beginPath(); g.moveTo(-R * 0.55, R * 0.18);
+      for (let k = 0; k <= 6; k++) g.lineTo(-R * 0.55 + k * R * 0.183, R * (k % 2 ? 0.2 : 0.5));
+      g.lineTo(R * 0.55, R * 0.18); g.closePath(); g.fill();
+      g.restore();
+    }
+    // fog over the foot, so the hill sinks into the dark
+    const fg = g.createLinearGradient(0, base - gh * 0.45, 0, base);
+    fg.addColorStop(0, 'rgba(30,10,50,0)'); fg.addColorStop(1, 'rgba(14,5,24,0.85)');
+    g.globalAlpha = 1; g.fillStyle = fg; g.fillRect(0, base - gh * 0.45, W, gh * 0.45);
+  });
+}
+function bannerBack(c, B, t, cx, cy, hollow) {
+  const col = B.col || '#ffd166', warm = hollow ? '#ff9a3c' : col, q = G.quality > 0;
+  // slow rays out of the middle card: one path, one fill, a very low alpha
+  if (q) {
+  c.save(); c.globalCompositeOperation = 'lighter'; c.translate(cx, cy); c.rotate(t * 0.06);
+  c.fillStyle = warm; c.globalAlpha = 0.034 + 0.01 * Math.sin(t * 0.8);
+  const R = Math.max(VW, VH) * 1.1, n = 12;
+  c.beginPath();
+  for (let i = 0; i < n; i++) { const a = i / n * TAU; c.moveTo(0, 0); c.lineTo(Math.cos(a) * R, Math.sin(a) * R); c.lineTo(Math.cos(a + 0.085) * R, Math.sin(a + 0.085) * R); c.closePath(); }
+  c.fill(); c.restore();
+  }
+  hglow(c, warm, cx, cy, Math.min(VW, 520) * 0.62, 0.16 + 0.03 * Math.sin(t * 1.3));
+  // the horizon
+  let gh = 0;
+  if (hollow) {
+    const e = banHorizon(VW, VH, warm); gh = e.h;
+    c.drawImage(e.cv, 0, VH - e.h, e.w, e.h);
+    // the carved mouths breathe
+    const base = VH, ghh = Math.round(Math.max(88, Math.min(170, VH * 0.22))), gl = glowSprite('#ff7a1a');
+    c.save(); c.globalCompositeOperation = 'lighter';
+    banPumpkins(VW, ghh).forEach((p, i) => {
+      const fl = 0.55 + 0.45 * Math.sin(t * (2.1 + i * 0.37) + i * 1.7) * Math.sin(t * 0.9 + i), r = 30 * p.s * 1.2;
+      c.globalAlpha = Math.max(0.15, fl) * 0.85; c.drawImage(gl, p.x - r, base - ghh + p.y + 4 * p.s - r * 0.7, r * 2, r * 1.4);
+    });
+    c.restore();
+  }
+  // embers rising: positions come from the clock, so the speed is the same at any frame rate
+  const N = q ? 26 : 12, gp = glowSprite('#ffffff');
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < N; i++) {
+    const s1 = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1, s2 = Math.abs(Math.sin(i * 78.233 + 1) * 24634.6345) % 1, s3 = Math.abs(Math.sin(i * 39.346 + 2) * 9371.17) % 1;
+    const sp = 14 + s2 * 30, span = VH + 40, y = VH + 20 - ((t * sp + s3 * span) % span), x = s1 * VW + Math.sin(t * 0.7 + i * 1.9) * 16;
+    const life = 1 - Math.abs(((VH + 20 - y) / span) * 2 - 1) * 0.0, tw = 0.55 + 0.45 * Math.sin(t * 3 + i * 2.1), sz = 5 + s2 * 9;
+    c.globalAlpha = 0.5 * tw * Math.min(1, (VH + 20 - y) / 60) * Math.min(1, y / 60);
+    c.drawImage(glowSprite(hollow ? BAN_EMB[i % 4] : (i % 2 ? col : '#ffffff')), x - sz, y - sz, sz * 2, sz * 2);
+  }
+  c.restore();
+  if (hollow) {
+    // three bats crossing: dark core, violet edge, an ember eye, wings that beat
+    c.save(); c.lineJoin = 'round'; c.lineWidth = 1.3; c.fillStyle = '#0a0412'; c.strokeStyle = 'rgba(199,155,255,0.7)';
+    for (let i = 0; i < (q ? 3 : 2); i++) {
+      const sp = 36 + i * 11, span = VW + 160, x = ((t * sp + i * span / 3) % span) - 80, y = 78 + i * 46 + Math.sin(t * 1.3 + i * 2) * 10, fl = Math.sin(t * 9 + i * 1.7), sc = 0.8 + i * 0.16;
+      c.save(); c.translate(x, y); c.scale(sc, sc);
+      c.beginPath(); c.moveTo(0, -2);
+      c.quadraticCurveTo(-8, -9 - fl * 5, -18, -4 - fl * 8); c.quadraticCurveTo(-13, 0, -10, 2); c.quadraticCurveTo(-6, -1, -3, 3);
+      c.quadraticCurveTo(0, 6, 3, 3); c.quadraticCurveTo(6, -1, 10, 2); c.quadraticCurveTo(13, 0, 18, -4 - fl * 8); c.quadraticCurveTo(8, -9 - fl * 5, 0, -2);
+      c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#ff7a1a'; c.fillRect(-3, 0, 1.6, 1.6); c.fillRect(1.6, 0, 1.6, 1.6); c.fillStyle = '#0a0412';
+      c.restore();
+    }
+    c.restore();
+  }
+}
+
 const Standard = {
   on() { return Cloud.on(); },
   n() { return Save.data.stdTix | 0; },
+  buyLeft() { const r = Save.data.stdBuy; return r && r.day === dailyKey() ? Math.max(0, STD.BUY_DAY - (r.n | 0)) : STD.BUY_DAY; },
+  bought() {
+    const d = Save.data;
+    if (!d.stdBuy || d.stdBuy.day !== dailyKey()) d.stdBuy = { day: dailyKey(), n: 0 };
+    d.stdBuy.n++; d.stdTix = this.n() + 1;
+  },
   /* what a won level's chest drops */
   award(diffId) {
     if (!this.on()) return 0;
@@ -30397,28 +30670,92 @@ function hwCrowWing(c, s, f, k) {
   c.lineTo(k * s * 1.18, s * 0.32); c.lineTo(k * s * 0.78, s * 0.26); c.lineTo(k * s * 0.86, s * 0.46);
   c.lineTo(k * s * 0.4, s * 0.3); c.closePath();
 }
-/* triangular eyes and a jagged mouth, lit from inside */
+/* a carved face, lit from inside: slit-pupil eyes under heavy brows, a nose, and a mouth with fangs */
 function hwCarve(c, R, col, hurt) {
-  const o = { lw: 1.7, blur: 12, core: hurt ? 'rgba(255,255,255,0.4)' : 'rgba(235,255,225,0.92)', inner: false };
+  const hot = hurt ? 'rgba(255,255,255,0.6)' : 'rgba(240,255,225,0.95)', o = { lw: 1.7, blur: 12, core: hurt ? 'rgba(255,255,255,0.4)' : 'rgba(210,255,190,0.5)', inner: false };
   for (const sx of [-1, 1]) {
-    neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.36, -R * 0.34); x.lineTo(sx * R * 0.12, -R * 0.06); x.lineTo(sx * R * 0.52, -R * 0.04); x.closePath(); }, col, o);
+    neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.58, -R * 0.4); x.lineTo(sx * R * 0.1, -R * 0.1); x.lineTo(sx * R * 0.56, -R * 0.02); x.closePath(); }, col, o);
+    // the hot slit inside the eye, and a brow cut above it
+    neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.36, -R * 0.24); x.lineTo(sx * R * 0.3, -R * 0.08); x.lineTo(sx * R * 0.4, -R * 0.07); x.closePath(); }, hot, { lw: 1, blur: 6, core: hot, inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.1, -R * 0.3); x.lineTo(sx * R * 0.62, -R * 0.56); }, col, { lw: 1.6, blur: 8, core: null, inner: false });
   }
+  neon(c, x => { x.beginPath(); x.moveTo(0, R * 0.02); x.lineTo(-R * 0.09, R * 0.2); x.lineTo(R * 0.09, R * 0.2); x.closePath(); }, col, { lw: 1.4, blur: 8, core: o.core, inner: false });
+  // the mouth: a wide jagged slot with three fangs hanging and two rising
   neon(c, x => {
-    x.beginPath(); x.moveTo(-R * 0.5, R * 0.18);
-    for (let i = 0; i <= 8; i++) x.lineTo(-R * 0.5 + i * R * 0.125, R * (0.18 + (i % 2 ? 0.32 : 0.12)));
-    for (let i = 8; i >= 0; i--) x.lineTo(-R * 0.5 + i * R * 0.125, R * (0.2 + (i % 2 ? 0.14 : 0.0)));
-    x.closePath();
+    x.beginPath(); x.moveTo(-R * 0.62, R * 0.3); x.quadraticCurveTo(0, R * 0.2, R * 0.62, R * 0.3);
+    x.quadraticCurveTo(R * 0.44, R * 0.66, 0, R * 0.7); x.quadraticCurveTo(-R * 0.44, R * 0.66, -R * 0.62, R * 0.3); x.closePath();
   }, col, o);
-}
-function hwGourd(c, R, hurt, col, lw) {
-  const K = hurt ? '#ffffff' : col, G2 = hurt ? '#ffffff' : HWC.G;
-  neon(c, x => { x.beginPath(); x.ellipse(0, 0, R, R * 0.86, 0, 0, TAU); }, K, { lw: lw || 4, blur: 24, core: hurt ? 'rgba(255,255,255,0.16)' : 'rgba(26,8,2,0.94)' });
-  if (!hurt) bodyLight(c, x => { x.beginPath(); x.ellipse(0, 0, R * 0.98, R * 0.84, 0, 0, TAU); }, 0, R * 0.1, R * 0.1, R * 1.1, [[0, 'rgba(255,154,60,0.28)'], [0.6, 'rgba(160,60,10,0.1)'], [1, 'rgba(0,0,0,0)']]);
-  c.save(); c.globalAlpha = 0.55;
-  for (const k of [0.32, 0.66]) neon(c, x => { x.beginPath(); x.ellipse(0, 0, R * k, R * 0.84, 0, 0, TAU); }, K, { lw: 1.4, blur: 8, core: null, inner: false });
+  c.save(); c.fillStyle = hurt ? '#ffffff' : '#07130a';
+  for (const k of [-0.36, 0, 0.36]) { c.beginPath(); c.moveTo(R * (k - 0.1), R * 0.24 + Math.abs(k) * R * 0.04); c.lineTo(R * k, R * 0.46); c.lineTo(R * (k + 0.1), R * 0.24 + Math.abs(k) * R * 0.04); c.closePath(); c.fill(); }
+  for (const k of [-0.18, 0.18]) { c.beginPath(); c.moveTo(R * (k - 0.09), R * 0.69 - Math.abs(k) * R * 0.04); c.lineTo(R * k, R * 0.5); c.lineTo(R * (k + 0.09), R * 0.69 - Math.abs(k) * R * 0.04); c.closePath(); c.fill(); }
   c.restore();
-  neon(c, x => { x.beginPath(); x.moveTo(-R * 0.1, -R * 0.8); x.quadraticCurveTo(-R * 0.02, -R * 1.14, R * 0.2, -R * 1.24); x.lineTo(R * 0.3, -R * 1.14); x.quadraticCurveTo(R * 0.12, -R * 1.02, R * 0.12, -R * 0.8); x.closePath(); }, G2, { lw: 2.6, blur: 14, core: hurt ? 'rgba(255,255,255,0.1)' : 'rgba(6,26,8,0.92)' });
-  neon(c, x => { x.beginPath(); x.moveTo(R * 0.28, -R * 1.18); x.bezierCurveTo(R * 0.55, -R * 1.2, R * 0.62, -R * 0.95, R * 0.46, -R * 0.9); x.bezierCurveTo(R * 0.38, -R * 0.88, R * 0.36, -R * 0.98, R * 0.43, -R * 1.0); }, G2, { lw: 1.8, blur: 8, core: null, inner: false });
+}
+/* a curling tendril: a spiral that ends in a tight curl */
+/* the small face: two triangles and a zigzag, for bodies too small to carry the full carving */
+function hwCarveLite(c, R, col, hurt) {
+  const o = { lw: 1.7, blur: 12, core: hurt ? 'rgba(255,255,255,0.4)' : 'rgba(235,255,225,0.92)', inner: false };
+  for (const sx of [-1, 1]) neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.36, -R * 0.34); x.lineTo(sx * R * 0.12, -R * 0.06); x.lineTo(sx * R * 0.52, -R * 0.04); x.closePath(); }, col, o);
+  neon(c, x => { x.beginPath(); x.moveTo(-R * 0.5, R * 0.18); for (let i = 0; i <= 8; i++) x.lineTo(-R * 0.5 + i * R * 0.125, R * (0.18 + (i % 2 ? 0.32 : 0.12))); for (let i = 8; i >= 0; i--) x.lineTo(-R * 0.5 + i * R * 0.125, R * (0.2 + (i % 2 ? 0.14 : 0.0))); x.closePath(); }, col, o);
+}
+function hwTendril(c, x0, y0, len, dir, col, lw) {
+  c.beginPath();
+  for (let i = 0; i <= 28; i++) {
+    const k = i / 28, a = k * 5.2 * (1 + k), r = len * (0.32 * (1 - k) + 0.02);
+    const px = x0 + dir * (k * len * 0.9 + Math.cos(a) * r), py = y0 - Math.sin(k * 3) * len * 0.35 * (1 - k) + Math.sin(a) * r;
+    i ? c.lineTo(px, py) : c.moveTo(px, py);
+  }
+}
+function hwLeaf(c, len, wid) {
+  c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(len * 0.45, -wid, len, 0); c.quadraticCurveTo(len * 0.45, wid, 0, 0); c.closePath();
+}
+/* a ribbed gourd: lobes shaded from a lamp at the upper left, a rim light, a stem with a bevel, tendrils and leaves */
+function hwGourd(c, R, hurt, col, lw) {
+  const K = hurt ? '#ffffff' : col, G2 = hurt ? '#ffffff' : HWC.G, rx = R, ry = R * 0.86;
+  neon(c, x => { x.beginPath(); x.ellipse(0, 0, rx, ry, 0, 0, TAU); }, K, { lw: lw || 4, blur: 24, core: hurt ? 'rgba(255,255,255,0.16)' : 'rgba(22,6,2,0.96)' });
+  if (!hurt) {
+    c.save(); c.beginPath(); c.ellipse(0, 0, rx * 0.985, ry * 0.985, 0, 0, TAU); c.clip();
+    // five lobes, the middle one in front: each a lit ellipse that fades to its edge
+    const lobes = [[-0.74, 0.5], [0.74, 0.5], [-0.4, 0.66], [0.4, 0.66], [0, 0.72]];
+    for (const [dx, w] of lobes) {
+      const g = c.createRadialGradient(dx * rx - w * rx * 0.25, -ry * 0.3, ry * 0.05, dx * rx, 0, ry * 1.05);
+      g.addColorStop(0, 'rgba(255,170,70,0.4)'); g.addColorStop(0.55, 'rgba(190,70,12,0.2)'); g.addColorStop(1, 'rgba(20,4,0,0)');
+      c.fillStyle = g; c.beginPath(); c.ellipse(dx * rx, 0, w * rx, ry * 0.98, 0, 0, TAU); c.fill();
+    }
+    // the shade under the belly and a glow in the lower middle, where the candle sits
+    const sh = c.createLinearGradient(0, -ry * 0.2, 0, ry); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(10,0,0,0.55)');
+    c.fillStyle = sh; c.fillRect(-rx, -ry * 0.2, rx * 2, ry * 1.3);
+    c.restore();
+  }
+  // the ribs: the seams between the lobes, bright where they catch the light
+  c.save(); c.globalAlpha = 0.7;
+  for (const k of [0.3, 0.64, 0.9]) neon(c, x => { x.beginPath(); x.ellipse(0, 0, rx * k, ry * 0.97, 0, 0, TAU); }, K, { lw: 1.3, blur: 8, core: null, inner: false });
+  c.restore();
+  if (!hurt) {
+    // the rim light, a short bright arc on the shoulder, and a glint
+    c.save(); c.lineCap = 'round'; c.strokeStyle = 'rgba(255,236,190,0.7)'; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(0, 0, rx * 0.93, ry * 0.93, 0, Math.PI * 1.08, Math.PI * 1.42); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.85)'; c.beginPath(); c.ellipse(-rx * 0.62, -ry * 0.5, rx * 0.05, ry * 0.028, -0.6, 0, TAU); c.fill();
+    c.restore();
+  }
+  // the stem: a bevelled stub with ridges, cut at a slant
+  const sg = c.createLinearGradient(-R * 0.14, 0, R * 0.34, 0);
+  sg.addColorStop(0, '#2c6a1c'); sg.addColorStop(0.5, '#6fe052'); sg.addColorStop(1, '#245c18');
+  neon(c, x => { x.beginPath(); x.moveTo(-R * 0.16, -ry * 0.92); x.lineTo(-R * 0.08, -ry * 1.22); x.lineTo(R * 0.2, -ry * 1.3); x.lineTo(R * 0.34, -ry * 1.12); x.lineTo(R * 0.2, -ry * 0.9); x.closePath(); }, G2, { lw: 2.4, blur: 12, core: hurt ? 'rgba(255,255,255,0.12)' : 'rgba(8,30,10,0.95)' });
+  if (!hurt) {
+    c.save(); c.globalAlpha = 0.8; c.fillStyle = sg; c.beginPath(); c.moveTo(-R * 0.13, -ry * 0.93); c.lineTo(-R * 0.06, -ry * 1.2); c.lineTo(R * 0.19, -ry * 1.28); c.lineTo(R * 0.31, -ry * 1.12); c.lineTo(R * 0.18, -ry * 0.92); c.closePath(); c.fill(); c.restore();
+    c.save(); c.strokeStyle = 'rgba(10,50,12,0.8)'; c.lineWidth = 1.2;
+    for (const k of [0.1, 0.3]) { c.beginPath(); c.moveTo(R * (-0.1 + k * 0.5), -ry * 0.92); c.lineTo(R * (-0.02 + k * 0.62), -ry * 1.24); c.stroke(); }
+    c.restore();
+  }
+  // a pair of leaves at its foot and two tendrils
+  for (const [sx, an] of [[-1, 0.5], [1, -0.4]]) {
+    c.save(); c.translate(sx * R * 0.1, -ry * 0.9); c.rotate(sx < 0 ? Math.PI + an : an - 0.3); c.scale(1, sx);
+    neon(c, x => hwLeaf(x, R * 0.5, R * 0.17), G2, { lw: 1.8, blur: 10, core: hurt ? 'rgba(255,255,255,0.1)' : 'rgba(6,26,8,0.92)' });
+    neon(c, x => { x.beginPath(); x.moveTo(R * 0.04, 0); x.lineTo(R * 0.44, 0); }, G2, { lw: 1, blur: 4, core: null, inner: false });
+    c.restore();
+  }
+  neon(c, x => hwTendril(x, R * 0.3, -ry * 1.1, R * 0.5, 1, G2, 1.8), G2, { lw: 1.8, blur: 8, core: null, inner: false });
+  neon(c, x => hwTendril(x, -R * 0.12, -ry * 1.06, R * 0.42, -1, G2, 1.6), G2, { lw: 1.5, blur: 8, core: null, inner: false });
 }
 
 /* ---- the three bodies ---------------------------------------------------- */
@@ -30436,7 +30773,16 @@ BOSS_LIVE.hwarden = {
     BA.norm(c);
     BA.stamp(c, face, 0, 0, 0, 1, 1, sh ? 0.4 : 0.72 + 0.28 * Math.sin(t * 7.3));
     // a ring of runes, turning against the wisps
-    const runes = BA.part('hwrunes' + Math.round(R), Math.ceil(R * 2.9), cc => neon(cc, x => pathPoly(x, 12, R * 1.28, 0), HWC.V, { lw: 1.4, blur: 10, core: null, inner: false }));
+    const runes = BA.part('hwrunes' + Math.round(R), Math.ceil(R * 2.9), cc => {
+      cc.save(); cc.setLineDash([R * 0.2, R * 0.07]); neon(cc, x => { x.beginPath(); x.arc(0, 0, R * 1.28, 0, TAU); }, HWC.V, { lw: 1.4, blur: 10, core: null, inner: false }); cc.restore();
+      neon(cc, x => { x.beginPath(); x.arc(0, 0, R * 1.2, 0, TAU); }, HWC.V, { lw: 0.8, blur: 4, core: null, inner: false });
+      for (let i = 0; i < 12; i++) {   // a glyph on each gap: a diamond with a cut, alternating with a tick
+        const a = (i + 0.5) / 12 * TAU; cc.save(); cc.rotate(a); cc.translate(R * 1.28, 0);
+        if (i % 2) neon(cc, x => { x.beginPath(); x.moveTo(-R * 0.07, 0); x.lineTo(0, -R * 0.07); x.lineTo(R * 0.07, 0); x.lineTo(0, R * 0.07); x.closePath(); }, HWC.O, { lw: 1.3, blur: 6, core: 'rgba(30,10,2,0.9)', inner: false });
+        else neon(cc, x => { x.beginPath(); x.moveTo(-R * 0.06, 0); x.lineTo(R * 0.06, 0); x.moveTo(0, -R * 0.06); x.lineTo(0, R * 0.06); }, HWC.V, { lw: 1.3, blur: 6, core: null, inner: false });
+        cc.restore();
+      }
+    });
     BA.stamp(c, runes, 0, 0, -t * 0.6, 1, 1, sh ? 0.3 : 0.7);
     // six wisps on a slow orbit
     const w = BA.part('hwwisp', 80, cc => {
@@ -30454,19 +30800,52 @@ BOSS_LIVE.hwarden = {
 };
 
 BOSS_BODY.hwscarecrow = function (c, R, col, core, hurt) {
-  const s = R / 84, Kx = (k) => hurt ? '#ffffff' : k;
+  const s = R / 84, Kx = (k) => hurt ? '#ffffff' : k, dk = hurt ? 'rgba(255,255,255,0.14)' : 'rgba(28,12,4,0.95)';
   c.save(); c.scale(s * 0.62, s * 0.62);
   const L = 1.6;
-  // cross frame
-  neon(c, x => { x.beginPath(); x.moveTo(-190, -40); x.lineTo(190, -40); x.moveTo(0, -90); x.lineTo(0, 170); }, Kx(HWC.Y), { lw: 5 * L, blur: 20, core: null });
-  // torn coat
-  neon(c, x => { x.beginPath(); x.moveTo(-70, -30); x.lineTo(70, -30); for (let i = 0; i <= 7; i++) x.lineTo(70 - i * 20, 60 + (i % 2 ? 34 : 0)); x.closePath(); }, Kx('#b86b2a'), { lw: 2.4 * L, blur: 14, core: hurt ? 'rgba(255,255,255,0.14)' : 'rgba(28,12,4,0.94)' });
-  if (!hurt) bodyLight(c, x => { x.beginPath(); x.moveTo(-70, -30); x.lineTo(70, -30); x.lineTo(0, 90); x.closePath(); }, 0, 10, 4, 120, [[0, 'rgba(255,170,70,0.2)'], [1, 'rgba(0,0,0,0)']]);
-  // the head: a cracked gourd under a tilted hat
+  // the post and the crossbar: wood, with a grain line, nailed at the ends and in the middle
+  neon(c, x => { x.beginPath(); x.moveTo(-8, -70); x.lineTo(8, -70); x.lineTo(10, 190); x.lineTo(-10, 190); x.closePath(); }, Kx('#b8791e'), { lw: 3 * L, blur: 14, core: hurt ? dk : 'rgba(40,20,6,0.96)' });
+  neon(c, x => { x.beginPath(); x.moveTo(-196, -48); x.lineTo(196, -48); x.lineTo(200, -32); x.lineTo(-200, -32); x.closePath(); }, Kx(HWC.Y), { lw: 3.6 * L, blur: 18, core: hurt ? dk : 'rgba(46,26,6,0.96)' });
+  if (!hurt) {
+    c.save(); c.strokeStyle = 'rgba(255,200,110,0.4)'; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(-190, -40); c.lineTo(190, -40); c.moveTo(0, -60); c.lineTo(1, 180); c.stroke();
+    c.fillStyle = '#fff3a3'; for (const nx of [-184, -60, 60, 184]) { c.beginPath(); c.arc(nx, -40, 3.2, 0, TAU); c.fill(); }
+    c.restore();
+  }
+  // the sleeves: ragged cloth hung from the bar, stitched
+  for (const sx of [-1, 1]) {
+    neon(c, x => { x.beginPath(); x.moveTo(sx * 64, -34); x.lineTo(sx * 176, -34); for (let i = 0; i <= 5; i++) x.lineTo(sx * (176 - i * 22), 6 + (i % 2 ? 26 : 0)); x.lineTo(sx * 64, 12); x.closePath(); }, Kx('#c9732a'), { lw: 2.2 * L, blur: 12, core: dk });
+    if (!hurt) {
+      c.save(); c.strokeStyle = 'rgba(255,190,100,0.5)'; c.lineWidth = 1.1; c.setLineDash([4, 4]);
+      c.beginPath(); c.moveTo(sx * 70, -22); c.lineTo(sx * 168, -22); c.stroke(); c.restore();
+      bodyLight(c, x => { x.beginPath(); x.moveTo(sx * 64, -34); x.lineTo(sx * 176, -34); x.lineTo(sx * 150, 4); x.lineTo(sx * 64, 12); x.closePath(); }, sx * 100, -28, 4, 110, [[0, 'rgba(255,170,70,0.22)'], [1, 'rgba(0,0,0,0)']]);
+    }
+    // a bundle of straw where the sleeve ends
+    neon(c, x => { x.beginPath(); for (let k = -3; k <= 3; k++) { x.moveTo(sx * 176, -40 + k * 3); x.lineTo(sx * (198 + Math.abs(k) * 2), -44 + k * 7); } }, Kx('#ffd166'), { lw: 1.6, blur: 6, core: null, inner: false });
+  }
+  // the coat: a bell with a ragged hem, a patch with an X of stitches, rope belt, buttons
+  neon(c, x => { x.beginPath(); x.moveTo(-66, -34); x.lineTo(66, -34); x.lineTo(78, 20); x.lineTo(98, 70); for (let i = 0; i <= 8; i++) x.lineTo(98 - i * 24.5, 70 + (i % 2 ? 0 : 34)); x.lineTo(-98, 70); x.lineTo(-78, 20); x.closePath(); }, Kx('#b86b2a'), { lw: 2.6 * L, blur: 14, core: dk });
+  if (!hurt) {
+    bodyLight(c, x => { x.beginPath(); x.moveTo(-66, -34); x.lineTo(66, -34); x.lineTo(98, 70); x.lineTo(-98, 70); x.closePath(); }, -20, -20, 6, 150, [[0, 'rgba(255,170,70,0.24)'], [0.6, 'rgba(160,70,16,0.08)'], [1, 'rgba(0,0,0,0)']]);
+    c.save(); c.strokeStyle = 'rgba(255,190,100,0.45)'; c.lineWidth = 1.1; c.setLineDash([4, 4]);
+    c.beginPath(); c.moveTo(-60, -28); c.lineTo(-92, 66); c.moveTo(60, -28); c.lineTo(92, 66); c.stroke(); c.restore();
+  }
+  neon(c, x => { x.beginPath(); x.rect(22, 8, 40, 36); }, Kx(HWC.P), { lw: 1.8 * L, blur: 8, core: hurt ? dk : 'rgba(40,6,34,0.9)', inner: false });
+  neon(c, x => { x.beginPath(); x.moveTo(27, 13); x.lineTo(57, 39); x.moveTo(57, 13); x.lineTo(27, 39); }, Kx('#fff3a3'), { lw: 1.3 * L, blur: 5, core: null, inner: false });
+  neon(c, x => { x.beginPath(); x.moveTo(-80, 24); x.quadraticCurveTo(0, 38, 80, 24); }, Kx(HWC.Y), { lw: 3 * L, blur: 8, core: null, inner: false });
+  neon(c, x => { x.beginPath(); x.rect(-7, 25, 14, 14); }, Kx('#fff3a3'), { lw: 1.6 * L, blur: 6, core: hurt ? dk : 'rgba(40,24,4,0.95)', inner: false });
+  c.save(); c.fillStyle = hurt ? '#ffffff' : '#fff3a3'; for (const by of [-14, 52, 62]) { c.beginPath(); c.arc(-8, by, 3, 0, TAU); c.fill(); } c.restore();
+  // the head: a gourd, and the tilted hat with a band, a buckle and a tear
   c.save(); c.translate(0, -96);
   hwGourd(c, 58, hurt, HWC.O, 3.6 * 1.3);
-  neon(c, x => { x.beginPath(); x.moveTo(-78, -34); x.lineTo(78, -34); x.lineTo(40, -44); x.lineTo(30, -104); x.lineTo(-30, -104); x.lineTo(-40, -44); x.closePath(); }, Kx(HWC.V), { lw: 2.4 * L, blur: 16, core: hurt ? 'rgba(255,255,255,0.14)' : 'rgba(14,6,26,0.95)' });
-  neon(c, x => { x.beginPath(); x.moveTo(-34, -52); x.lineTo(34, -52); }, Kx(HWC.P), { lw: 3 * L, blur: 12, core: null, inner: false });
+  c.save(); c.translate(0, 6); c.scale(0.86, 0.86); hwCarve(c, 58, HWC.G, hurt); c.restore();
+  const hatCore = hurt ? dk : 'rgba(14,6,26,0.95)';
+  neon(c, x => { x.beginPath(); x.moveTo(-84, -30); x.quadraticCurveTo(0, -48, 84, -30); x.quadraticCurveTo(0, -24, -84, -30); x.closePath(); }, Kx(HWC.V), { lw: 2.4 * L, blur: 16, core: hatCore });
+  neon(c, x => { x.beginPath(); x.moveTo(-40, -40); x.lineTo(-30, -108); x.quadraticCurveTo(-10, -128, 24, -118); x.lineTo(36, -132); x.lineTo(30, -100); x.lineTo(40, -40); x.closePath(); }, Kx(HWC.V), { lw: 2.4 * L, blur: 16, core: hatCore });
+  neon(c, x => { x.beginPath(); x.moveTo(-38, -52); x.quadraticCurveTo(0, -44, 38, -52); }, Kx(HWC.P), { lw: 5 * L, blur: 10, core: null, inner: false });
+  neon(c, x => { x.beginPath(); x.rect(-9, -60, 18, 14); }, Kx('#fff3a3'), { lw: 1.6 * L, blur: 6, core: hatCore, inner: false });
+  neon(c, x => { x.beginPath(); x.moveTo(10, -78); x.lineTo(2, -88); x.lineTo(14, -94); x.lineTo(6, -104); }, '#ffffff', { lw: 1.4 * L, blur: 6, core: null, inner: false });
+  // a crack in the gourd
   neon(c, x => { x.beginPath(); x.moveTo(-10, -22); x.lineTo(-24, -4); x.lineTo(-6, 4); x.lineTo(-18, 22); }, '#ffffff', { lw: 1.6 * L, blur: 10, core: null, inner: false });
   c.restore();
   c.restore();
@@ -30501,13 +30880,33 @@ BOSS_LIVE.hwscarecrow = {
 };
 
 BOSS_BODY.hmoon = function (c, R, col, core, hurt) {
-  const K = hurt ? '#ffffff' : HWC.M, B2 = hurt ? '#ffffff' : '#c8b765';
-  neon(c, x => { x.beginPath(); x.arc(0, 0, R, 0, TAU); }, K, { lw: 4.5, blur: 26, core: hurt ? 'rgba(255,255,255,0.16)' : 'rgba(36,32,12,0.95)' });
-  if (!hurt) bodyLight(c, x => { x.beginPath(); x.arc(0, 0, R * 0.98, 0, TAU); }, -R * 0.3, -R * 0.3, R * 0.05, R * 1.2, [[0, 'rgba(255,243,163,0.34)'], [0.6, 'rgba(160,140,40,0.1)'], [1, 'rgba(0,0,0,0)']]);
-  const q = R / 104;
-  for (const [cx, cy, r] of [[-40, -34, 16], [34, -52, 10], [52, 12, 18], [-52, 34, 12], [6, 58, 9]])
-    neon(c, x => { x.beginPath(); x.arc(cx * q, cy * q, r * q, 0, TAU); }, B2, { lw: 1.4, blur: 6, core: null, inner: false });
-  neon(c, x => { x.beginPath(); x.arc(0, 0, R, -1.2, 1.4); x.arc(R * 0.33, 0, R * 0.88, 1.4, -1.2, true); }, '#ffffff', { lw: 1.2, blur: 6, core: null, inner: false });
+  const K = hurt ? '#ffffff' : HWC.M, q = R / 104;
+  neon(c, x => { x.beginPath(); x.arc(0, 0, R, 0, TAU); }, K, { lw: 4.5, blur: 26, core: hurt ? 'rgba(255,255,255,0.16)' : 'rgba(30,26,8,0.96)' });
+  if (!hurt) {
+    c.save(); c.beginPath(); c.arc(0, 0, R * 0.985, 0, TAU); c.clip();
+    // the sphere: lit from the upper left, darkening to the limb
+    const g = c.createRadialGradient(-R * 0.32, -R * 0.34, R * 0.05, 0, 0, R * 1.05);
+    g.addColorStop(0, 'rgba(255,243,163,0.5)'); g.addColorStop(0.5, 'rgba(200,170,70,0.2)'); g.addColorStop(1, 'rgba(10,6,0,0.55)');
+    c.fillStyle = g; c.fillRect(-R, -R, R * 2, R * 2);
+    // the seas: dark, soft-edged patches
+    c.fillStyle = 'rgba(70,52,10,0.34)';
+    for (const [cx, cy, rx, ry, a] of [[-70, 4, 24, 30, 0.2], [72, -30, 20, 26, -0.3], [40, 74, 30, 14, -0.4], [-50, -68, 26, 12, 0.5]]) { c.beginPath(); c.ellipse(cx * q, cy * q, rx * q, ry * q, a, 0, TAU); c.fill(); }
+    // craters: a dark floor, a lit rim on the side facing the lamp, a shadow rim opposite
+    for (const [cx, cy, r] of [[-72, -46, 14], [66, -62, 10], [80, 16, 15], [-80, 34, 11], [34, 84, 9], [-34, 86, 7], [-4, -90, 8], [60, 62, 7]]) {
+      const x = cx * q, y = cy * q, rr = r * q;
+      c.fillStyle = 'rgba(40,28,4,0.45)'; c.beginPath(); c.arc(x, y, rr, 0, TAU); c.fill();
+      c.lineWidth = Math.max(1, rr * 0.16); c.lineCap = 'round';
+      c.strokeStyle = 'rgba(255,240,180,0.7)'; c.beginPath(); c.arc(x, y, rr, Math.PI * 0.75, Math.PI * 1.75); c.stroke();
+      c.strokeStyle = 'rgba(20,12,0,0.6)'; c.beginPath(); c.arc(x, y, rr, -Math.PI * 0.25, Math.PI * 0.75); c.stroke();
+    }
+    c.restore();
+  }
+  // a bright limb along the lit side, and a fine ring a little way out, ticked like a dial
+  neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.94, Math.PI * 0.95, Math.PI * 1.55); }, '#ffffff', { lw: 1.6, blur: 8, core: null, inner: false });
+  c.save(); c.globalAlpha = 0.6;
+  neon(c, x => { x.beginPath(); x.arc(0, 0, R * 1.1, 0, TAU); }, hurt ? '#ffffff' : '#c8b765', { lw: 0.9, blur: 4, core: null, inner: false });
+  for (let i = 0; i < 24; i++) { const a = i / 24 * TAU, r0 = R * 1.1, r1 = R * (i % 3 ? 1.14 : 1.19); neon(c, x => { x.beginPath(); x.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); x.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); }, hurt ? '#ffffff' : '#c8b765', { lw: 1, blur: 3, core: null, inner: false }); }
+  c.restore();
 };
 BOSS_LIVE.hmoon = {
   rot() { return 0; },
@@ -30515,14 +30914,23 @@ BOSS_LIVE.hmoon = {
   over(c, e, o) {
     const R = o.R, t = o.t, sh = e.hwShield || e.hwT > 0;
     BA.add(c); BA.glow(c, HWC.M, 0, 0, R * 2.1, 0.2 + 0.05 * Math.sin(t * 3)); BA.norm(c);
-    // eight petals, counter-turning, and a carved grin in blood orange
+    // two ranks of petals, turning against each other: eight long blood-red blades and eight short violet ones behind
     const petal = BA.part('hwpetal' + Math.round(R), Math.ceil(R * 4.4), cc => {
-      neon(cc, x => { x.beginPath(); x.moveTo(R * 1.06, 0); x.quadraticCurveTo(R * 1.6, -R * 0.25, R * 2.0, 0); x.quadraticCurveTo(R * 1.6, R * 0.25, R * 1.06, 0); }, HWC.B, { lw: 2.2, blur: 14, core: 'rgba(34,8,4,0.94)' });
+      neon(cc, x => { x.beginPath(); x.moveTo(R * 1.2, 0); x.quadraticCurveTo(R * 1.62, -R * 0.26, R * 2.02, 0); x.quadraticCurveTo(R * 1.62, R * 0.26, R * 1.2, 0); }, HWC.B, { lw: 2.2, blur: 14, core: 'rgba(34,8,4,0.94)' });
+      neon(cc, x => { x.beginPath(); x.moveTo(R * 1.28, 0); x.lineTo(R * 1.86, 0); }, '#ffb08a', { lw: 1, blur: 4, core: null, inner: false });
+      neon(cc, x => { x.beginPath(); x.arc(R * 1.95, 0, R * 0.035, 0, TAU); }, '#fff3a3', { lw: 2, blur: 8, core: '#fff3a3', inner: false });
     });
-    const open = 0.5 + 0.5 * Math.sin(t * 1.3);
+    const petal2 = BA.part('hwpetal2' + Math.round(R), Math.ceil(R * 3.6), cc => {
+      neon(cc, x => { x.beginPath(); x.moveTo(R * 1.16, 0); x.quadraticCurveTo(R * 1.4, -R * 0.18, R * 1.68, 0); x.quadraticCurveTo(R * 1.4, R * 0.18, R * 1.16, 0); }, HWC.V, { lw: 1.8, blur: 10, core: 'rgba(16,8,30,0.94)' });
+    });
+    for (let i = 0; i < 8; i++) {
+      c.save(); c.rotate(-t * 0.35 + (i + 0.5) * TAU / 8);
+      BA.stamp(c, petal2, 0, 0, 0, 1, 1, sh ? 0.35 : 0.8);
+      c.restore();
+    }
     for (let i = 0; i < 8; i++) {
       c.save(); c.rotate(t * 0.5 + i * TAU / 8);
-      BA.stamp(c, petal, 0, 0, 0, 1, 1, sh ? 0.4 : 0.9);
+      BA.stamp(c, petal, 0, 0, 0, 1, 1, sh ? 0.4 : 0.92);
       c.restore();
     }
     const grin = BA.part('hwgrin' + Math.round(R), Math.ceil(R * 2.4), cc => { cc.save(); cc.scale(0.9, 0.9); hwCarve(cc, R, HWC.B, false); cc.restore(); });
@@ -30564,6 +30972,18 @@ function hwCrowBody(c, s, hurt) {
   neon(c, x => { x.beginPath(); x.moveTo(-s * 0.09, -s * 0.64); x.lineTo(0, -s * 1.12); x.lineTo(s * 0.09, -s * 0.64); x.closePath(); }, hurt ? '#ffffff' : HWC.Y, { lw: 1.8, blur: 9, core: hurt ? core : 'rgba(40,26,4,0.97)' });
   c.save(); c.fillStyle = hurt ? '#ffffff' : HWC.B; for (const k of [-1, 1]) { c.beginPath(); c.arc(k * s * 0.08, -s * 0.54, Math.max(1.2, s * 0.045), 0, TAU); c.fill(); } c.restore();
 }
+/* the bones of a bat's wing: a rib out to each point of the scallop, so the membrane reads as stretched */
+function hwBatRibs(c, s, f, k, col) {
+  neon(c, x => { x.beginPath();
+    for (const [px, py] of [[0.42, 0.38], [0.78, 0.2], [1.12, 0.06]]) { x.moveTo(k * s * 0.14, s * 0.12); x.lineTo(k * s * px, s * py); }
+    x.moveTo(k * s * 0.14, s * 0.12); x.lineTo(k * s * 1.5, -s * (0.34 + f * 0.5)); }, col, { lw: 1, blur: 4, core: null, inner: false });
+}
+/* the quills of a crow's wing */
+function hwCrowQuills(c, s, f, k, col) {
+  neon(c, x => { x.beginPath();
+    for (const [px, py] of [[1.18, -0.02], [1.0, 0.14], [0.78, 0.26], [0.86, 0.46]]) { x.moveTo(k * s * 0.3, -s * 0.1); x.lineTo(k * s * px, s * py); }
+    x.moveTo(k * s * 0.3, -s * 0.1); x.lineTo(k * s * 1.55, -s * (0.2 + f * 0.5)); }, col, { lw: 0.9, blur: 3, core: null, inner: false });
+}
 function hwBatBody(c, s, hurt) {
   const col = hurt ? '#ffffff' : HWC.V, core = hurt ? 'rgba(255,255,255,0.3)' : 'rgba(10,4,20,0.95)';
   neon(c, x => { x.beginPath(); x.ellipse(0, s * 0.1, s * 0.2, s * 0.42, 0, 0, TAU); }, col, { lw: 2, blur: 10, core: core });
@@ -30581,21 +31001,21 @@ BOSS_BODY.hcrow = function (c, R, col, core, hurt) { c.save(); c.rotate(Math.PI 
 BOSS_LIVE.hcrow = {
   over(c, e, o) {
     const s = o.R * 0.9;
-    hwWingStamp(c, o, 'hcw', Math.ceil(s * 4.4), (cc, f) => { neon(cc, x => hwCrowWing(x, s, f, 1), '#7fb0ff', { lw: 2, blur: 10, core: 'rgba(8,8,18,0.95)' }); neon(cc, x => hwCrowWing(x, s, f, -1), '#7fb0ff', { lw: 2, blur: 10, core: 'rgba(8,8,18,0.95)' }); }, 6, 9, e.ph || 0);
+    hwWingStamp(c, o, 'hcw', Math.ceil(s * 4.4), (cc, f) => { neon(cc, x => hwCrowWing(x, s, f, 1), '#7fb0ff', { lw: 2, blur: 10, core: 'rgba(8,8,18,0.95)' }); neon(cc, x => hwCrowWing(x, s, f, -1), '#7fb0ff', { lw: 2, blur: 10, core: 'rgba(8,8,18,0.95)' }); hwCrowQuills(cc, s, f, 1, '#c9a3ff'); hwCrowQuills(cc, s, f, -1, '#c9a3ff'); }, 6, 9, e.ph || 0);
   }
 };
 BOSS_BODY.hbat = function (c, R, col, core, hurt) { c.save(); c.rotate(Math.PI / 2); hwBatBody(c, R * 1.05, hurt); c.restore(); };
 BOSS_LIVE.hbat = {
   over(c, e, o) {
     const s = o.R * 1.05;
-    hwWingStamp(c, o, 'hbw', Math.ceil(s * 4.2), (cc, f) => { neon(cc, x => hwBatWing(x, s, f, 1), HWC.V, { lw: 1.8, blur: 10, core: 'rgba(10,4,20,0.95)' }); neon(cc, x => hwBatWing(x, s, f, -1), HWC.V, { lw: 1.8, blur: 10, core: 'rgba(10,4,20,0.95)' }); }, 6, 12, e.ph || 0);
+    hwWingStamp(c, o, 'hbw', Math.ceil(s * 4.2), (cc, f) => { neon(cc, x => hwBatWing(x, s, f, 1), HWC.V, { lw: 1.8, blur: 10, core: 'rgba(10,4,20,0.95)' }); neon(cc, x => hwBatWing(x, s, f, -1), HWC.V, { lw: 1.8, blur: 10, core: 'rgba(10,4,20,0.95)' }); hwBatRibs(cc, s, f, 1, '#ff9a3c'); hwBatRibs(cc, s, f, -1, '#ff9a3c'); }, 6, 12, e.ph || 0);
   }
 };
 
 BOSS_BODY.hsprout = function (c, R, col, core, hurt) {
   const K = hurt ? '#ffffff' : HWC.O;
   neon(c, x => { x.beginPath(); x.ellipse(0, 0, R * 1.0, R * 0.84, 0, 0, TAU); }, K, { lw: 3, blur: 16, core: hurt ? 'rgba(255,255,255,0.3)' : 'rgba(26,8,2,0.94)' });
-  c.save(); c.scale(0.24 * R / 24, 0.24 * R / 24); hwCarve(c, 100, hurt ? '#ffffff' : HWC.G, hurt); c.restore();
+  c.save(); c.scale(0.24 * R / 24, 0.24 * R / 24); hwCarveLite(c, 100, hurt ? '#ffffff' : HWC.G, hurt); c.restore();
 };
 BOSS_LIVE.hsprout = {
   over(c, e, o) {
@@ -37296,11 +37716,15 @@ Object.assign(UI, {
   },
   rollDo() {
     const r = Banners.roll(this.rollB);
-    if (!r.ok) { Sound.hurt(); this.rollMsg = { t: 'NO TICKETS  \u00b7  BUY ONE BELOW', col: '#ff7a90', at: G.uiT }; return; }
+    if (!r.ok) { Sound.hurt(); this.rollMsg = { t: 'NO TICKETS  \u00b7  GET THEM IN THE SHOP', col: '#ff7a90', at: G.uiT }; return; }
     this.rollMsg = null;
     this.rollRes = { tier: r.tier, id: r.id, dupe: r.dupe, shards: r.shards, at: G.uiT, burst: false };
     this.rollBonus = r.bonus || null;
     Sound.ui(true);
+  },
+  toTickets() {
+    if (this.stdRes || Standard.pend() || this.rollRes) return;
+    this.shopFocus = 'tickets'; this.shopModal = null; G.state = 'shop'; this.lastState = ''; Sound.ui(true);
   },
   rollBuy() {
     const r = Banners.buy(this.rollB);
@@ -37315,21 +37739,29 @@ Object.assign(UI, {
     const B = this.rollB, t = G.uiT, u = Math.min(1, VH / 720), res = this.rollRes;
     if (!B) { this.rollBack(); return; }
     this.dim(c, 0.84);
-    const rec = Banners.rec(B), narrow = VW < 640;
-    tracked(c, B.title, VW / 2, 46, { size: Math.min(28, VW * 0.06), weight: 900, align: 'center', color: B.col, glow: B.col, blur: 18, track: 8 });
-    text(c, 'event banner  \u00b7  three skins, one roll, a small chance of a bonus prize', VW / 2, 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    const rec = Banners.rec(B), narrow = VW < 640, short = VH < 520 && VW > VH, lx = short ? VW * 0.3 : VW / 2, lw = short ? VW * 0.58 : VW;
+    bannerBack(c, B, t, VW / 2, (narrow ? 94 : 100) + (narrow ? 75 : 95), B.id === HWB_ID);
+    { const tk = narrow ? 4 : 8, ts = clamp(((VW - 30) / Math.max(10, B.title.length) - tk) / 0.68, 13, 28);
+      tracked(c, B.title, VW / 2, short ? 30 : 46, { size: ts, weight: 900, align: 'center', color: B.col, glow: B.col, blur: 18, track: tk }); }
+    text(c, 'event banner  \u00b7  three skins, one roll, a small chance of a bonus prize', VW / 2, short ? 48 : 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
     // tickets chip, top right
-    tracked(c, 'TICKETS  ' + rec.tickets, VW - 20, 34, { size: 13, weight: 900, align: 'right', color: rec.tickets ? '#8dff6b' : PAL.dim, glow: rec.tickets ? '#8dff6b' : null, blur: 8, track: 3 });
+    if (narrow) tixCount(c, VW - 12, 17, 20, 'evt', rec.tickets, 'right'); else tixCount(c, VW - 20, short ? 24 : 38, short ? 20 : 34, 'evt', rec.tickets, 'right');
     // the three prizes: LOW and MID either side, TOP in the middle and larger
     const order = ['low', 'top', 'mid'];
-    const cw = Math.min(narrow ? 112 : 200, (VW - 30) / 3.2), chh = narrow ? 150 : 190, gap = narrow ? 8 : 18;
-    const x0 = VW / 2 - (cw * 3 + gap * 2) / 2, cy0 = narrow ? 94 : 100;
+    const cw = Math.min(narrow ? 112 : 200, (lw - 30) / 3.2), chh = short ? 128 : (narrow ? 150 : 190), gap = narrow || short ? 8 : 18;
+    const x0 = lx - (cw * 3 + gap * 2) / 2, cy0 = short ? 80 : (narrow ? 94 : 100);
     order.forEach((tier, i) => {
       const sk = SKIN_BY_ID[B.skins[tier]], col = ROLL_COL[tier], top = tier === 'top';
       const x = x0 + i * (cw + gap), y = cy0 - (top ? 10 : 0), h = chh + (top ? 20 : 0);
       glass(c, x, y, cw, h, 14, col, top);
       if (top) hglow(c, col, x + cw / 2, y + h * 0.4, cw * 0.9, 0.2);
       if (sk) this.passSkin(c, sk, x + cw / 2, y + h * 0.4, cw * (top ? 0.26 : 0.2), t * (top ? 0.8 : 0.5) * (i === 0 ? 1 : -1), t);
+      if (top) {   // two rings turning against each other round the prize
+        c.save(); c.globalCompositeOperation = 'lighter'; c.translate(x + cw / 2, y + h * 0.4); c.lineWidth = 1.4; c.lineCap = 'round';
+        c.strokeStyle = col; c.globalAlpha = 0.55; c.rotate(t * 0.5); c.setLineDash([cw * 0.06, cw * 0.05]); c.beginPath(); c.arc(0, 0, cw * 0.4, 0, TAU); c.stroke();
+        c.strokeStyle = '#ffffff'; c.globalAlpha = 0.3; c.rotate(-t * 1.1); c.setLineDash([cw * 0.02, cw * 0.09]); c.beginPath(); c.arc(0, 0, cw * 0.46, 0, TAU); c.stroke();
+        c.restore();
+      }
       tracked(c, tier.toUpperCase(), x + cw / 2, y + 22, { size: narrow ? 10.5 : 12, weight: 900, align: 'center', color: col, glow: col, blur: 8, track: 3 });
       if (sk) tracked(c, sk.name, x + cw / 2, y + h * 0.78, { size: narrow ? 9.5 : 12, weight: 900, align: 'center', color: '#ffffff', track: 1.5 });
       text(c, ROLL.ODDS[tier] + '%', x + cw / 2, y + h * 0.78 + 17, { size: narrow ? 10 : 12, weight: 800, align: 'center', color: col });
@@ -37337,28 +37769,28 @@ Object.assign(UI, {
       if (have) tracked(c, 'OWNED', x + cw / 2, y + h - 10, { size: 9, weight: 900, align: 'center', color: '#8dff6b', track: 2 });
     });
     // pity
-    const py = cy0 + chh + 34, pw = Math.min(420, VW - 50), px = VW / 2 - pw / 2;
-    tracked(c, 'PITY  ' + rec.pity + ' / ' + ROLL.PITY, VW / 2, py, { size: 12, weight: 900, align: 'center', color: ROLL_COL.top, track: 3 });
+    const py = cy0 + chh + (short ? 40 : 34), pw = Math.min(420, lw - 50), px = lx - pw / 2;
+    tracked(c, 'PITY  ' + rec.pity + ' / ' + ROLL.PITY, lx, py, { size: 12, weight: 900, align: 'center', color: ROLL_COL.top, track: 3 });
     c.save(); c.fillStyle = 'rgba(8,10,20,0.9)'; roundRect(c, px, py + 8, pw, 8, 4); c.fill();
     const fr = Math.min(1, rec.pity / ROLL.PITY);
     if (fr > 0) { const g = c.createLinearGradient(px, 0, px + pw, 0); g.addColorStop(0, '#63d4ff'); g.addColorStop(1, '#ffd166');
       c.fillStyle = g; c.shadowColor = '#ffd166'; c.shadowBlur = 8; roundRect(c, px, py + 8, Math.max(8, pw * fr), 8, 4); c.fill(); }
     c.restore();
-    text(c, 'roll ' + ROLL.PITY + ' times without a TOP and the next roll is a TOP', VW / 2, py + 34, { size: 10.5, weight: 600, align: 'center', color: PAL.dim });
-    text(c, 'a skin you already own pays shards  \u00b7  TOP ' + fmtNum(ROLL.DUPE.top) + '  \u00b7  MID ' + fmtNum(ROLL.DUPE.mid) + '  \u00b7  LOW ' + fmtNum(ROLL.DUPE.low),
+    text(c, 'roll ' + ROLL.PITY + ' times without a TOP and the next roll is a TOP', lx, py + 34, { size: 10.5, weight: 600, align: 'center', color: PAL.dim });
+    if (!short) text(c, 'a skin you already own pays shards  \u00b7  TOP ' + fmtNum(ROLL.DUPE.top) + '  \u00b7  MID ' + fmtNum(ROLL.DUPE.mid) + '  \u00b7  LOW ' + fmtNum(ROLL.DUPE.low),
       VW / 2, py + 50, { size: 10.5, weight: 600, align: 'center', color: PAL.dim });
-    if (B.end) text(c, 'unspent tickets expire when the event ends', VW / 2, py + 66, { size: 10.5, weight: 600, align: 'center', color: '#ffb347' });
+    if (B.end && !short) text(c, 'unspent tickets expire when the event ends', VW / 2, py + 66, { size: 10.5, weight: 600, align: 'center', color: '#ffb347' });
     // the buttons
     const left = Banners.buyLeft();
-    const my = Math.min(VH - 124 - (B.id === HWB_ID ? 40 : 0), py + (B.end ? 108 : 96));
-    if (this.rollMsg && t - this.rollMsg.at < 3.5) tracked(c, this.rollMsg.t, VW / 2, my - 26, { size: 12, weight: 900, align: 'center', color: this.rollMsg.col, glow: this.rollMsg.col, blur: 8, track: 2 });
+    const rx = short ? VW * 0.79 : VW / 2, my = short ? 100 : Math.min(VH - 124 - (B.id === HWB_ID ? 40 : 0), py + (B.end ? 108 : 96));
+    if (this.rollMsg && t - this.rollMsg.at < 3.5) tracked(c, this.rollMsg.t, rx, my - 26, { size: 12, weight: 900, align: 'center', color: this.rollMsg.col, glow: this.rollMsg.col, blur: 8, track: 2 });
     const items = [
       { label: () => 'ROLL  \u00b7  1 TICKET', color: rec.tickets ? '#8dff6b' : '#7d86ab', act: () => this.rollDo() },
-      { label: () => 'BUY A TICKET  \u00b7  ' + ROLL.TICKET_VB + ' VOIDBUX  \u00b7  ' + left + ' LEFT TODAY', color: left ? '#ff4fd8' : '#7d86ab', act: () => this.rollBuy() },
+      { label: 'GET TICKETS', color: '#ff4fd8', act: () => this.toTickets() },
       ...(B.id === HWB_ID && Hollow.on() ? [{ label: 'ENTER THE HOLLOW', color: '#ff9a3c', act: () => { this.hollowFrom = 'roll'; this.openHollow(); } }] : []),
       { label: 'BACK', color: PAL.dim, act: () => this.rollBack() }
     ];
-    this.menu(c, items, VW / 2, my, 40, { size: narrow ? 14 : 17, w: Math.min(520, VW - 24), id: 'roll', passive: !!res || !!this.stdRes || !!Standard.pend() });
+    this.menu(c, items, rx, my, short ? 38 : 40, { size: narrow || short ? 14 : 17, w: short ? VW * 0.4 : Math.min(520, VW - 24), id: 'roll', passive: !!res || !!this.stdRes || !!Standard.pend() });
     if (!res) this.prizeLayer(c);
 
     // the reveal: the three skins whirl, then the one you won lands
@@ -37413,9 +37845,9 @@ Object.assign(UI, {
     const tix = Hollow.tickets();
     const tl = 'EVENT TICKETS  ' + tix;
     const tcol = tix ? '#8dff6b' : PAL.dim, tg = tix ? '#8dff6b' : null;
-    if (narrow && !short) tracked(c, tl, VW / 2, 92, { size: 13, weight: 900, align: 'center', color: tcol, glow: tg, blur: 8, track: 3 });
-    else if (short) tracked(c, tl, VW - 14, 16, { size: 11, weight: 900, align: 'right', color: tcol, glow: tg, blur: 8, track: 2 });
-    else tracked(c, tl, VW - 20, 34, { size: 13, weight: 900, align: 'right', color: tcol, glow: tg, blur: 8, track: 3 });
+    if (narrow && !short) tixCount(c, VW / 2, 92, 24, 'evt', tix, 'center');
+    else if (short) tixCount(c, VW - 14, 18, 20, 'evt', tix, 'right');
+    else tixCount(c, VW - 20, 38, 34, 'evt', tix, 'right');
     // the three tasks
     const rw = Math.min(560, VW - 36), x0 = VW / 2 - rw / 2;
     let ny;
@@ -37498,7 +37930,7 @@ Object.assign(UI, {
   },
   stdDo() {
     const r = Standard.roll();
-    if (!r.ok) { Sound.hurt(); this.stdMsg = { t: 'NO TICKETS  ·  WIN A LEVEL TO FIND ONE', col: '#ff7a90', at: G.uiT }; return; }
+    if (!r.ok) { Sound.hurt(); this.stdMsg = { t: 'NO TICKETS  ·  WIN A LEVEL OR BUY ONE', col: '#ff7a90', at: G.uiT }; return; }
     this.stdMsg = null; r.at = G.uiT; r.burst = false; this.stdRes = r; Sound.ui(true);
   },
   std(c) {
@@ -37509,8 +37941,8 @@ Object.assign(UI, {
     tracked(c, 'STANDARD ROLL', VW / 2, 46, { size: Math.min(28, VW * 0.06), weight: 900, align: 'center', color: A, glow: A, blur: 18, track: 8 });
     text(c, 'one ticket, one roll  ·  always here  ·  no pity', VW / 2, 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
     const tix = Standard.n();
-    if (narrow) tracked(c, 'TICKETS  ' + tix, VW / 2, 90, { size: 13, weight: 900, align: 'center', color: tix ? '#8dff6b' : PAL.dim, glow: tix ? '#8dff6b' : null, blur: 8, track: 3 });
-    else tracked(c, 'TICKETS  ' + tix, VW - 20, 34, { size: 13, weight: 900, align: 'right', color: tix ? '#8dff6b' : PAL.dim, glow: tix ? '#8dff6b' : null, blur: 8, track: 3 });
+    if (narrow) tixCount(c, VW / 2, 92, 24, 'std', tix, 'center');
+    else tixCount(c, VW - 20, 38, 34, 'std', tix, 'right');
     // the five prizes
     const rw = Math.min(560, VW - 36), rh = narrow ? 40 : 48, x0 = VW / 2 - rw / 2, y0 = narrow ? 112 : 100;
     STD.ODDS.forEach((o, i) => {
@@ -37529,6 +37961,7 @@ Object.assign(UI, {
     const busy = !!this.stdRes || !!Standard.pend();
     this.menu(c, [
       { label: 'ROLL  ·  1 TICKET', color: tix ? '#8dff6b' : '#7d86ab', act: () => this.stdDo() },
+      { label: 'GET TICKETS', color: '#ff4fd8', act: () => this.toTickets() },
       { label: 'BACK', color: PAL.dim, act: () => this.stdBack() }
     ], VW / 2, my, 40, { size: narrow ? 14 : 17, w: Math.min(520, VW - 24), id: 'std', passive: busy });
 
@@ -37613,6 +38046,10 @@ Object.assign(UI, {
     ];
     if (Standard.on()) out.splice(1, 0, { id: 'standard', title: 'STANDARD ROLL', note: 'ALWAYS HERE', col: '#ff9a3c', cards: [{ kind: 'standard', w: 1.25 }] });
     { const bl = Banners.live(); if (bl.length) { Banners.purge(); out.splice(1, 0, { id: 'banner', title: 'EVENT BANNER', note: 'DESKTOP', col: '#ffd166', cards: bl.map(b => ({ kind: 'banner', b: b, w: 1.25 })) }); } }
+    { const tc = [];
+      if (Standard.on()) tc.push({ kind: 'tix', tk: 'std', w: 1.1 });
+      if (Hollow.on()) tc.push({ kind: 'tix', tk: 'evt', b: Hollow.banner(), w: 1.1 });
+      if (tc.length) out.splice(1, 0, { id: 'tickets', title: 'TICKETS', note: STD.BUY_VB + ' VOIDBUX \u00b7 ' + STD.BUY_DAY + ' A DAY EACH', col: '#ffd166', cards: tc }); }
     if (live) out.push({ id: 'pass', title: 'BLOOM PASS', note: 'SEASON ' + S.n, col: S.col, cards: [{ kind: 'pass', S: S, w: 1.2 }] });
     out.push({ id: 'shards', title: 'SHARD PACKS', note: 'FOR VOIDBUX', col: '#c9a3ff', cards: SHARD_PACKS.map(p => ({ kind: 'shards', p: p, w: 0.9 })) });
     out.push({ id: 'vbux', title: 'VOIDBUX', note: VbuxStore.kind() ? '' : 'COMING SOON', col: '#ff4fd8', cards: VBUX_PACKS.map(p => ({ kind: 'vbuxpack', p: p, w: 0.9 })) });
@@ -37642,6 +38079,11 @@ Object.assign(UI, {
       return { state: 'buy', cur: 'money', label: pr, ok: true };
     }
     if (cd.kind === 'code') return { state: 'enter', label: 'ENTER CODE' };
+    if (cd.kind === 'tix') {
+      const left = cd.tk === 'evt' ? Banners.buyLeft() : Standard.buyLeft();
+      if (left <= 0) return { state: 'owned', label: 'LIMIT TODAY' };
+      return { state: 'buy', cur: 'vbux', n: STD.BUY_VB, ok: Vbux.can(STD.BUY_VB) };
+    }
     if (cd.kind === 'banner') return { state: 'enter', label: 'OPEN BANNER' };
     if (cd.kind === 'standard') return { state: 'enter', label: 'OPEN ROLL' };
     return { state: 'soon', label: '' };
@@ -37654,6 +38096,7 @@ Object.assign(UI, {
     if (cd.kind === 'vbuxpack') return fmtNum(cd.p.n) + ' VOIDBUX';
     if (cd.kind === 'banner') return cd.b.title;
     if (cd.kind === 'standard') return 'STANDARD ROLL';
+    if (cd.kind === 'tix') return TIX[cd.tk].name;
     if (cd.kind === 'code') return 'REDEEM A CODE';
     return '';
   },
@@ -37664,6 +38107,10 @@ Object.assign(UI, {
     if (cd.kind === 'shards') return cd.p.tag || 'SHARD PACK';
     if (cd.kind === 'vbuxpack') return cd.p.tag ? cd.p.tag + ' BONUS' : 'VOIDBUX';
     if (cd.kind === 'standard') return 'TICKETS ' + Standard.n() + ' \u00b7 FROM EVERY WIN';
+    if (cd.kind === 'tix') {
+      const n = cd.tk === 'evt' ? Banners.rec(cd.b).tickets : Standard.n(), left = cd.tk === 'evt' ? Banners.buyLeft() : Standard.buyLeft();
+      return 'YOU HAVE ' + n + ' \u00b7 ' + left + ' LEFT TODAY';
+    }
     if (cd.kind === 'banner') { const r = Banners.rec(cd.b); return 'TICKETS ' + r.tickets + ' \u00b7 PITY ' + r.pity + '/' + ROLL.PITY; }
     if (cd.kind === 'code') return Codes.count() ? Codes.count() + ' / ' + CODE_LIST.length + ' REDEEMED' : 'SKINS · PETS · SHARDS · PASS';
     return '';
@@ -37671,6 +38118,7 @@ Object.assign(UI, {
   shopCol(cd, sec) {
     if (cd.kind === 'deal') { const x = cd.o.k === 'skin' ? SKIN_BY_ID[cd.o.ref] : PET_BY_ID[cd.o.ref]; return (x && x.col) || sec.col; }
     if (cd.kind === 'vbskin') return cd.sk.col;
+    if (cd.kind === 'tix') return TIX[cd.tk].rim;
     return sec.col;
   },
   shopBuy(cd) {
@@ -37691,6 +38139,12 @@ Object.assign(UI, {
       d.owned.push(cd.sk.id); got = { k: 'skin', id: cd.sk.id };
     } else if (cd.kind === 'pass') {
       const r = Pass.rec(cd.S); r.vb = 1; Pass.setPrem(cd.S, true); got = { k: 'pass' };
+    } else if (cd.kind === 'tix') {
+      if (cd.tk === 'evt') {
+        if (!d.rollBuy || d.rollBuy.day !== dailyKey()) d.rollBuy = { day: dailyKey(), n: 0 };
+        d.rollBuy.n++; Banners.rec(cd.b).tickets++;
+      } else Standard.bought();
+      got = { k: 'tix', tk: cd.tk };
     } else if (cd.kind === 'shards') {
       d.shards = (d.shards || 0) + cd.p.n; got = { k: 'shards', n: cd.p.n };
     }
@@ -37905,6 +38359,7 @@ Object.assign(UI, {
     if (cd.kind === 'vbskin' && P.state === 'buy') this.ribbon(c, x + 10, y + 10, 'EXCLUSIVE', '#ff4fd8');
     if (cd.kind === 'banner') this.ribbon(c, x + 10, y + 10, 'EVENT', '#ffd166');
     if (cd.kind === 'standard') this.ribbon(c, x + 10, y + 10, 'ALWAYS', '#ff9a3c');
+    if (cd.kind === 'tix') this.ribbon(c, x + 10, y + 10, cd.tk === 'evt' ? 'EVENT' : 'ALWAYS', cd.tk === 'evt' ? '#ff9a3c' : '#ffb347');
     if ((cd.kind === 'shards' || cd.kind === 'vbuxpack') && cd.p.tag) this.ribbon(c, x + 10, y + 10, cd.p.tag, '#ffb347');
     if (on) focusTicks(c, x, y, w, h, col, t);
   },
@@ -37971,6 +38426,13 @@ Object.assign(UI, {
       if (sl) this.passSkin(c, sl, x - r * 0.98, y + r * 0.42, r * 0.34, t * 0.6, t);
       if (sm) this.passSkin(c, sm, x + r * 0.98, y + r * 0.42, r * 0.38, -t * 0.6, t);
       if (st2) this.passSkin(c, st2, x, y - r * 0.08, r * 0.6, Math.sin(t * 0.8) * 0.3, t);
+    } else if (cd.kind === 'tix') {
+      const K = TIX[cd.tk];
+      hglow(c, K.glow, x, y, r * 1.5, on ? 0.34 : 0.2);
+      c.save(); c.globalCompositeOperation = 'lighter'; c.lineWidth = 1.4; c.lineCap = 'round'; c.strokeStyle = K.rim; c.shadowColor = K.rim; c.shadowBlur = 8;
+      c.globalAlpha = on ? 0.6 : 0.4; c.translate(x, y); c.rotate(t * 0.4); c.setLineDash([r * 0.22, r * 0.2]);
+      c.beginPath(); c.arc(0, 0, r * 1.22, 0, TAU); c.stroke(); c.restore();
+      ticketIcon(c, x, y, r * 1.55, cd.tk, t);
     } else if (cd.kind === 'standard') {
       const A = '#ff9a3c', tw = r * 1.5, th = r * 0.92;
       hglow(c, A, x, y - r * 0.1, r * 1.3, on ? 0.3 : 0.18);
