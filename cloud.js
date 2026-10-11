@@ -17,6 +17,9 @@
  *                 player's browser; paid orders the game has not credited
  *                 yet come back from 'vbux', and 'vbuxack' marks them done
  *                 (STATS/vbux.sql). Dormant until a pack has a payment link.
+ *    CODES        A code typed in the game that is not one of the few built
+ *                 into the page is asked of the server (STATS/codes.sql), so
+ *                 a code made on the dashboard works at once. One per install.
  *    BLOOM PASS   Whether this player owns a season's premium track, pass
  *                 keys, and the Stripe checkout. The page asks; the server
  *                 decides (STATS/pass.sql). A checkout opens in the player's
@@ -48,6 +51,8 @@ const PAY_URL_RE = /^https:\/\/(buy|checkout)\.stripe\.com\/[A-Za-z0-9_\/-]{4,20
 const VBX_URL_RE = /^https:\/\/(buy|checkout)\.stripe\.com\/[A-Za-z0-9_\/-]{4,200}\?(?:[A-Za-z0-9_=%.-]+&)*client_reference_id=vbx_[0-9a-f]{24}$/;
 const VBX_PACK_RE = /^vbux_[0-9]{2,5}$/;
 const VBX_REF_RE = /^vbx_[0-9a-f]{24}$/;
+const GIFT_RE = /^[A-Z0-9]{3,20}$/;              // a dashboard code, once case and punctuation are gone
+const GIFT_ID_RE = /^[a-z0-9_]{2,24}$/;          // skin, pet and event ids
 
 let state = { code: null, savedAt: null, hash: null };
 let me = { name: null, hidden: false, banned: false, at: 0 };
@@ -309,6 +314,26 @@ async function handle(op, a) {
       if (!refs.length) return { ok: false, error: 'refs' };
       const r = await stats.call('vb_vbux_ack', { install_id: stats.identity().install_id, refs: refs }, 8000);
       return r.ok ? (r.data || { ok: false }) : { ok: false, error: r.error };
+    }
+    /* ---------------------------------------------------- CODES */
+    case 'code': {                 // a code made on the dashboard: what does it give?
+      const code = String(a.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!GIFT_RE.test(code)) return { ok: false, error: 'unknown' };
+      const q = { install_id: stats.identity().install_id, code: code };
+      // the event banners this game has, so event tickets never go to one it can't show
+      if (Array.isArray(a.evs)) q.evs = a.evs.map(String).filter(x => GIFT_ID_RE.test(x)).slice(0, 16);
+      const r = await stats.call('vb_code_redeem', q, 8000);
+      if (!r.ok) return { ok: false, error: r.error };
+      const d = r.data || {};
+      if (!d.ok) return { ok: false, error: String(d.error || 'server').slice(0, 16) };
+      const int = (v, hi) => Number.isInteger(v) && v > 0 ? Math.min(v, hi) : 0;
+      const id = v => typeof v === 'string' && GIFT_ID_RE.test(v) ? v : null;
+      const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : null;
+      if (!Number.isInteger(d.id) || d.id < 1) return { ok: false, error: 'server' };
+      return { ok: true, id: d.id, name: str(d.name, 24) || code, msg: str(d.msg, 64),
+               shards: int(d.shards, 100000), vbux: int(d.vbux, 5000), tix: int(d.tix, 50),
+               evtix: int(d.evtix, 50), ev: id(d.ev), evTitle: str(d.ev_title, 40),
+               skin: id(d.skin), pet: id(d.pet), again: !!d.again };
     }
     case 'paste': {                // the key box: only a pass key ever comes back out of the clipboard
       const t = String(clipboard.readText() || '').toUpperCase().replace(/\s+/g, '');

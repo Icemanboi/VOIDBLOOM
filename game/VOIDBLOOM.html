@@ -695,6 +695,15 @@ const Save = {
     if (!this.data.pet) this.data.pet = 'mote';
     if (this.data.petMode === undefined) this.data.petMode = 1;
     if (!this.data.petStats) this.data.petStats = {};
+    // skin levels arrived: a save from before them keeps everything it owned
+    // at the top level (it paid for the glow and the trail). A new save starts
+    // every skin at LEVEL 1, SEED included.
+    if (!this.data.skinLv || typeof this.data.skinLv !== 'object') this.data.skinLv = {};
+    if (!this.data.lvMig) {
+      this.data.lvMig = 1;
+      const d0 = this.data, old = (d0.runs | 0) > 0 || (d0.owned || []).length > 1 || !!d0.seen || (d0.shards | 0) > 0;
+      if (old) for (const id of ['seed'].concat(d0.owned || [])) d0.skinLv[id] = 5;
+    }
     // kills used to be filed under a boss's kind, not its name (THE GRAVEWALKER as 'grave'),
     // which is why THE BESTIARY could never be finished. File them under the name as well.
     const bs = this.data.bossSeen || (this.data.bossSeen = {});
@@ -1519,7 +1528,8 @@ const Trails = {
   // a skin without a style of its own still gets one, in its own colours
   style(sk) {
     if (sk.__trail) return sk.__trail;
-    let S = TRAILS[sk.id];
+    // below LEVEL 5 a skin flies a plain streak in its colour (SKIN LEVELS)
+    let S = sk.plainTrail ? plainTrail(sk) : TRAILS[sk.id];
     if (!S) {
       const c0 = sk.core && sk.core !== '#000000' ? sk.core : '#ffffff';
       S = { name: 'STREAM',
@@ -1777,7 +1787,7 @@ const Trails = {
     const am = busy > 40 ? Math.max(0.45, 1 - (busy - 40) / 160) : 1;
     if (G.coop && Coop.allies) for (const a of Coop.allies) {
       if (!a.tp || !a.seen || a.dead) continue;
-      this.draw(c, a.tp, SKIN_BY_ID[a.skin] || SKINS[0], am * 0.8);
+      this.draw(c, a.tp, skinView(SKIN_BY_ID[a.skin], a.lv), am * 0.8);
     }
     const p = G.player;
     if (p && p.tp && (!p.dead || G.state === 'win')) this.draw(c, p.tp, currentSkin(), am);
@@ -1789,7 +1799,8 @@ const Trails = {
   fly(c, key, sk, cx, cy, rx, ry, t, sc, speed) {
     let M = this.menus[key];
     if (!M) M = this.menus[key] = { st: this.make(), t: t, sk: null };
-    if (M.sk !== sk.id) { this.reset(M.st); M.sk = sk.id; M.t = t; }
+    const kid = sk.id + '|' + (sk.lv || 0);
+    if (M.sk !== kid) { this.reset(M.st); M.sk = kid; M.t = t; }
     const dt = Math.min(0.05, Math.max(0, t - M.t));
     M.t = t;
     const u = t * (speed || 1.1);
@@ -7096,10 +7107,11 @@ const VB_SKINS = [
 for (const m of VB_SKINS) { m.price = -1; m.exclusive = true; SKINS.push(m); }
 
 /* ========================================================================
-   PETS  --  purely cosmetic. A pet never damages, never blocks, never picks
-   anything up, and never reads as a threat: no pet uses PAL.danger or
-   PAL.boss, they draw under the bullets, and they fade out when the screen
-   gets busy. A cosmetic that costs someone a run is a bug.
+   PETS  --  a pet never damages, never blocks, never picks anything up, and
+   never reads as a threat: no pet uses PAL.danger or PAL.boss, they draw
+   under the bullets, and they fade out when the screen gets busy. A pet that
+   costs someone a run is a bug. Each brings one small perk (PET_PERKS): the
+   perk is yours, not its -- it still never fights.
    ======================================================================== */
 const PETS = [
   { id: 'none',   name: 'NONE',         price: 0,    col: '#7d86ab', form: 'none',    blurb: 'Nobody at your shoulder.' },
@@ -7137,7 +7149,165 @@ function petOwned(id) {
 const SKIN_BY_ID = Object.create(null);
 for (const s of SKINS) SKIN_BY_ID[s.id] = s;
 
-function currentSkin() { return SKIN_BY_ID[Save.data.skin] || SKINS[0]; }
+/* ========================================================================
+   SKIN LEVELS  --  the Valorant way. Getting a skin (buying it, earning it,
+   a pass tier, a code) gets you LEVEL 1: its body. Shards unlock the rest,
+   one level at a time, and the last one -- its own particle trail -- takes
+   a little VOIDBUX on top. Every skin has the ladder. A save from before
+   levels existed keeps every skin it owned at LEVEL 5 (see Save.load).
+
+   A level is never a different picture of the body: it is what goes round
+   it. Each level is a VIEW of the skin (skinView): the same object
+   underneath, with the things that level has not reached switched off.
+   Everything that draws a skin draws a view, so nothing has to ask.
+   ======================================================================== */
+const SKIN_LV_MAX = 5;
+const SKIN_LEVELS = [
+  null,
+  { n: 1, id: 'base',  name: 'BASE',    what: 'The body, a plain ring, a thin streak.' },
+  { n: 2, id: 'glow',  name: 'GLOW',    what: 'A core of light under it, a neon ring.' },
+  { n: 3, id: 'halo',  name: 'HALO',    what: 'Lights that orbit it and breathe.' },
+  { n: 4, id: 'dash',  name: 'DASH FX', what: 'Afterimages, its sparks, a burst of its trail.' },
+  { n: 5, id: 'trail', name: 'TRAIL',   what: 'Its own particle trail.' }
+];
+/* each level's share of the skin's worth: all four come to about its price again */
+const SKIN_LV_SHARE = [0, 0, 0.15, 0.2, 0.25, 0.4];
+/* what a skin that is not sold for shards is worth, for its levels */
+const SKIN_WORTH = {
+  sprout: 1000, warden: 2500, thornclad: 5000, apostate: 12000, deepmark: 4000, meridian: 3000,
+  unbroken: 5000, ascendant: 6000, pathless: 6000, untolled: 6000, deeproot: 6000, endurant: 8000,
+  sunken: 9000, archivist: 15000, eventide: 15000, heartwood: 8000, nacre: 8000, barrow: 10000,
+  dayzero: 6000, meteor: 5000, asterism: 6000, starfall: 6000, andromeda: 7000, supernova: 8000,
+  gourdlight: 5000, witchfire: 7000, harvestmoon: 9000
+};
+function skinWorth(sk) {
+  if (SKIN_WORTH[sk.id]) return SKIN_WORTH[sk.id];
+  if (sk.vb > 0) return sk.vb * 40;              // a shard pack's rate, give or take
+  if (sk.price > 0) return sk.price;
+  if (sk.price < 0) return 5000;
+  return 300;                                     // SEED
+}
+function niceCost(n) {
+  if (n < 100) return Math.max(5, Math.round(n / 5) * 5);
+  if (n < 1000) return Math.round(n / 10) * 10;
+  if (n < 10000) return Math.round(n / 50) * 50;
+  return Math.round(n / 100) * 100;
+}
+/* what reaching level lv costs: shards, and voidbux for the trail (10..40,
+   climbing with what the skin is worth) */
+function skinLvCost(sk, lv) {
+  if (!sk || lv < 2 || lv > SKIN_LV_MAX) return null;
+  const V = skinWorth(sk);
+  const out = { shards: niceCost(V * SKIN_LV_SHARE[lv]), vbux: 0 };
+  if (lv === SKIN_LV_MAX) out.vbux = clamp(Math.round((10 + 30 * Math.log(V / 300) / Math.log(150)) / 5) * 5, 10, 40);
+  return out;
+}
+function skinOwned(id) { return id === 'seed' || (Save.data.owned || []).indexOf(id) >= 0; }
+function skinLv(id) {
+  const L = Save.data.skinLv, v = L ? L[id] | 0 : 0;
+  return v >= 1 && v <= SKIN_LV_MAX ? v : 1;
+}
+/* the skin as it looks at a level */
+const _skinViews = Object.create(null);
+function skinView(sk, lv) {
+  if (!sk) sk = SKINS[0];
+  if (sk.__base) sk = sk.__base;
+  lv = clamp((lv | 0) || 1, 1, SKIN_LV_MAX);
+  const k = sk.id + '|' + lv;
+  let v = _skinViews[k];
+  if (v && v.__base === sk) return v;
+  v = Object.create(sk);
+  v.__base = sk; v.lv = lv;
+  v.__trail = null;                               // its own trail style, never the base's
+  v.halo = lv >= 3 ? (sk.halo || 3) : 0;          // a skin with no halo of its own gets three lights
+  if (lv >= 3 && !sk.haloCol) v.haloCol = sk.ring;
+  if (lv >= 3 && !sk.halo) v.pulse = true;        // ...and they breathe
+  v.plainTrail = lv < 5;
+  return _skinViews[k] = v;
+}
+function currentSkin() {
+  const sk = SKIN_BY_ID[Save.data.skin] || SKINS[0];
+  return skinView(sk, skinLv(sk.id));
+}
+/* one level up, paid for. Returns why not, if not. */
+function skinUpgrade(id) {
+  const sk = SKIN_BY_ID[id], d = Save.data;
+  if (!sk || !skinOwned(id)) return { ok: false, why: 'own' };
+  const lv = skinLv(id);
+  if (lv >= SKIN_LV_MAX) return { ok: false, why: 'max' };
+  const C = skinLvCost(sk, lv + 1);
+  if ((d.shards || 0) < C.shards) return { ok: false, why: 'shards', need: C.shards - (d.shards || 0) };
+  if (C.vbux && !Vbux.can(C.vbux)) return { ok: false, why: 'vbux', need: C.vbux - Vbux.get() };
+  if (C.vbux && !Vbux.spend(C.vbux)) return { ok: false, why: 'vbux', need: C.vbux };
+  d.shards -= C.shards;
+  if (!d.skinLv || typeof d.skinLv !== 'object') d.skinLv = {};
+  d.skinLv[id] = lv + 1;
+  Save.save();
+  return { ok: true, lv: lv + 1, cost: C };
+}
+/* whether the next level could be bought right now */
+function skinCanUp(id) {
+  const sk = SKIN_BY_ID[id];
+  if (!sk || !skinOwned(id)) return false;
+  const lv = skinLv(id);
+  if (lv >= SKIN_LV_MAX) return false;
+  const C = skinLvCost(sk, lv + 1);
+  return (Save.data.shards || 0) >= C.shards && (!C.vbux || Vbux.can(C.vbux));
+}
+/* online, a seat carries its skin as 'ember' (level 5) or 'ember_3': the
+   server takes [a-z0-9_] already, and an older build simply reads it as a
+   skin it has not heard of */
+function mpSkinTag() { const sk = currentSkin(); return sk.lv >= SKIN_LV_MAX ? sk.id : sk.id + '_' + sk.lv; }
+function mpSkinRead(s) {
+  const m = /^([a-z0-9]+)_([1-4])$/.exec(s || '');
+  const id = m ? m[1] : s;
+  if (!SKIN_BY_ID[id]) return { id: 'seed', lv: SKIN_LV_MAX };
+  return { id: id, lv: m ? +m[2] : SKIN_LV_MAX };
+}
+/* the plain streak a skin flies before LEVEL 5: one thin stream, its colour */
+function plainTrail(sk) {
+  const hex = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+  const c1 = hex(sk.col) ? sk.col : '#9ef7ff', c2 = hex(sk.ring) ? sk.ring : c1;
+  return { name: 'STREAK', plain: true, core: { cols: [c1, c2, c2], r: 4.6, gap: 3.5, life: 0.36, v: [4, 12] }, bits: [] };
+}
+/* the dash burst at LEVEL 4: the first shape its trail throws, in its colours */
+function skinBurst(sk) {
+  const base = sk.__base || sk, S = TRAILS[base.id];
+  let L = null;
+  if (S) for (const b of S.bits) if (b.k === 'shape') { L = b; break; }
+  const cols = L ? L.cols : [base.col, base.ring];
+  return { k: 'shape', s: L ? L.s || 'star4' : 'star4', cols: cols, size: [6.5, 10.5], life: [0.34, 0.62], v: [170, 320],
+    spread: 1.25, spin: [-7, 7], drag: 4.2, add: true };
+}
+
+/* ========================================================================
+   PET PERKS  --  every pet brings one small thing. It never fights: the
+   perk is yours, not its. Small enough not to matter on a leaderboard,
+   there in every mode (Conquest, Skirmish, Endless, the Daily, co-op).
+   ======================================================================== */
+const PET_PERKS = {
+  mote: { k: 'magnet', v: 0.04 }, cinder: { k: 'dmg', v: 0.03 }, sprig: { k: 'regen', v: 0.3 },
+  wisp: { k: 'xp', v: 0.05 }, chitter: { k: 'crit', v: 0.03 }, nimbus: { k: 'speed', v: 0.05 },
+  revenant: { k: 'dash', v: 0.08 }, orrerym: { k: 'area', v: 0.06 }, herald: { k: 'dr', v: 0.06 },
+  huskling: { k: 'hp', v: 0.08 }, seedling: { k: 'shards', v: 0.08 }, chronid: { k: 'cd', v: 0.05 },
+  bloomling: { k: 'dmg', v: 0.05 }, tidewalker: { k: 'proj', v: 0.08 }, daybreak: { k: 'xp', v: 0.06 },
+  fawn: { k: 'speed', v: 0.06 }, seedpearl: { k: 'critdmg', v: 0.12 }, puffcap: { k: 'dash', v: 0.1 },
+  wishling: { k: 'shards', v: 0.06 }, starling: { k: 'elite', v: 0.06 }
+};
+const PERK_WORDS = {
+  magnet: 'pickup radius', dmg: 'damage', regen: 'life regen', xp: 'XP', crit: 'crit chance', speed: 'move speed',
+  dash: 'dash cooldown', area: 'area', dr: 'damage taken', hp: 'max life', shards: 'shards from runs',
+  cd: 'weapon cooldowns', proj: 'projectile speed & range', critdmg: 'crit damage', elite: 'damage to elites & bosses'
+};
+function perkText(pt) {
+  const P = pt && PET_PERKS[pt.id];
+  if (!P) return 'no perk';
+  if (P.k === 'regen') return '+' + P.v + ' life regen/s';
+  const down = P.k === 'dash' || P.k === 'dr' || P.k === 'cd';
+  return (down ? '−' : '+') + Math.round(P.v * 100) + '% ' + PERK_WORDS[P.k];
+}
+function petPerk() { const pt = currentPet(); return pt ? PET_PERKS[pt.id] || null : null; }
+function petPerkV(k) { const P = petPerk(); return P && P.k === k ? P.v : 0; }
 
 /* ========================================================================
    CONQUEST  --  twelve worlds. Each is one ordinary run with its own
@@ -9227,10 +9397,17 @@ class Player {
       if (G.runStats) G.runStats.dashes++;
       Sound.dash();
       Cam.shake(0.16);
-      for (let i = 0; i < 16; i++) {
-        Particles.spark(this.x, this.y, this.dashDir + Math.PI + rnd(-0.7, 0.7), rnd(120, 380), { col: skinCol(currentSkin(), G.time), life: rnd(0.15, 0.4), w: 2.4 });
+      // DASH FX (LEVEL 4): its colours, and a burst of its trail's shapes.
+      // Below it the dash still says it happened -- in plain white.
+      const dsk = currentSkin(), dfx = !(dsk.lv < 4);
+      for (let i = 0; i < (dfx ? 16 : 10); i++) {
+        Particles.spark(this.x, this.y, this.dashDir + Math.PI + rnd(-0.7, 0.7), rnd(120, 380), { col: dfx ? skinCol(dsk, G.time) : '#cfd8ee', life: rnd(0.15, 0.4), w: dfx ? 2.4 : 1.8 });
       }
-      Particles.ring(this.x, this.y, 10, 62, { col: currentSkin().ring, life: 0.3, w: 3 });
+      Particles.ring(this.x, this.y, 10, 62, { col: dfx ? dsk.ring : '#cfd8ee', life: 0.3, w: dfx ? 3 : 2 });
+      if (dfx && this.tp) {
+        const B = dsk.__burst || (dsk.__burst = skinBurst(dsk)), S0 = Trails.style(dsk);
+        for (let i = 0, nb = G.quality > 0 ? 12 : 7; i < nb; i++) Trails.emit(this.tp, S0, B, this.x, this.y, this.dashDir + Math.PI, 1, false);
+      }
     }
     this.dashCd = Math.max(0, this.dashCd - dt);
     this.dashInv = Math.max(0, (this.dashInv || 0) - dt);
@@ -9301,9 +9478,9 @@ class Player {
   dodged() {
     if (this.dodgeT > 0) return;
     this.dodgeT = 0.45;
-    const sk = currentSkin();
-    if (Pops.live.length < 80) Pops.add(this.x, this.y - 28, 'DODGE', { col: sk.ring, size: 14, vy: -90, life: 0.6 });
-    Particles.ring(this.x, this.y, 16, 54, { col: sk.ring, life: 0.28, w: 2.5 });
+    const sk = currentSkin(), dc = sk.lv < 4 ? '#dfe6ff' : sk.ring;
+    if (Pops.live.length < 80) Pops.add(this.x, this.y - 28, 'DODGE', { col: dc, size: 14, vy: -90, life: 0.6 });
+    Particles.ring(this.x, this.y, 16, 54, { col: dc, life: 0.28, w: 2.5 });
     if (G.runStats) G.runStats.dodges = (G.runStats.dodges || 0) + 1;
   }
   /* What a hit really costs. No boss hit may take more than a share of your
@@ -9410,34 +9587,41 @@ class Player {
     if (sk.anim) key += '_a' + (Math.floor(G.time * 10) % 40);
     if (sk.id === 'archivist') { try { key += '_' + bossSeenCount(); } catch (e) { } }
     const s = sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, G.time));
-    const ring = sprite('player_ring_' + sk.id, 74, 74, cc => {
+    // GLOW (LEVEL 2) is the light under it and the neon ring. Below it: a
+    // faint core (you can always find yourself) and a thin ring in its colour.
+    const lit = !(sk.lv < 2);
+    const ring = lit ? sprite('player_ring_' + sk.id, 74, 74, cc => {
       neon(cc, x => pathPoly(x, 3, 25, 0), sk.ring, { lw: 1.6, blur: 10, core: null, inner: false });
+    }) : sprite('player_ring1_' + sk.id, 74, 74, cc => {
+      neon(cc, x => pathPoly(x, 3, 25, 0), sk.col, { lw: 1.1, blur: 3, core: null, inner: false });
     });
     const core = glowSprite(sk.core);
 
     c.save();
     c.globalCompositeOperation = 'lighter';
-    c.globalAlpha = 0.9 + Math.sin(G.time * 6) * 0.08;
-    c.drawImage(core, this.x - 34, this.y - 34, 68, 68);
+    c.globalAlpha = lit ? 0.9 + Math.sin(G.time * 6) * 0.08 : 0.34 + Math.sin(G.time * 6) * 0.03;
+    const cr = lit ? 34 : 24;
+    c.drawImage(core, this.x - cr, this.y - cr, cr * 2, cr * 2);
     c.restore();
 
     if (this.dashInv > 0) {
       const k = this.dashInv / DASH_SAFE;
       c.save();
       c.globalCompositeOperation = 'lighter';
-      // three afterimages back along the way it came, fading with the grace
-      if (Math.hypot(this.vx, this.vy) > 80) {
+      // three afterimages back along the way it came, fading with the grace (DASH FX)
+      const dfx = !(sk.lv < 4);
+      if (dfx && Math.hypot(this.vx, this.vy) > 80) {
         for (let i = 1; i <= 3; i++) drawSprite(c, s, this.x - this.vx * 0.02 * i, this.y - this.vy * 0.02 * i, this.spin - i * 0.3, 1 - i * 0.06, 0.3 * k / i);
       }
       // the phase ring: the skin's ring colour with a white edge, opening out
       const rr = 30 + (1 - k) * 8;
-      c.globalAlpha = 0.8 * k; c.strokeStyle = sk.ring; c.lineWidth = 3;
+      c.globalAlpha = 0.8 * k; c.strokeStyle = dfx ? sk.ring : '#dfe6ff'; c.lineWidth = dfx ? 3 : 2;
       c.beginPath(); c.arc(this.x, this.y, rr, 0, TAU); c.stroke();
       c.globalAlpha = 0.7 * k; c.strokeStyle = '#ffffff'; c.lineWidth = 1.2;
       c.beginPath(); c.arc(this.x, this.y, rr, 0, TAU); c.stroke();
       c.restore();
     }
-    drawSprite(c, ring, this.x, this.y, -this.spin * 0.7, 1, 0.7);
+    drawSprite(c, ring, this.x, this.y, -this.spin * 0.7, 1, lit ? 0.7 : 0.55);
     drawSprite(c, s, this.x, this.y, this.spin, 1, 1);
     drawSkinHalo(c, sk, this.x, this.y, 19.5, G.time);
 
@@ -24066,6 +24250,24 @@ const Game = {
       splash: lv('fate') * 0.32,
       splashR: lv('fate') * 28
     };
+    // ---- the pet's perk: one small thing, in every mode --------------------
+    { const P = petPerk();
+      if (P) {
+        const v = P.v;
+        if (P.k === 'magnet') S.magnet *= 1 + v;
+        else if (P.k === 'dmg') S.dmgMul *= 1 + v;
+        else if (P.k === 'regen') S.regen += v;
+        else if (P.k === 'xp') S.xpMul *= 1 + v;
+        else if (P.k === 'crit') S.crit += v;
+        else if (P.k === 'speed') S.speed *= 1 + v;
+        else if (P.k === 'area') S.areaMul *= 1 + v;
+        else if (P.k === 'dr') S.dr *= 1 - v;
+        else if (P.k === 'hp') S.maxHp = Math.round(S.maxHp * (1 + v));
+        else if (P.k === 'cd') S.cdMul *= 1 - v;
+        else if (P.k === 'proj') S.projMul *= 1 + v;
+        else if (P.k === 'critdmg') S.critMul *= 1 + v;
+        else if (P.k === 'elite') S.eliteDmg *= 1 + v;
+      } }
     // ---- relics that live in the stat block -------------------------------
     if (this.rel('secondbreath')) S.maxHp = Math.max(30, Math.round(S.maxHp * 0.9));
     if (this.rel('nullplate'))    S.dmgMul *= 0.96;
@@ -24103,7 +24305,7 @@ const Game = {
     if (this.rel('cordyceps'))    S.dmgMul *= 0.95;
     this.dashCdMul = (this.rel('tailwind') ? 1.15 : 1) * (this.rel('snare') ? 1.2 : 1)
       * (this.rel('clubstrike') ? 1.1 : 1) * (this.rel('sonar') ? 1.12 : 1) * (this.rel('spadework') ? 1.15 : 1)
-      * (this.rel('blinkstep') ? 0.8 : 1);
+      * (this.rel('blinkstep') ? 0.8 : 1) * (1 - petPerkV('dash'));
     // ---- covenants -------------------------------------------------------
     if (this.cov('openhand'))   S.dmgMul *= 1.55;
     if (this.cov('longbreath')) { S.maxHp = Math.round(S.maxHp * 1.8); S.cdMul *= 1.2; }
@@ -26159,7 +26361,7 @@ const Game = {
     Ach.sweepMeta();
 
     this.lastMul = Cloud.shardMul();
-    const earned = Math.round(shardsFor(sc, win, this.tide) * (this.D.shardMul || 1) * this.lastMul) + firstOfDay;
+    const earned = Math.round(shardsFor(sc, win, this.tide) * (this.D.shardMul || 1) * this.lastMul * (1 + petPerkV('shards'))) + firstOfDay;
     d.shards = (d.shards || 0) + earned;
     this.lastEarned = earned;
     if (!this.coop) {
@@ -30408,7 +30610,16 @@ function tixPumpkin(g, x, y, R) {
   g.restore();
 }
 /* one ticket, centred on (x, y); s scales the 132 px-wide sprite */
+/* the 3D views are baked a little at a time while a ticket is on a menu, so the opening never has to */
+let _tixWarm = 0;
+function tixPrewarm() {
+  if (_tixWarm) return; _tixWarm = 1;
+  let ph = 0;
+  const step = () => { if (ph === 0) { tixSpinBake('std', 0); ph = 1; } else if (ph === 1) { tixSpinBake('evt', 0); ph = 2; } else { const a = tixSpinBake('std', 1), b = tixSpinBake('evt', 1); if (a && b) return; } setTimeout(step, 60); };
+  setTimeout(step, 900);
+}
 function ticketIcon(c, x, y, s, tk, t, tilt) {
+  if (!_tixWarm) tixPrewarm();
   const K = TIX[tk] || TIX.std, e = tixBase(tk), k = s / TIX_H;
   c.save(); c.translate(x, y); c.rotate((tilt === undefined ? Math.sin(t * 0.9 + (tk === 'evt' ? 1.7 : 0)) * 0.07 : tilt));
   c.drawImage(e.cv, -e.w * k / 2, -e.h * k / 2, e.w * k, e.h * k);
@@ -30440,6 +30651,184 @@ function tixCount(c, x, y, h, tk, n, align) {
   const x0 = align === 'right' ? x - tw - iw - 4 : (align === 'center' ? x - (tw + iw + 4) / 2 : x);
   ticketIcon(c, x0 + iw / 2, y, h, tk, G.uiT);
   tracked(c, s, x0 + iw + 4, y + fs * 0.36, { size: fs, weight: 900, color: col, glow: n ? K.glow : null, blur: 8, track: 1, mono: true });
+}
+
+/* ================================================================ TICKET OPENING
+   The first 1.9 s of a roll: the ticket drops in and shakes, spins faster and faster while
+   little stars (STANDARD) or pumpkins (EVENT) orbit in and light builds; then it bursts into
+   one big spinning star or pumpkin with shock rings and sparks, and flashes white into the
+   reveal. Everything is a cached sprite stamped a few dozen times, driven by the UI clock. */
+const TIX_OPEN = 1.9;
+/* ---- the spinning prize, in 3D. The object is a shape with depth (a star pillowed like a cushion, a ribbed carved
+   pumpkin); 24 views of it turning are splatted once into small sprites with a z-buffer and lit like a planet
+   (lamp upper left, a specular, a warm rim). A frame is two stamps' worth of work at play time. The bake is spread
+   over the first frames of the opening, 2 views a call. */
+const TIX_NF = 24, TIX_SZ = 192, TIX_SPIN = { std: [], evt: [] };
+function tixObject(tk) {
+  const N = 64, H = new Float32Array((N * 2 + 1) * (N * 2 + 1)), W = N * 2 + 1;
+  const pts = [];
+  if (tk === 'std') {
+    // a five point star, pillowed: height from the distance to its edge
+    const P = []; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 0.5 : 1; P.push([Math.cos(a) * r, Math.sin(a) * r]); }
+    const dist = (x, y) => {
+      let inside = false, md = 9;
+      for (let a = 0, b = 9; a < 10; b = a++) {
+        const [x1, y1] = P[a], [x2, y2] = P[b];
+        if (((y1 > y) !== (y2 > y)) && (x < (x2 - x1) * (y - y1) / (y2 - y1) + x1)) inside = !inside;
+        const dx = x2 - x1, dy = y2 - y1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy))), qx = x1 + t * dx - x, qy = y1 + t * dy - y;
+        const d = Math.sqrt(qx * qx + qy * qy); if (d < md) md = d;
+      }
+      return inside ? md : -md;
+    };
+    const D = new Float32Array(W * W);
+    for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
+      const d = dist((i - N) / N, (j - N) / N); D[j * W + i] = d;
+      if (d > 0) { const t = Math.min(1, d / 0.3); H[j * W + i] = 0.3 * Math.sqrt(1 - (1 - t) * (1 - t)); }
+    }
+    for (let j = 1; j < W - 1; j++) for (let i = 1; i < W - 1; i++) {
+      const h = H[j * W + i]; if (h <= 0) continue;
+      const hx = (H[j * W + i + 1] - H[j * W + i - 1]) * N / 2, hy = (H[(j + 1) * W + i] - H[(j - 1) * W + i]) * N / 2, l = Math.sqrt(hx * hx + hy * hy + 1), d = D[j * W + i];
+      const edge = d < 0.05, cen = Math.max(0, 1 - Math.hypot((i - N) / N, (j - N) / N) / 0.9);
+      const col = { r: edge ? 150 : 255, g: edge ? 70 : 190 + 50 * cen, b: edge ? 10 : 40 + 90 * cen * cen, e: 0, er: 0, eg: 0, eb: 0 };
+      pts.push(Object.assign({ u: (i - N) / N, v: (j - N) / N, h: h, nx: -hx / l, ny: -hy / l, nz: 1 / l }, col));
+      pts.push(Object.assign({ u: (i - N) / N, v: (j - N) / N, h: -h, nx: -hx / l, ny: -hy / l, nz: -1 / l }, col));
+    }
+  } else {
+    // a pumpkin: an ellipsoid with eight ribs, a stem, and a carved face that glows
+    const rx = 1, ry = 0.88, step = 1 / N;
+    for (let v = -1.2; v <= 1; v += step) for (let u = -1; u <= 1; u += step) {
+      // the stem: a short tapered column at the top
+      if (v < -0.8 && v > -1.2) {
+        const hw = 0.11 + (v + 1.2) * 0.12 + (v < -1.05 ? 0.03 : 0);
+        if (Math.abs(u - (v + 1.2) * 0.12 + 0.02) < hw) {
+          const k = (u - (v + 1.2) * 0.12 + 0.02) / hw, h = 0.09 * Math.sqrt(Math.max(0, 1 - k * k)) + 0.02;
+          pts.push({ u: u, v: v, h: h, nx: k * 0.9, ny: 0.1, nz: Math.sqrt(Math.max(0.05, 1 - k * k * 0.8)), r: 110 + 60 * (1 - Math.abs(k)), g: 235 - 40 * Math.abs(k), b: 70, e: 0, er: 0, eg: 0, eb: 0, stem: true });
+          continue;
+        }
+      }
+    }
+    // the body in angles (longitude, height): even coverage all the way round, so the turning view has no thin places
+    for (let v = -ry * 0.998; v <= ry * 0.998; v += 0.02) {
+      const cy = Math.sqrt(Math.max(1e-4, 1 - v * v / (ry * ry)));
+      for (let lam = -Math.PI; lam < Math.PI; lam += 0.022) {
+        const rib = Math.cos(8 * lam), k = 1 + 0.07 * rib, rho = cy * k * 0.98;
+        const u = rho * Math.sin(lam) * rx, z = rho * Math.cos(lam);
+        let nx = Math.sin(lam) * cy / rx, ny = v / (ry * ry), nz = Math.cos(lam) * cy;
+        const rs = 0.07 * 8 * Math.sin(8 * lam) * 0.9;
+        nx += rs * Math.cos(lam) * 0.9; nz -= rs * Math.sin(lam) * 0.9;
+        const nl = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= nl; ny /= nl; nz /= nl;
+        const crest = 0.5 + 0.5 * rib, bel = Math.max(0, v) * 0.6;
+        let r = (255 - 40 * (1 - crest) - 50 * bel), g = (150 + 25 * crest - 70 * (1 - crest) - 50 * bel), b = 24 + 14 * crest;
+        let e = 0, er = 0, eg = 0, eb = 0, zz = z;
+        if (Math.abs(lam) < 1.0) {
+          const x = lam, y = v;
+          let cut = false;
+          for (const ex of [-0.36, 0.36]) { const w = (y + 0.4) / 0.24 * 0.2; if (y > -0.4 && y < -0.16 && Math.abs(x - ex) < w) cut = true; }
+          if (y > -0.04 && y < 0.06 && Math.abs(x) < (y + 0.04) * 0.7) cut = true;
+          const zig = 0.3 + 0.09 * Math.abs(((x * 6) % 2 + 2) % 2 - 1);
+          if (y > 0.18 && y < zig && Math.abs(x) < 0.72 - (y - 0.18) * 0.6) cut = true;
+          if (cut) { e = 1; er = 190; eg = 255; eb = 80; zz = z * 0.93; r = 30; g = 60; b = 10; }
+        }
+        pts.push({ u: u, v: v, h: zz, nx: nx, ny: ny, nz: nz, r: r, g: g, b: b, e: e, er: er, eg: eg, eb: eb });
+      }
+    }
+  }
+  return pts;
+}
+function tixSpinBake(tk, n) {
+  const fr = TIX_SPIN[tk], S = TIX_SZ, sc = S * 0.43;
+  if (!fr.obj) fr.obj = tixObject(tk);
+  const pts = fr.obj, L = [-0.45, -0.6, 0.66], ll = Math.hypot(L[0], L[1], L[2]); L[0] /= ll; L[1] /= ll; L[2] /= ll;
+  const Hh = [L[0], L[1], L[2] + 1], hl = Math.hypot(Hh[0], Hh[1], Hh[2]); Hh[0] /= hl; Hh[1] /= hl; Hh[2] /= hl;
+  for (let q = 0; q < n; q++) {
+    let f = 0; while (f < TIX_NF && fr[f]) f++;
+    if (f >= TIX_NF) return true;
+    const a = f / TIX_NF * TAU, ca = Math.cos(a), sa = Math.sin(a), img = new ImageData(S, S), d = img.data, zb = new Float32Array(S * S).fill(-9);
+    const cy = tk === 'evt' ? S * 0.5 + 0.14 * sc : S * 0.5;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], z0 = p.h, x = p.u * ca + z0 * sa, z = -p.u * sa + z0 * ca;
+      const nx = p.nx * ca + p.nz * sa, nz = -p.nx * sa + p.nz * ca, ny = p.ny;
+      const px = Math.round(S / 2 + x * sc), py = Math.round(cy + p.v * sc);
+      if (px < 2 || py < 2 || px >= S - 2 || py >= S - 2) continue;
+      const df = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]), sp = Math.pow(Math.max(0, nx * Hh[0] + ny * Hh[1] + nz * Hh[2]), 26) * 0.75, rim = Math.pow(Math.max(0, 1 - Math.abs(nz)), 3) * 0.42;
+      let r = p.r * (0.24 + 0.95 * df) + sp * 255 + rim * 255 * 0.9, g = p.g * (0.24 + 0.95 * df) + sp * 255 + rim * 150, b = p.b * (0.24 + 0.95 * df) + sp * 230 + rim * 40;
+      if (p.e) { r = r * 0.2 + p.er; g = g * 0.2 + p.eg; b = b * 0.2 + p.eb; }
+      for (let oy = 0; oy < 2; oy++) for (let ox = 0; ox < 2; ox++) {
+        const k = (py + oy) * S + px + ox;
+        if (z > zb[k]) { zb[k] = z; const m = k * 4; d[m] = r > 255 ? 255 : r; d[m + 1] = g > 255 ? 255 : g; d[m + 2] = b > 255 ? 255 : b; d[m + 3] = 255; }
+      }
+    }
+    const cv = makeCanvas(S, S); cv.getContext('2d').putImageData(img, 0, 0);
+    fr[f] = cv;
+  }
+  return false;
+}
+/* the view nearest to ang that has been baked yet */
+function tixSpinFrame(tk, ang) {
+  const fr = TIX_SPIN[tk]; let f = Math.floor(((ang / TAU) % 1 + 1) % 1 * TIX_NF);
+  for (let o = 0; o < TIX_NF; o++) { const a = fr[(f + o) % TIX_NF], b = fr[(f - o + TIX_NF * 2) % TIX_NF]; if (a) return a; if (b) return b; }
+  return null;
+}
+function tixCoin(c, tk, x, y, k, ang, a) {
+  const cv = tixSpinFrame(tk, ang); if (!cv) return;
+  const s = TIX_SZ * 0.62 * k;
+  c.save(); c.globalAlpha *= a; c.drawImage(cv, x - s / 2, y - s / 2, s, s); c.restore();
+}
+function ticketOpen(c, tk, ph, cx, cy, st) {
+  const K = TIX[tk] || TIX.std, t = G.uiT, sc = clamp(Math.min(VW, VH * 1.3) / 700, 0.55, 1.3), ease = k => 1 - Math.pow(1 - k, 3);
+  const build = sat(ph / 0.95), q = G.quality > 0;
+  tixSpinBake(tk, 2);
+  // light that builds: rays turning faster, and a glow that swells
+  if (q) {
+    c.save(); c.globalCompositeOperation = 'lighter'; c.translate(cx, cy); c.rotate(t * (0.4 + build * 2.2)); c.fillStyle = K.glow;
+    c.globalAlpha = (0.03 + 0.07 * build) * (ph > 0.95 ? 1 + sat((ph - 0.95) / 0.3) : 1);
+    c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TAU, R = VH * 0.9; c.moveTo(0, 0); c.lineTo(Math.cos(a) * R, Math.sin(a) * R); c.lineTo(Math.cos(a + 0.12) * R, Math.sin(a + 0.12) * R); c.closePath(); }
+    c.fill(); c.restore();
+  }
+  hglow(c, K.glow, cx, cy, (130 + 170 * build) * sc, 0.25 + 0.4 * build);
+  if (ph < 0.95) {
+    // A: the ticket drops, shakes, spins; the minis orbit inward
+    const drop = ease(sat(ph / 0.4)), y = cy - (1 - drop) * VH * 0.5 + Math.sin(t * 55) * build * 3 * sc, x = cx + Math.cos(t * 47) * build * 3 * sc;
+    const ang = Math.max(0, ph - 0.4) * Math.max(0, ph - 0.4) * 80, sx = ph < 0.4 ? 1 : Math.max(0.12, Math.abs(Math.cos(ang)));
+    const n = q ? 8 : 5;
+    for (let i = 0; i < n; i++) {
+      const a = t * (2 + build * 7) + i * TAU / n, r = (210 - 130 * build) * sc * ease(sat(ph / 0.3));
+      tixCoin(c, tk, cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.55, sc * 0.3, t * 3 + i, 0.5 + 0.5 * build);
+    }
+    c.save(); c.translate(x, y); c.scale(sx, 1);
+    ticketIcon(c, 0, 0, 120 * sc * (0.7 + 0.3 * drop) * (1 + build * 0.2), tk, t, Math.sin(t * 30) * 0.05 * build);
+    c.restore();
+  } else {
+    // B: it bursts into one big spinning icon, with shock rings, sparks and flying minis
+    const k = (ph - 0.95) / (TIX_OPEN - 0.95);
+    if (st && !st.fx) { st.fx = true; Flash.hit(K.glow, 0.55); Sound.achieve(); Particles.ring(cx, cy, 16, 460, { col: K.glow, life: 0.9, w: 8 }); }
+    const pop = ease(sat(k / 0.3)), ang = 18 * (1 - Math.pow(1 - k, 2)) + 0.4;
+    const fade = 1 - sat((k - 0.8) / 0.2);
+    c.save(); c.globalAlpha = fade;
+    if (k < 0.2) { c.globalAlpha = (1 - k / 0.2) * fade; ticketIcon(c, cx, cy, 120 * sc * (1.2 + k * 3), tk, t, 0); c.globalAlpha = fade; }
+    tixCoin(c, tk, cx, cy, (0.5 + 0.9 * pop) * sc * 1.55, ang, 1);
+    c.restore();
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (let j = 0; j < 2; j++) {
+      const kk = sat((k - j * 0.16) / 0.55);
+      if (kk <= 0 || kk >= 1) continue;
+      c.globalAlpha = (1 - kk) * 0.85; c.strokeStyle = j ? '#ffffff' : K.glow; c.lineWidth = 7 * (1 - kk) + 1;
+      c.beginPath(); c.arc(cx, cy, (30 + 300 * ease(kk)) * sc, 0, TAU); c.stroke();
+    }
+    c.restore();
+    const n = q ? 12 : 7, gs = glowSprite(K.glow), gw = glowSprite('#ffffff');
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const a = i * TAU / n + 0.3, r = (60 + (70 + (i % 3) * 40) * ease(k)) * sc * 1.6, s = (14 - 8 * k) * sc;
+      c.globalAlpha = (1 - k) * 0.9; c.drawImage(i % 3 ? gs : gw, cx + Math.cos(a) * r - s, cy + Math.sin(a) * r * 0.8 - s, s * 2, s * 2);
+    }
+    c.restore();
+    const nm = q ? 8 : 5;
+    for (let i = 0; i < nm; i++) { const a = i * TAU / nm + t, r = (80 + 260 * ease(k)) * sc; tixCoin(c, tk, cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.7, sc * 0.4, t * 4 + i, (1 - k) * 0.9); }
+    // the white-out into the reveal
+    const w = sat((k - 0.82) / 0.18);
+    if (w > 0) { c.save(); c.fillStyle = '#ffffff'; c.globalAlpha = w * 0.85; c.fillRect(0, 0, VW, VH); c.restore(); }
+  }
 }
 
 /* ================================================================ BANNER BACKDROP
@@ -32845,119 +33234,7 @@ const UI = {
 
 
 
-  /* ----------------------------------------------------------------- pets */
-  pets(c) {
-    this.begin('pets');
-    const t = G.uiT, d = Save.data;
-    // season pets stay off the wall until you own them
-    const PL = PETS.filter(pt => !pt.pass || petOwned(pt.id));
-    c.save();
-    c.fillStyle = 'rgba(4,5,12,0.9)'; c.fillRect(0, 0, VW, VH);
-
-    tracked(c, 'PETS', VW / 2, 50, { size: Math.min(28, VW * 0.042), weight: 900, align: 'center', color: '#9ef7ff', glow: '#9ef7ff', blur: 16, track: 9 });
-    text(c, 'Purely cosmetic. They never fight, and they get out of the way when it matters.',
-      VW / 2, 72, { size: 12.5, weight: 700, align: 'center', color: PAL.dim });
-    this.shardBadge(c, VW - 24, 40, VW < 520 ? 17 : 21);
-
-    const top = 112, maxH = VH - top - 78;
-    // one more column when the rows would not fit between the title and the footer
-    let cols = VW < 900 ? 3 : 4;
-    while (cols < 8 && Math.ceil(PL.length / cols) * 82 - 10 > maxH &&
-           Math.min(VW - 60, (cols + 1) * 210) / (cols + 1) - 12 >= 118) cols++;
-    const gw = Math.min(VW - 60, cols * 210), cw = gw / cols - 12;
-    const rows = Math.ceil(PL.length / cols);
-    const chh = Math.max(72, Math.min(118, maxH / rows - 10));
-    const gx = VW / 2 - gw / 2, gy = top + Math.max(0, (maxH - (rows * (chh + 10) - 10)) / 2);
-
-    if (this.sels.pets === undefined) this.sels.pets = 0;
-    let hover = -1;
-    for (let i = 0; i < PL.length; i++) {
-      const x = gx + (i % cols) * (cw + 12), y = gy + ((i / cols) | 0) * (chh + 10);
-      if (Input.mx >= x && Input.mx <= x + cw && Input.my >= y && Input.my <= y + chh) hover = i;
-    }
-    if (hover >= 0 && Input.mmoved) this.sels.pets = hover;
-    const sel = Math.min(this.sels.pets, PL.length - 1);
-
-    for (let i = 0; i < PL.length; i++) {
-      const pt = PL[i];
-      const owned = petOwned(pt.id), on = d.pet === pt.id;
-      const mastery = pt.price < 0;
-      const x = gx + (i % cols) * (cw + 12), y = gy + ((i / cols) | 0) * (chh + 10);
-      c.save();
-      c.fillStyle = on ? 'rgba(14,20,28,0.96)' : (owned ? 'rgba(11,13,22,0.9)' : 'rgba(8,9,16,0.55)');
-      roundRect(c, x, y, cw, chh, 5); c.fill();
-      c.strokeStyle = !owned ? 'rgba(48,54,78,0.9)' : (on ? pt.col : 'rgba(70,78,110,0.9)');
-      c.lineWidth = on ? 1.9 : 1.1;
-      if (!owned) c.setLineDash([4, 4]);
-      roundRect(c, x, y, cw, chh, 5); c.stroke(); c.setLineDash([]);
-      if (i === sel) {
-        c.strokeStyle = owned ? pt.col : 'rgba(120,132,175,1)';
-        c.globalAlpha = 0.45 + Math.sin(t * 4) * 0.2; c.lineWidth = 1;
-        roundRect(c, x - 3, y - 3, cw + 6, chh + 6, 7); c.stroke(); c.globalAlpha = 1;
-      }
-      c.restore();
-
-      // a live preview of the thing itself
-      if (owned && pt.form !== 'none') {
-        drawPetPreview(c, pt, x + cw / 2, y + Math.min(34, chh * 0.34) + Math.sin(t * 2 + i) * 2.5, t + i);
-      } else if (!owned) {
-        tracked(c, '?', x + cw / 2, y + Math.min(40, chh * 0.42), { size: 20, weight: 900, align: 'center', color: 'rgba(80,90,124,1)', track: 2 });
-      }
-
-      tracked(c, owned ? pt.name : '? ? ?', x + cw / 2, y + chh - 28,
-        { size: 10, weight: 800, align: 'center', color: owned ? pt.col : 'rgba(80,90,124,1)', track: 1.8 });
-      let sub2;
-      if (on) sub2 = 'WORN';
-      else if (owned) sub2 = 'equip';
-      else if (mastery) sub2 = pt.reqText;
-      else sub2 = fmtNum(pt.price) + ' shards';
-      // measured, not guessed: a label in capitals is far wider than one in lower case
-      let sz2 = 9.5, lines = [sub2];
-      c.save(); setFont(c, sz2, 700);
-      let w2 = c.measureText(sub2).width;
-      if (w2 > cw - 14 && sz2 * (cw - 14) / w2 < 7.5 && sub2.indexOf(' ') > 0) {
-        // too long for one readable line: two, split at the space nearest the middle
-        const mid = sub2.length / 2;
-        let at = -1;
-        for (let k = 0; k < sub2.length; k++) if (sub2[k] === ' ' && (at < 0 || Math.abs(k - mid) < Math.abs(at - mid))) at = k;
-        lines = [sub2.slice(0, at), sub2.slice(at + 1)];
-        w2 = Math.max(c.measureText(lines[0]).width, c.measureText(lines[1]).width);
-      }
-      c.restore();
-      if (w2 > cw - 14) sz2 = Math.max(6.5, sz2 * (cw - 14) / w2);
-      const o2 = { size: sz2, weight: 700, align: 'center', color: on ? PAL.gold : (owned ? PAL.dim : (mastery ? 'rgba(120,132,175,0.9)' : ((d.shards || 0) >= pt.price ? '#8dff6b' : '#7d5c6a'))) };
-      if (lines.length === 1) text(c, sub2, x + cw / 2, y + chh - 12, o2);
-      else { text(c, lines[0], x + cw / 2, y + chh - 17, o2); text(c, lines[1], x + cw / 2, y + chh - 7, o2); }
-    }
-
-    const cur = PL[sel];
-    text(c, cur.blurb, VW / 2, VH - 44, { size: 12.5, weight: 700, align: 'center', color: 'rgba(160,170,200,0.95)' });
-    text(c, 'ENTER to equip or buy  ·  H to hide pets  ·  BACKSPACE to go back',
-      VW / 2, VH - 22, { size: 12, weight: 700, align: 'center', color: PAL.dim });
-    c.restore();
-
-    if (this.lockT > 0) return;
-    const move = dd => { this.sels.pets = (sel + dd + PL.length) % PL.length; Sound.ui(true); };
-    if (Input.hit('ArrowRight') || Input.hit('d')) move(1);
-    if (Input.hit('ArrowLeft') || Input.hit('a')) move(-1);
-    if (Input.hit('ArrowDown') || Input.hit('s')) move(cols);
-    if (Input.hit('ArrowUp') || Input.hit('w')) move(-cols);
-    if (Input.hit('h')) {
-      d.petMode = d.petMode === 1 ? 0.5 : (d.petMode === 0.5 ? 0 : 1);
-      Save.save(); Sound.ui(true); this.lockT = 0.18;
-    }
-    const click = Input.mclick && hover >= 0;
-    if (click) this.sels.pets = hover;
-    if (click || Input.hit('Enter') || Input.hit('space') || Input.gpPressed[0]) {
-      const pt = PL[Math.min(this.sels.pets, PL.length - 1)];
-      this.lockT = 0.18;
-      if (petOwned(pt.id)) { d.pet = pt.id; Save.save(); Sound.ui(true); }
-      else if (pt.price > 0 && (d.shards || 0) >= pt.price) {
-        d.shards -= pt.price; d.pets.push(pt.id); d.pet = pt.id; Save.save();
-        Sound.levelUp();
-      } else Sound.ui(false);
-    }
-  },
+  /* pets(c): see PETS, near the end of the file (every pet shown, the panel, perks) */
 
   /* ------------------------------------------------------------ covenants */
   covenant(c) {
@@ -34160,7 +34437,11 @@ const UI = {
 
   /* ------------------------------------------------------------ skin shop */
   skins(c) {
+    // the LEVELS page lives inside the wardrobe; coming back in from elsewhere closes it
+    if (this.lastState !== 'skins' && !this._skinDetFresh) this.skinDet = null;
+    this._skinDetFresh = false;
     this.begin('skins');
+    if (this.skinDet) { this.skinLevels(c); return; }
     this.dim(c, 0.82);
     const d = Save.data;
     const w = Math.min(940, VW - 32);
@@ -34246,35 +34527,33 @@ const UI = {
     if (Input.hit('ArrowDown', 's') || Input.gpPressed[13]) { const s = slot(sel); const n = atRC(Math.min(rows - 1, s.gr + 1), s.col); if (n >= 0) sel = n; Sound.ui(false); }
     if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) { const s = slot(sel); const n = atRC(Math.max(0, s.gr - 1), s.col); if (n >= 0) sel = n; Sound.ui(false); }
     this.sels.skins = sel;
+    // LEVELS: U (the pad's Y), or the pill top left, opens the selected skin's page
+    {
+      const lsk = slot(sel).sk, lown = skinOwned(lsk.id), llv = lown ? skinLv(lsk.id) : 0;
+      const pw = Math.min(168, Math.max(96, w * 0.2)), ph = 30, pxl = x + 18, pyl = y + 22;
+      const pon = Input.mx > pxl && Input.mx < pxl + pw && Input.my > pyl && Input.my < pyl + ph;
+      const pc = lown && skinCanUp(lsk.id) ? PAL.gold : '#9ef7ff';
+      glass(c, pxl, pyl, pw, ph, ph / 2, pc, pon);
+      const ptxt = lown ? 'LEVELS  ' + llv + '/5' : 'LEVELS';
+      const pfs = Math.min(12, pw / 9.5);
+      tracked(c, ptxt + '  \u203a', pxl + pw / 2, pyl + ph / 2 + pfs * 0.36, { size: pfs, weight: 900, align: 'center', color: pon ? '#ffffff' : pc, track: 1.6 });
+      if (lown && skinCanUp(lsk.id)) bubble(c, pxl + pw - 4, pyl + 2, true);
+      if (this.lockT <= 0 && (Input.hit('u') || Input.gpPressed[3] || (Input.mclick && pon))) { this.openSkinLv(lsk.id); return; }
+    }
 
     const owned = id => id === 'seed' || (d.owned || []).indexOf(id) >= 0;
     let fire = this.lockT <= 0 && (Input.hit('Enter', 'space') || Input.gpPressed[0]);
     if (this.lockT <= 0 && Input.mclick && hover >= 0) { sel = hover; this.sels.skins = sel; fire = true; }
     if (fire) {
       const sk = slot(sel).sk;
-      if (owned(sk.id)) {
+      if (owned(sk.id) && d.skin !== sk.id) {
         d.skin = sk.id; Save.save(); Sound.ui(true);
         this.toast = { s: sk.name + ' EQUIPPED', col: sk.col, t: 1.6 };
-      } else if (sk.exclusive) {
-        Sound.ui(true);
-        this.openShop('skins');
-        return;
-      } else if (sk.price < 0) {
-        Sound.hurt();
-        this.toast = { s: 'LOCKED — ' + sk.req, col: PAL.hp, t: 1.8 };
-      } else if ((d.shards || 0) >= sk.price) {
-        d.shards -= sk.price;
-        if (!d.owned) d.owned = [];
-        d.owned.push(sk.id);
-        d.skin = sk.id;
-        Save.save();
-        Sound.fanfare(true);
-        Flash.hit(sk.col, 0.3);
-        this.toast = { s: sk.name + ' UNLOCKED', col: sk.col, t: 2.2 };
-        Ach.sweepMeta();
       } else {
-        Sound.hurt();
-        this.toast = { s: 'NOT ENOUGH SHARDS', col: PAL.hp, t: 1.4 };
+        // the one you are wearing, or one that is not yours yet: its LEVELS page,
+        // where every level can be seen before anything is spent
+        this.openSkinLv(sk.id);
+        return;
       }
     }
 
@@ -34324,13 +34603,26 @@ const UI = {
       const spr = sprite('skin_' + sk.id + '_' + Math.round(pr), pr * 5, pr * 5, cc => paintSkin(cc, sk, pr, 0));
       c.save();
       c.globalCompositeOperation = 'lighter';
-      c.globalAlpha = (has ? 0.5 : 0.14) + Math.sin(G.uiT * 3 + i) * 0.06;
+      const tlv = has ? skinLv(sk.id) : 0;
+      c.globalAlpha = (has ? (tlv >= 2 ? 0.5 : 0.22) : 0.14) + Math.sin(G.uiT * 3 + i) * 0.06;
       c.drawImage(glowSprite(sk.rainbow ? skinCol(sk, G.uiT) : sk.col), -pr * 2, -pr * 2, pr * 4, pr * 4);
       c.restore();
       c.rotate(on ? G.uiT * 0.7 : 0);
       c.drawImage(spr, -spr.width / 2, -spr.height / 2);
       c.restore();
-      if (has) drawSkinHalo(c, sk, px, py, pr, G.uiT, 1.2, 0.5);
+      if (has) drawSkinHalo(c, skinView(sk, tlv), px, py, pr, G.uiT, 1.2, 0.5);
+      if (has) {
+        // its level: five pips, top left; the next one breathes gold when you can buy it
+        const can = skinCanUp(sk.id), pc = /^#[0-9a-f]{6}$/i.test(sk.col) ? sk.col : '#ffffff';
+        c.save();
+        for (let q = 1; q <= SKIN_LV_MAX; q++) {
+          const qx = cx + 11 + (q - 1) * 6.4, qy = cy + 11;
+          if (q <= tlv) { c.globalAlpha = 0.35; c.drawImage(glowSprite(pc), qx - 5, qy - 5, 10, 10); c.globalAlpha = 1; c.fillStyle = pc; c.beginPath(); c.arc(qx, qy, 2.1, 0, TAU); c.fill(); }
+          else if (q === tlv + 1 && can) { c.globalAlpha = 0.55 + 0.4 * Math.sin(G.uiT * 5); c.fillStyle = PAL.gold; c.beginPath(); c.arc(qx, qy, 2.1, 0, TAU); c.fill(); c.globalAlpha = 1; }
+          else { c.strokeStyle = 'rgba(125,134,171,0.7)'; c.lineWidth = 1; c.beginPath(); c.arc(qx, qy, 1.8, 0, TAU); c.stroke(); }
+        }
+        c.restore();
+      }
 
       const fit = Math.min(1, cw / 132);
       let nSize = 10.5 * fit, nTrack = 1.3 * fit;
@@ -34340,7 +34632,7 @@ const UI = {
         size: nSize, weight: 900, align: 'center',
         color: has ? sk.col : PAL.dim, track: nTrack, alpha: has ? 1 : 0.72
       });
-      const tag = worn ? 'EQUIPPED' : (has ? 'OWNED' : (sk.exclusive ? sk.vb + ' VOIDBUX' : (locked ? sk.short : fmtNum(sk.price))));
+      const tag = worn ? 'EQUIPPED' : (has ? 'LV ' + tlv + '  \u00b7  OWNED' : (sk.exclusive ? sk.vb + ' VOIDBUX' : (locked ? sk.short : fmtNum(sk.price))));
       let tSz = (locked ? 9 : 10) * fit;
       setFont(c, tSz, 800);
       const tW = c.measureText(tag).width;
@@ -34366,15 +34658,16 @@ const UI = {
     tracked(c, sk.name, VW / 2, by, { size: 15, weight: 900, align: 'center', color: sk.col, glow: sk.col, blur: 12, track: 3 });
     text(c, sk.blurb, VW / 2, by + 19, { size: 11.5, weight: 600, align: 'center', color: PAL.text, alpha: 0.82 });
     const has = owned(sk.id);
-    const prompt = has ? (d.skin === sk.id ? 'already worn' : 'ENTER to wear')
-      : (sk.exclusive ? 'ENTER to see it in the SHOP \u00b7 ' + sk.vb + ' VOIDBUX' : sk.price < 0 ? 'LOCKED — ' + sk.req
-        : ((d.shards || 0) >= sk.price ? 'ENTER to buy for ' + fmtNum(sk.price) : 'you need ' + fmtNum(sk.price - (d.shards || 0)) + ' more shards'));
+    const prompt = has ? (d.skin === sk.id ? 'worn  \u00b7  ENTER or U for its LEVELS' : 'ENTER to wear  \u00b7  U for its LEVELS')
+      : (sk.exclusive ? 'ENTER to see its levels  \u00b7  ' + sk.vb + ' VOIDBUX in the SHOP' : sk.price < 0 ? 'LOCKED \u2014 ' + sk.req + '  \u00b7  ENTER to see its levels'
+        : 'ENTER to see every level  \u00b7  ' + fmtNum(sk.price) + ' shards');
     text(c, prompt, VW / 2, by + 37, {
       size: 11.5, weight: 800, align: 'center', alpha: 0.92,
       color: has ? PAL.dim : (sk.price < 0 ? '#ff6bd0' : ((d.shards || 0) >= sk.price ? PAL.gold : PAL.hp))
     });
 
     this.skinDecks(c, sk, x, y, w, h, footH, by, prompt);
+    if (this._deckClick) { this._deckClick = false; this.openSkinLv(sk.id); return; }
 
     if (this.toast && this.toast.t > 0) {
       this.toast.t -= 1 / 60;
@@ -34401,6 +34694,8 @@ const UI = {
     const dw = Math.min(250, side), dh = footH - 30;
     const dy = y + h - footH + 4, t = G.uiT;
     const owned = sk.id === 'seed' || (Save.data.owned || []).indexOf(sk.id) >= 0;
+    // yours: as it is now. Not yours: the whole thing, and it says so
+    const vsk = skinView(sk, owned ? skinLv(sk.id) : SKIN_LV_MAX);
     for (let k = 0; k < 2; k++) {
       const dx = k ? x + w - 22 - dw : x + 22;
       c.save();
@@ -34413,13 +34708,15 @@ const UI = {
       for (let r = 26; r < dw; r += 26) { c.beginPath(); c.arc(dx + dw / 2, dy + dh / 2, r, 0, TAU); c.stroke(); }
       c.globalCompositeOperation = 'source-over';
       if (!k) {
-        const hd = Trails.fly(c, 'wardrobe', sk, dx + dw / 2, dy + dh / 2 - 4, dw * 0.34, dh * 0.2, t, 0.8, 1.25);
-        this.passSkin(c, sk, hd[0], hd[1], 13, t * 1.8, t);
+        const hd = Trails.fly(c, 'wardrobe', vsk, dx + dw / 2, dy + dh / 2 - 4, dw * 0.34, dh * 0.2, t, 0.8, 1.25);
+        this.passSkin(c, vsk, hd[0], hd[1], 13, t * 1.8, t);
       } else {
-        this.passSkin(c, sk, dx + dw / 2, dy + dh / 2 - 3, 21, t * 0.6, t);
+        this.passSkin(c, vsk, dx + dw / 2, dy + dh / 2 - 3, 21, t * 0.6, t);
       }
+      if (this.lockT <= 0 && Input.mclick && Input.mx > dx && Input.mx < dx + dw && Input.my > dy && Input.my < dy + dh) this._deckClick = true;
       c.restore();
-      text(c, k ? (owned ? 'OWNED' : 'PREVIEW') : 'TRAIL  ·  ' + Trails.style(sk).name, dx + (k ? dw - 10 : 10), dy + dh - 8,
+      const trn = TRAILS[sk.id] ? TRAILS[sk.id].name : Trails.style(sk).name;
+      text(c, k ? (owned ? 'LEVEL ' + vsk.lv + '  \u00b7  OWNED' : 'PREVIEW  \u00b7  LEVEL 5') : (vsk.lv < SKIN_LV_MAX ? 'STREAK  \u00b7  ' + trn + ' AT LEVEL 5' : 'TRAIL  \u00b7  ' + trn), dx + (k ? dw - 10 : 10), dy + dh - 8,
         { size: 8.5, weight: 900, align: k ? 'right' : 'left', color: sk.col, alpha: 0.75 });
     }
   },
@@ -34923,7 +35220,7 @@ const UI = {
     c.save();
     if (alpha !== undefined) c.globalAlpha *= alpha;
     c.globalCompositeOperation = 'lighter';
-    c.globalAlpha *= 0.45 + 0.08 * Math.sin(t * 3);
+    c.globalAlpha *= (sk.lv < 2 ? 0.16 : 0.45) + 0.08 * Math.sin(t * 3);
     c.drawImage(glowSprite(sk.rainbow ? skinCol(sk, t) : sk.col), x - pr * 2, y - pr * 2, pr * 4, pr * 4);
     c.restore();
     c.save();
@@ -35832,12 +36129,15 @@ const UI = {
     tracked(c, isSkin ? 'NEW SKIN' : 'NEW PET', cx, y + 34, { size: 12, weight: 900, align: 'center', color: S.col3, track: 4, alpha: u });
     if (isSkin) {
       c.save(); c.globalAlpha *= u;
-      const head = Trails.fly(c, 'reveal', thing, cx, cy, w * 0.2, h * 0.08, t, 1.1, 1.05);
+      const tv = skinView(thing, skinLv(thing.id));
+      const head = Trails.fly(c, 'reveal', tv, cx, cy, w * 0.2, h * 0.08, t, 1.1, 1.05);
       c.restore();
-      this.passSkin(c, thing, head[0], head[1], 28, t * 1.3, t, u);
+      this.passSkin(c, tv, head[0], head[1], 28, t * 1.3, t, u);
     } else this.passPet(c, thing, cx, cy, 2.4, t);
     tracked(c, thing.name, cx, y + h * 0.66, { size: Math.min(28, w * 0.07), weight: 900, align: 'center', color: '#ffffff', glow: thing.col, blur: 18, track: 6, alpha: u });
     text(c, thing.blurb || '', cx, y + h * 0.66 + 24, { size: 11.5, weight: 600, align: 'center', color: PAL.text, alpha: 0.8 * u });
+    text(c, isSkin ? 'LEVEL ' + skinLv(thing.id) + ' OF 5  \u00b7  LEVEL IT UP IN SKINS' : 'PERK  \u00b7  ' + perkText(thing), cx, y + h * 0.66 + 42,
+      { size: 10.5, weight: 900, align: 'center', color: isSkin ? PAL.gold : '#9ef7ff', alpha: 0.9 * u });
     if (this.lockT > 0) return;
     const items = [
       { label: 'EQUIP', color: S.col, act: () => {
@@ -36501,14 +36801,15 @@ Object.assign(UI, {
     const petBehind = Math.sin(pa) < 0;
     if (pet && pet.form !== 'none' && petBehind) this.hubPet(c, pet, px, py, t, pr / 26, 0.75);
     const hd = Trails.fly(c, 'hub', sk, E.x, sy, pr * 1.2, pr * 0.28, t, pr / 19.5 * 0.9, 0.7);
-    hglow(c, sk.core, hd[0], hd[1], pr * 1.6, 0.42 + Math.sin(t * 6) * 0.05);
+    hglow(c, sk.core, hd[0], hd[1], pr * (sk.lv < 2 ? 1.1 : 1.6), (sk.lv < 2 ? 0.16 : 0.42) + Math.sin(t * 6) * 0.05);
     this.passSkin(c, sk, hd[0], hd[1], pr, Math.sin(st) * 0.35, t);
     if (pet && pet.form !== 'none' && !petBehind) this.hubPet(c, pet, px, py, t, pr / 26, 1);
     // the name plate
     const hu = this.hubLayout().u;
     const ny = E.y + E.rx * sq + 18 * hu;
     tracked(c, sk.name, E.x, ny, { size: clamp(pr * 0.4, 11, 16 * hu), weight: 900, align: 'center', color: col, glow: col, blur: 12, track: 4 * hu });
-    if (pet && pet.form !== 'none') text(c, 'with ' + pet.name, E.x, ny + 16 * hu, { size: 10.5 * hu, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 });
+    { const l2 = (sk.lv < SKIN_LV_MAX ? 'LEVEL ' + sk.lv + '  \u00b7  ' : '') + (pet && pet.form !== 'none' ? 'with ' + pet.name + '  \u00b7  ' + perkText(pet) : '');
+      if (l2) text(c, fitText(c, l2, Math.max(180, E.rx * 3), 10.5 * hu, 700), E.x, ny + 16 * hu, { size: 10.5 * hu, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 }); }
   },
   /* a pet at any size: drawn into its own tile (see petTile -- never spread
      'lighter' shadow strokes over the shared canvas) and stamped */
@@ -36571,6 +36872,7 @@ Object.assign(UI, {
     if (id === 'daily') return Save.dailyRec(dailyKey()).runs ? 0 : true;
     if (id === 'event') return Hollow.on() && Hollow.d().best.every(b => !b) ? true : 0;
     if (id === 'shop') { const sh = Save.data.shop; return !sh || sh.day !== dailyKey() || !sh.seen ? true : 0; }
+    if (id === 'skins') return skinCanUp(Save.data.skin) ? true : 0;
     return 0;
   },
   /* each tile's picture: a baked neon glyph that turns or breathes, with
@@ -37795,10 +38097,13 @@ Object.assign(UI, {
 
     // the reveal: the three skins whirl, then the one you won lands
     if (res) {
-      const ph = t - res.at, col = ROLL_COL[res.tier], sk = SKIN_BY_ID[res.id];
+      const ph = t - res.at - TIX_OPEN, col = ROLL_COL[res.tier], sk = SKIN_BY_ID[res.id];
       c.save(); c.fillStyle = 'rgba(2,3,10,0.82)'; c.fillRect(0, 0, VW, VH); c.restore();
       const cx = VW / 2, cy = VH * 0.4;
-      if (ph < 1.3) {
+      if (ph < 0) {
+        ticketOpen(c, 'evt', ph + TIX_OPEN, cx, cy, res);
+        if (ph + TIX_OPEN > 0.5 && this.lockT <= 0 && (Input.hit('Enter', 'space') || Input.mclick || Input.gpPressed[0])) { res.at = t - TIX_OPEN; this.lockT = 0.2; }
+      } else if (ph < 1.3) {
         const k = ph / 1.3, ang = k * k * 14, rad = (1 - k) * 90 + 6;
         ['low', 'mid', 'top'].forEach((tr, i) => {
           const sk2 = SKIN_BY_ID[B.skins[tr]], a = ang + i * TAU / 3;
@@ -37931,7 +38236,7 @@ Object.assign(UI, {
   stdDo() {
     const r = Standard.roll();
     if (!r.ok) { Sound.hurt(); this.stdMsg = { t: 'NO TICKETS  ·  WIN A LEVEL OR BUY ONE', col: '#ff7a90', at: G.uiT }; return; }
-    this.stdMsg = null; r.at = G.uiT; r.burst = false; this.stdRes = r; Sound.ui(true);
+    this.stdMsg = null; r.at = G.uiT; r.burst = false; r.open = true; this.stdRes = r; Sound.ui(true);
   },
   std(c) {
     this.begin('std');
@@ -37973,9 +38278,12 @@ Object.assign(UI, {
     if (Standard.pend() && !this.stdRes) { const pd = Standard.pend(); this.stdRes = { ok: true, type: 'cos', k: pd.k, id: pd.id, dupe: true, col: '#fff3a3', at: t - 9, burst: true }; }
     const rs = this.stdRes;
     if (rs) {
-      const ph = t - rs.at, col = rs.col, cx = VW / 2, cy = VH * 0.36, e = Math.min(1, Math.max(0, (ph - 0.9) / 0.35));
+      const ph = t - rs.at - (rs.open ? TIX_OPEN : 0), col = rs.col, cx = VW / 2, cy = VH * 0.36, e = Math.min(1, Math.max(0, (ph - 0.9) / 0.35));
       c.save(); c.fillStyle = 'rgba(2,3,10,0.86)'; c.fillRect(0, 0, VW, VH); c.restore();
-      if (ph < 0.9) {
+      if (ph < 0) {
+        ticketOpen(c, 'std', ph + TIX_OPEN, cx, cy, rs);
+        if (ph + TIX_OPEN > 0.5 && this.lockT <= 0 && (Input.hit('Enter', 'space') || Input.mclick || Input.gpPressed[0])) { rs.at = t - TIX_OPEN; this.lockT = 0.2; }
+      } else if (ph < 0.9) {
         const k = ph / 0.9;
         c.save(); c.globalCompositeOperation = 'lighter'; c.lineWidth = 2; c.shadowBlur = 14;
         STD.ODDS.forEach((o, i) => { c.strokeStyle = o.col; c.shadowColor = o.col; c.globalAlpha = 0.6 * k; c.beginPath(); c.arc(cx, cy, (1 - k) * 110 + 14 + i * 5, k * k * 12 + i, k * k * 12 + i + 1.1); c.stroke(); });
@@ -38529,7 +38837,9 @@ Object.assign(UI, {
     tracked(c, head, x + w / 2, y + 30, { size: 12, weight: 900, align: 'center', color: PAL.dim, track: 4 });
     tracked(c, this.shopName(cd), x + w / 2, y + h * 0.62, { size: 20, weight: 900, align: 'center', color: col, glow: col, blur: 14, track: 3 });
     let blurb = this.shopSub(cd);
-    if (cd.kind === 'vbskin') blurb = cd.sk.blurb;
+    if (cd.kind === 'vbskin') blurb = M.mode === 'confirm' ? 'Comes at LEVEL 1. Shards (and a little voidbux for the trail) level it up.' : cd.sk.blurb;
+    else if (cd.kind === 'deal' && cd.o.k === 'pet' && PET_BY_ID[cd.o.ref]) blurb = 'PERK: ' + perkText(PET_BY_ID[cd.o.ref]) + '.  ' + (PET_BY_ID[cd.o.ref].blurb || '');
+    else if (cd.kind === 'deal' && cd.o.k === 'skin' && M.mode === 'confirm') blurb = 'Comes at LEVEL 1. Shards level it up: glow, halo, dash FX, then its trail.';
     else if (cd.kind === 'pass') blurb = 'Every premium reward this season, and the ones already reached unlock now.';
     else if (M.mode === 'soon') blurb = 'Buying voidbux is not switched on in this version yet. Earn them from the BLOOM PASS and pilot levels.';
     else if (M.mode === 'wait') blurb = 'The payment page is open in your browser. Your voidbux land here by themselves when it is done.';
@@ -38545,6 +38855,7 @@ Object.assign(UI, {
     } else if (done || M.mode === 'own') {
       const id = M.got && M.got.k === 'skin' ? M.got.id : (cd.kind === 'vbskin' ? cd.sk.id : (cd.kind === 'deal' && cd.o.k === 'skin' ? cd.o.ref : null));
       if (id && Save.data.skin !== id) btns.push({ id: 'equip', label: 'EQUIP', skin: id });
+      if (id) btns.push({ id: 'levels', label: 'LEVELS', skin: id });
       const pid = M.got && M.got.k === 'pet' ? M.got.id : null;
       if (pid && Save.data.pet !== pid) btns.push({ id: 'equippet', label: 'TAKE IT ALONG', pet: pid });
       btns.push({ id: 'ok', label: 'OK' });
@@ -38601,6 +38912,7 @@ Object.assign(UI, {
     }
     if (b.id === 'equip') { Save.data.skin = b.skin; Save.save(); this.shopModal = null; Flash.hit(SKIN_BY_ID[b.skin].col, 0.25); return; }
     if (b.id === 'equippet') { Save.data.pet = b.pet; Save.save(); this.shopModal = null; return; }
+    if (b.id === 'levels') { this.shopModal = null; this.openSkinLv(b.skin, 'shop'); return; }
     if (b.id === 'buy') {
       if (b.P.cur === 'money') {
         M.mode = 'wait'; M.since = Date.now(); M.msg = null;
@@ -39164,7 +39476,8 @@ function frame(now) {
   if ((st === 'boards' || st === 'cloud') && !UI.typing() && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) {
     if (st === 'boards') UI.leaveBoards(); else UI.cloudBack();
   }
-  if ((st === 'how' || st === 'records' || st === 'skins' || st === 'daily' || st === 'achievements' || st === 'pets' || st === 'modes') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'achievements' ? (UI.achFrom || 'hub') : 'hub'; UI.lastState = ''; Sound.ui(false); }
+  if (st === 'skins' && UI.skinDet && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.closeSkinLv();
+  else if ((st === 'how' || st === 'records' || st === 'skins' || st === 'daily' || st === 'achievements' || st === 'pets' || st === 'modes') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'achievements' ? (UI.achFrom || 'hub') : 'hub'; UI.lastState = ''; Sound.ui(false); }
   if ((st === 'select' || st === 'conquest') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'select' && UI.selPick ? 'modes' : 'hub'; UI.selPick = false; UI.lastState = ''; Sound.ui(false); }
   if ((st === 'hub' || st === 'pilot') && !Payout.q && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'hub' ? 'title' : 'hub'; UI.lastState = ''; Sound.ui(false); }
   if (st === 'shop' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.shopBack();
@@ -39592,7 +39905,7 @@ const NET = {
     if (typeof VBColyseus === 'undefined' || !VBColyseus.Client) { this.say('Multiplayer could not load in this browser.', PAL.hp); return; }
     if (!this.fresh()) { this.want = { kind: kind, code: code }; this.status = 'off'; this.wake(); return; }
     this.joining = true;
-    const opts = { v: MP_PROTOCOL, name: mpCallsign(), skin: currentSkin().id, pet: currentPet().id };
+    const opts = { v: MP_PROTOCOL, name: mpCallsign(), skin: mpSkinTag(), pet: currentPet().id };
     try { if (!this.client) this.client = new VBColyseus.Client(mpServerUrl()); }
     catch (e) { this.joining = false; this.say('Bad server address: ' + mpServerUrl(), PAL.hp); return; }
     let p;
@@ -39757,7 +40070,8 @@ const DEPTHS = [
 class Ally {
   constructor(seat) {
     this.slot = seat.slot; this.name = seat.name || 'WANDERER';
-    this.skin = SKIN_BY_ID[seat.skin] ? seat.skin : 'seed';
+    const sr = mpSkinRead(seat.skin);
+    this.skin = sr.id; this.lv = sr.lv;
     this.pet = PET_BY_ID[seat.pet] ? seat.pet : 'mote';
     this.col = SLOT_COL[seat.slot] || '#ffffff';
     this.online = seat.online !== false;
@@ -39812,7 +40126,7 @@ class Ally {
     const sp = Math.hypot(this.vx, this.vy);
     this.rot += dt * (1.6 + sp * 0.006);
     // their trail, laid by distance like the player's own
-    Trails.step(this.tp, SKIN_BY_ID[this.skin] || SKINS[0], this.x, this.y, dt, this.downed ? TR_OFF : TR_ALLY);
+    Trails.step(this.tp, skinView(SKIN_BY_ID[this.skin], this.lv), this.x, this.y, dt, this.downed ? TR_OFF : TR_ALLY);
     if (Math.hypot(this.x - px, this.y - py) > 400) { this.petX = this.x - 40; this.petY = this.y; }
     // its pet follows it the way yours follows you
     const want = 54 + Math.sin(G.time * 0.7 + this.slot) * 6;
@@ -40327,7 +40641,7 @@ const Coop = {
     const cleared = win ? DEPTHS.length : depth;
     const D = COOP_DIFFS[this.diffKey];
     const mul = D.id === 'coop_nightmare' ? 2.2 : (D.id === 'coop_hard' ? 1.5 : 1);
-    const earned = Math.round((60 + cleared * cleared * 140 + (win ? 500 : 0) + this.stats.kills * 0.6) * mul * Cloud.shardMul());
+    const earned = Math.round((60 + cleared * cleared * 140 + (win ? 500 : 0) + this.stats.kills * 0.6) * mul * Cloud.shardMul() * (1 + petPerkV('shards')));
     const d = Save.data;
     d.coop = d.coop || { runs: 0, wins: 0, best: 0 };
     d.coop.runs++;
@@ -43365,7 +43679,7 @@ Object.assign(UI, {
       c.beginPath(); c.arc(x + w / 2, y + h / 2 - 22, 14, t * 1.5 + i, t * 1.5 + i + 1.6); c.stroke(); c.restore();
       return;
     }
-    const sk = SKIN_BY_ID[s.skin] || SKINS[0];
+    const sr = mpSkinRead(s.skin), sk = skinView(SKIN_BY_ID[sr.id], sr.lv);
     const pet = PET_BY_ID[s.pet];
     if (h < 130) { this.seatRow(c, x, y, w, h, i, s, t, sk, me); return; }
     const bx = x + w / 2, by = y + h * 0.42;
@@ -43411,7 +43725,7 @@ Object.assign(Coop, {
     for (const a of this.allies) {
       if (!a.seen || !a.online && performance.now() - a.lastRecv > 4000) continue;
       if (a.dead) continue;
-      const sk = SKIN_BY_ID[a.skin] || SKINS[0];
+      const sk = skinView(SKIN_BY_ID[a.skin], a.lv);
       // their pet
       const pet = PET_BY_ID[a.pet];
       if (pet && pet.form !== 'none' && Save.data.petMode !== 0 && !a.downed) {
@@ -43427,7 +43741,8 @@ Object.assign(Coop, {
       c.beginPath(); c.arc(a.x, a.y, 25, 0, TAU); c.stroke();
       c.restore();
       const al = a.downed ? 0.45 : (a.inv && (Math.floor(t * 26) % 2 === 0) ? 0.5 : 1);
-      const ring = sprite('player_ring_' + sk.id, 74, 74, cc => { neon(cc, x => pathPoly(x, 3, 25, 0), sk.ring, { lw: 1.6, blur: 10, core: null, inner: false }); });
+      const ring = sk.lv < 2 ? sprite('player_ring1_' + sk.id, 74, 74, cc => { neon(cc, x => pathPoly(x, 3, 25, 0), sk.col, { lw: 1.1, blur: 3, core: null, inner: false }); })
+        : sprite('player_ring_' + sk.id, 74, 74, cc => { neon(cc, x => pathPoly(x, 3, 25, 0), sk.ring, { lw: 1.6, blur: 10, core: null, inner: false }); });
       drawSprite(c, ring, a.x, a.y, -a.rot * 0.7, 1, 0.7 * al);
       drawSprite(c, this.shipSprite(sk, t), a.x, a.y, a.rot, 1, al);
       drawSkinHalo(c, sk, a.x, a.y, 19.5, t);
@@ -43830,6 +44145,689 @@ function boot() {
   BootHold.start();
   requestAnimationFrame(frame);
 }
+/* ========================================================================
+   SKIN LEVELS, on screen  --  the wardrobe's LEVELS page (Valorant's skin
+   page): the skin flying at whichever level you are looking at, the five
+   levels down the side with what each one costs, and UPGRADE. It opens
+   from a tile (anything you do not own yet, or the one you are wearing),
+   the LEVELS button, U, and the shop's YOU OWN THIS panel.
+   ======================================================================== */
+Object.assign(UI, {
+  skinDet: null, skinDetLv: 1, skinDetFrom: 'skins', skinDetMsg: null, skinDetFx: 0, skinDetSel: 0,
+  openSkinLv(id, from) {
+    if (!SKIN_BY_ID[id]) return;
+    this.skinDet = id; this.skinDetFrom = from || 'skins';
+    const lv = skinLv(id);
+    // look first at what you would buy next; at the whole thing if it is not yours
+    this.skinDetLv = skinOwned(id) ? Math.min(SKIN_LV_MAX, lv + 1) : SKIN_LV_MAX;
+    this.skinDetMsg = null; this.skinDetFx = 0; this.skinDetSel = 0; this._skinDetFresh = true;
+    this._stg = null;
+    if (G.state !== 'skins') { G.state = 'skins'; this.lastState = ''; }
+    this.lockT = Math.max(this.lockT, 0.22);
+    Sound.ui(true);
+  },
+  closeSkinLv() {
+    const from = this.skinDetFrom;
+    this.skinDet = null; this.skinDetMsg = null; this._stg = null;
+    Sound.ui(false);
+    this.lockT = Math.max(this.lockT, 0.18);
+    if (from === 'shop') { G.state = 'shop'; this.lastState = ''; }
+  },
+  vbuxBadge(c, xr, y, size) {
+    const n = fmtNum(Vbux.get());
+    const w = tracked(c, n, xr, y, { size: size, weight: 900, align: 'right', color: '#ff4fd8', glow: '#ff4fd8', blur: 12, track: 1, mono: true });
+    text(c, 'VOIDBUX', xr, y + size * 0.76, { size: Math.max(9, size * 0.48), weight: 800, align: 'right', color: PAL.dim, alpha: 0.85 });
+    this.vbuxGem(c, xr - w - size * 0.78, y - size * 0.36, size * 0.48, G.uiT);
+    return w + size * 1.3;
+  },
+  /* the button at the bottom of the LEVELS page: what it would do right now */
+  skinDetPrimary(base) {
+    const id = base.id, d = Save.data, sh = d.shards || 0;
+    if (!skinOwned(id)) {
+      if (base.exclusive) return { id: 'shop', label: 'SEE IT IN THE SHOP', col: '#ff4fd8', ok: true, cost: { shards: 0, vbux: base.vb } };
+      if (base.price < 0) return { id: 'locked', label: 'LOCKED  ·  ' + base.req, col: '#ff6bd0', ok: false, no: 'LOCKED — ' + base.req };
+      return { id: 'buy', label: 'BUY THE SKIN', col: PAL.gold, ok: sh >= base.price, cost: { shards: base.price, vbux: 0 },
+        no: 'NEED ' + fmtNum(base.price - sh) + ' MORE SHARDS' };
+    }
+    const lv = skinLv(id);
+    if (lv >= SKIN_LV_MAX) return { id: 'max', label: 'FULLY UPGRADED', col: PAL.gold, ok: false, no: 'ALREADY AT LEVEL 5' };
+    const C = skinLvCost(base, lv + 1), okS = sh >= C.shards, okV = !C.vbux || Vbux.can(C.vbux);
+    return { id: 'up', label: 'UPGRADE TO ' + SKIN_LEVELS[lv + 1].name, col: '#8dff6b', ok: okS && okV, cost: C,
+      no: !okS ? 'NEED ' + fmtNum(C.shards - sh) + ' MORE SHARDS' : 'NEED ' + (C.vbux - Vbux.get()) + ' MORE VOIDBUX' };
+  },
+  skinDetDo(base, b) {
+    const d = Save.data, id = base.id;
+    const say = (s, col, dur) => { this.skinDetMsg = { s: s, col: col, at: G.uiT, dur: dur || 1.8 }; };
+    if (b.id === 'back') { this.closeSkinLv(); return; }
+    if (b.id === 'equip') {
+      d.skin = id; Save.save(); Sound.ui(true); Flash.hit(base.col, 0.2);
+      say(base.name + ' EQUIPPED', base.col); return;
+    }
+    if (b.id === 'worn') { Sound.ui(false); say('ALREADY WORN', PAL.dim); return; }
+    if (b.id === 'shop') { this.skinDet = null; this._stg = null; this.openShop('skins'); return; }
+    if (!b.ok) { Sound.hurt(); say(b.no, b.id === 'locked' || b.id === 'max' ? b.col : PAL.hp); return; }
+    if (b.id === 'buy') {
+      d.shards -= base.price;
+      if (!d.owned) d.owned = ['seed'];
+      if (d.owned.indexOf(id) < 0) d.owned.push(id);
+      d.skin = id; Save.save();
+      Sound.fanfare(true); Flash.hit(base.col, 0.3); Ach.sweepMeta();
+      this.skinDetLv = 1; this.skinDetFx = 1;
+      say(base.name + ' IS YOURS  ·  LEVEL 1', base.col, 2.4); return;
+    }
+    if (b.id === 'up') {
+      const r = skinUpgrade(id);
+      if (!r.ok) { Sound.hurt(); say(b.no, PAL.hp); return; }
+      Sound.fanfare(true); Flash.hit(base.col, 0.32); Ach.sweepMeta();
+      this.skinDetLv = r.lv; this.skinDetFx = 1;
+      say(SKIN_LEVELS[r.lv].name + ' UNLOCKED  ·  LEVEL ' + r.lv, base.col, 2.4);
+    }
+  },
+
+  /* the little picture of each level, beside its row: baked once, stamped turning */
+  lvIcon(c, base, n, x, y, s, t, has) {
+    const col = /^#[0-9a-f]{6}$/i.test(base.col) ? base.col : '#9ef7ff';
+    const col2 = /^#[0-9a-f]{6}$/i.test(base.ring) ? base.ring : '#ffffff';
+    const a = has ? 1 : 0.42;
+    const R = Math.max(6, Math.round(s * 2) / 2);
+    c.save();
+    c.globalAlpha *= a;
+    if (n === 1) {
+      // some bodies (wings, rings, a coiled dragon) reach well past their radius: keep it in its square
+      const spr = sprite('lvico_' + base.id + '_' + R, R * 4.4, R * 4.4, cc => paintSkin(cc, base, R * 0.78, 0));
+      c.beginPath(); c.rect(x - R * 1.45, y - R * 1.45, R * 2.9, R * 2.9); c.clip();
+      drawSprite(c, spr, x, y, t * 0.6, 1, 1);
+    } else if (n === 2) {
+      hglow(c, base.core && base.core !== '#000000' ? base.core : col, x, y, R * 1.9, 0.75 + 0.15 * Math.sin(t * 3));
+      const e = hsprite('lvi2|' + R + '|' + col2, R * 3, R * 3, g => neon(g, x2 => pathPoly(x2, 3, R * 0.95, 0), col2, { lw: Math.max(1.2, R * 0.13), blur: R * 0.7, core: 'rgba(6,8,20,0.55)' }));
+      c.save(); c.translate(x, y); c.rotate(-t * 0.9); c.drawImage(e.cv, -e.w / 2, -e.h / 2, e.w, e.h); c.restore();
+    } else if (n === 3) {
+      const e = hsprite('lvi3c|' + R + '|' + col, R * 2, R * 2, g => neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, R * 0.32, 0, TAU); }, col, { lw: 1.2, blur: 6, core: 'rgba(6,8,20,0.8)' }));
+      hstamp(c, e, x, y);
+      const hc = base.haloCol || col2, puls = 1 + Math.sin(t * 3) * 0.1;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) {
+        const an = t * 1.4 + i / 3 * TAU, px = x + Math.cos(an) * R * 0.92 * puls, py = y + Math.sin(an) * R * 0.5 * puls;
+        c.drawImage(glowSprite(hc), px - R * 0.42, py - R * 0.42, R * 0.84, R * 0.84);
+        c.fillStyle = hc; c.globalAlpha = 0.9 * a; c.beginPath(); c.arc(px, py, Math.max(1.4, R * 0.12), 0, TAU); c.fill(); c.globalAlpha = a;
+      }
+      c.restore();
+    } else if (n === 4) {
+      const e = hsprite('lvi4|' + R + '|' + col + '|' + col2, R * 3, R * 3, g => {
+        neon(g, x2 => { x2.beginPath(); x2.moveTo(-R * 0.75, -R * 0.55); x2.lineTo(-R * 0.2, 0); x2.lineTo(-R * 0.75, R * 0.55); }, col2, { lw: Math.max(1.2, R * 0.13), blur: R * 0.6, core: null });
+        neon(g, x2 => { x2.beginPath(); x2.moveTo(-R * 0.1, -R * 0.55); x2.lineTo(R * 0.45, 0); x2.lineTo(-R * 0.1, R * 0.55); }, col, { lw: Math.max(1.4, R * 0.15), blur: R * 0.7, core: null });
+      });
+      const u = (t * 1.1) % 1, dx = (u - 0.5) * R * 0.6;
+      hstamp(c, e, x + dx, y, 0.55 + 0.45 * Math.sin(u * Math.PI));
+      c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = '#ffffff'; c.lineCap = 'round'; c.lineWidth = 1.1;
+      for (let i = 0; i < 3; i++) {
+        const k = (u + i * 0.33) % 1, yy = y + (i - 1) * R * 0.42;
+        c.globalAlpha = a * 0.7 * (1 - k);
+        c.beginPath(); c.moveTo(x - R * 0.2 - k * R * 0.9, yy); c.lineTo(x - R * 0.55 - k * R * 0.9, yy); c.stroke();
+      }
+      c.restore();
+    } else {
+      // a comet: its trail's colours streaming back off a hot head
+      const S = TRAILS[base.id] || Trails.style(base);
+      const cols = (S && S.core && S.core.cols) || [col, col2];
+      const sw = Math.sin(t * 1.6) * 0.35;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      for (let i = 6; i >= 0; i--) {
+        const k = i / 6, px = x + R * 0.7 - k * R * 1.7, py = y - R * 0.35 + k * R * 0.7 + Math.sin(t * 3 + k * 4) * R * 0.12 * k + sw * k * R * 0.4;
+        const cc = cols[Math.min(cols.length - 1, Math.floor(k * cols.length))];
+        const rr = R * (0.55 - k * 0.38);
+        c.globalAlpha = a * (1 - k * 0.75);
+        c.drawImage(glowSprite(cc), px - rr * 1.6, py - rr * 1.6, rr * 3.2, rr * 3.2);
+      }
+      c.globalAlpha = a; c.drawImage(glowSprite('#ffffff'), x + R * 0.7 - R * 0.3, y - R * 0.35 - R * 0.3, R * 0.6, R * 0.6);
+      c.restore();
+    }
+    c.restore();
+  },
+
+  /* the stage: the skin flying a figure of eight at one level, dashing now and then */
+  skinStage(c, view, sx, sy, sw, sh, t) {
+    const lv = view.lv || SKIN_LV_MAX, base = view.__base || view;
+    const key = base.id + '|' + lv;
+    let G2 = this._stg;
+    if (!G2 || G2.key !== key) G2 = this._stg = { key: key, st: Trails.make(), t: t, u: 0, dashAt: t + 1.1, dash: 0, sp: [], rings: [], lx: null, ly: null, burst: null };
+    const dt = clamp(t - G2.t, 0, 0.05); G2.t = t;
+    const cx = sx + sw / 2, cy = sy + sh / 2;
+    const sc = clamp(Math.min(sw / 300, sh / 240), 0.75, 2.6), pr = 19.5 * sc;
+    const rx = sw * 0.3, ry = sh * 0.2;
+    // the box: a dark floor, the arena's rings, a wash of the skin's colour at the edges
+    c.save();
+    c.fillStyle = 'rgba(4,5,13,0.94)'; roundRect(c, sx, sy, sw, sh, 14); c.fill();
+    c.beginPath(); roundRect(c, sx + 1, sy + 1, sw - 2, sh - 2, 13); c.clip();
+    c.globalCompositeOperation = 'lighter';
+    const fl = hsprite('lvfloor|' + Math.round(sw) + '|' + Math.round(sh) + '|' + base.id, sw, sh, g => {
+      g.strokeStyle = 'rgba(150,120,255,0.075)'; g.lineWidth = 1;
+      for (let r = 30; r < Math.max(sw, sh); r += 30) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+      for (let i = 0; i < 12; i++) { const a2 = i / 12 * TAU; g.beginPath(); g.moveTo(Math.cos(a2) * 30, Math.sin(a2) * 30); g.lineTo(Math.cos(a2) * sw, Math.sin(a2) * sw); g.stroke(); }
+      const col = /^#[0-9a-f]{6}$/i.test(base.col) ? base.col : '#9ef7ff';
+      const rg = g.createRadialGradient(0, 0, Math.min(sw, sh) * 0.3, 0, 0, Math.max(sw, sh) * 0.75);
+      rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, trRgba(col, 0.13));
+      g.fillStyle = rg; g.fillRect(-sw / 2, -sh / 2, sw, sh);
+    });
+    c.drawImage(fl.cv, sx, sy, sw, sh);
+    c.globalCompositeOperation = 'source-over';
+    // the flight: faster through a dash
+    if (t >= G2.dashAt) { G2.dash = DASH_SAFE; G2.dashAt = t + 2.4; G2.fire = true; }
+    G2.dash = Math.max(0, G2.dash - dt);
+    G2.u += dt * (0.95 + (G2.dash > DASH_SAFE - 0.17 ? 3.2 : 0));
+    const u = G2.u;
+    const hx = cx + Math.sin(u) * rx, hy = cy + Math.sin(u * 2) * ry;
+    const vx = Math.cos(u) * rx, vy = 2 * Math.cos(u * 2) * ry, va = Math.atan2(vy, vx);
+    if (G2.lx === null) {
+      // prewarm, so it arrives already flowing
+      for (let k = 14; k >= 1; k--) { const w = u - k * 0.03; Trails.step(G2.st, view, cx + Math.sin(w) * rx, cy + Math.sin(w * 2) * ry, 1 / 40, { scale: sc, cap: 110 }); }
+    }
+    G2.lx = hx; G2.ly = hy;
+    const fx = lv >= 4, lit = lv >= 2;
+    if (G2.fire) {
+      G2.fire = false;
+      const back = va + Math.PI;
+      const n = fx ? 16 : 10;
+      for (let i = 0; i < n; i++) {
+        const an = back + (Math.random() - 0.5) * 1.4, sp = (120 + Math.random() * 260) * sc;
+        G2.sp.push({ x: hx, y: hy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 0.15 + Math.random() * 0.25, age: 0, col: fx ? skinCol(base, t) : '#cfd8ee', w: (fx ? 2.4 : 1.8) * sc });
+      }
+      G2.rings.push({ x: hx, y: hy, r0: 10 * sc, r1: 62 * sc, age: 0, life: 0.3, col: fx ? base.ring : '#cfd8ee', w: (fx ? 3 : 2) * sc });
+      if (fx) { const B = G2.burst || (G2.burst = skinBurst(view)), S0 = Trails.style(view); for (let i = 0; i < 12; i++) Trails.emit(G2.st, S0, B, hx, hy, back, sc, false); }
+    }
+    Trails.step(G2.st, view, hx, hy, dt, { scale: sc, cap: 110 });
+    Trails.draw(c, G2.st, view, 1);
+    // sparks and rings of the dash
+    c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+    for (let i = G2.sp.length - 1; i >= 0; i--) {
+      const p = G2.sp[i]; p.age += dt;
+      if (p.age >= p.life) { G2.sp.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.exp(-5 * dt); p.vy *= Math.exp(-5 * dt);
+      c.globalAlpha = 1 - p.age / p.life; c.strokeStyle = p.col; c.lineWidth = p.w;
+      c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); c.stroke();
+    }
+    for (let i = G2.rings.length - 1; i >= 0; i--) {
+      const r = G2.rings[i]; r.age += dt;
+      if (r.age >= r.life) { G2.rings.splice(i, 1); continue; }
+      const k = r.age / r.life, e = 1 - (1 - k) * (1 - k);
+      c.globalAlpha = (1 - k) * 0.9; c.strokeStyle = r.col; c.lineWidth = r.w * (1 - k * 0.6);
+      c.beginPath(); c.arc(r.x, r.y, r.r0 + (r.r1 - r.r0) * e, 0, TAU); c.stroke();
+    }
+    c.restore();
+    // an upgrade just landed: a burst of its colour
+    if (this.skinDetFx > 0) {
+      const k = 1 - this.skinDetFx;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = this.skinDetFx; c.strokeStyle = base.ring || '#ffffff'; c.lineWidth = 4 * sc * this.skinDetFx;
+      c.beginPath(); c.arc(hx, hy, pr * (1.2 + k * 5), 0, TAU); c.stroke();
+      c.strokeStyle = '#ffffff'; c.lineWidth = 1.5 * sc;
+      c.beginPath(); c.arc(hx, hy, pr * (1 + k * 3.4), 0, TAU); c.stroke();
+      c.restore();
+      this.skinDetFx = Math.max(0, this.skinDetFx - dt * 1.4);
+    }
+    // the ship, as it would fly: light, ring, afterimages, body, halo
+    hglow(c, view.core && view.core !== '#000000' ? view.core : view.col, hx, hy, lit ? pr * 1.75 : pr * 1.2, lit ? 0.9 + Math.sin(t * 6) * 0.08 : 0.34);
+    const ring = lit ? sprite('player_ring_' + base.id, 74, 74, cc => neon(cc, x => pathPoly(x, 3, 25, 0), base.ring, { lw: 1.6, blur: 10, core: null, inner: false }))
+      : sprite('player_ring1_' + base.id, 74, 74, cc => neon(cc, x => pathPoly(x, 3, 25, 0), base.col, { lw: 1.1, blur: 3, core: null, inner: false }));
+    let key2 = 'player_body_' + base.id;
+    if (base.rainbow) key2 += '_' + (Math.floor(t * 40) % 360 / 12 | 0);
+    if (base.oil) key2 += '_o' + (Math.floor(t * 6) % 48);
+    if (base.anim) key2 += '_a' + (Math.floor(t * 10) % 40);
+    if (base.id === 'archivist') { try { key2 += '_' + bossSeenCount(); } catch (e) { } }
+    const body = sprite(key2, 88, 88, cc => paintSkin(cc, base, 19.5, t));
+    const spin = t * 1.8;
+    if (G2.dash > 0) {
+      const k = G2.dash / DASH_SAFE;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      if (fx) for (let i = 1; i <= 3; i++) {
+        const w = u - i * 0.06;
+        drawSprite(c, body, cx + Math.sin(w) * rx, cy + Math.sin(w * 2) * ry, spin - i * 0.3, sc * (1 - i * 0.06), 0.3 * k / i);
+      }
+      const rr = (30 + (1 - k) * 8) * sc;
+      c.globalAlpha = 0.8 * k; c.strokeStyle = fx ? base.ring : '#dfe6ff'; c.lineWidth = (fx ? 3 : 2) * sc;
+      c.beginPath(); c.arc(hx, hy, rr, 0, TAU); c.stroke();
+      c.globalAlpha = 0.7 * k; c.strokeStyle = '#ffffff'; c.lineWidth = 1.2 * sc;
+      c.beginPath(); c.arc(hx, hy, rr, 0, TAU); c.stroke();
+      c.restore();
+    }
+    drawSprite(c, ring, hx, hy, -spin * 0.7, sc, lit ? 0.7 : 0.55);
+    drawSprite(c, body, hx, hy, spin, sc, 1);
+    drawSkinHalo(c, view, hx, hy, pr, t);
+    c.restore();
+    // the frame
+    c.save(); c.strokeStyle = /^#[0-9a-f]{6}$/i.test(base.col) ? trRgba(base.col, 0.35) : 'rgba(255,255,255,0.25)'; c.lineWidth = 1.2;
+    roundRect(c, sx, sy, sw, sh, 14); c.stroke(); c.restore();
+  },
+
+  /* ------------------------------------------------------- the LEVELS page */
+  skinLevels(c) {
+    const t = G.uiT, d = Save.data, base = SKIN_BY_ID[this.skinDet];
+    if (!base) { this.skinDet = null; return; }
+    const id = base.id, own = skinOwned(id), lv = own ? skinLv(id) : 0;
+    const pv = this.skinDetLv = clamp((this.skinDetLv | 0) || 1, 1, SKIN_LV_MAX);
+    const view = skinView(base, pv);
+    const hexc = /^#[0-9a-f]{6}$/i.test(base.col) ? base.col : '#9ef7ff';
+    this.dim(c, 0.9);
+    const port = VW < 760 || VW < VH * 0.95;
+    const u = port ? 1 : clamp(Math.min(VW / 1280, VH / 720), 1, 1.35);
+    const w = Math.min(1060 * u, VW - 16), h = Math.min(660 * u, VH - 14);
+    const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
+    this.panel(c, x, y, w, h, trRgba(hexc, 0.42));
+
+    // ---- header: the name, what level it is at, your purse
+    const tiny = w < 520;
+    const bs = tiny ? 14 : 18 * u;
+    const bx1 = x + w - 18, vbw = this.vbuxBadge(c, bx1, y + 30 * u, bs);
+    this.shardBadge(c, bx1 - vbw - 22, y + 30 * u, bs);
+    let hs = port ? 20 : 26 * u;
+    const nmRoom = w - 44 - vbw - 150 * (tiny ? 0.8 : u);
+    const nmW = tracked(c, base.name, 0, 0, { size: hs, weight: 900, track: hs * 0.2, measureOnly: true });
+    if (nmW > nmRoom) hs *= Math.max(0.55, nmRoom / nmW);
+    tracked(c, base.name, x + 22, y + 18 + hs, { size: hs, weight: 900, color: hexc, glow: hexc, blur: 16, track: hs * 0.2 });
+    const trBare = TRAILS[id] ? TRAILS[id].name : Trails.style(base).name, trName = trBare + ' TRAIL';
+    const sub = own ? 'LEVEL ' + lv + ' OF 5  ·  ' + trName
+      : (base.exclusive ? 'EXCLUSIVE  ·  ' + base.vb + ' VOIDBUX' : (base.price < 0 ? 'NOT YOURS YET  ·  ' + base.req : 'NOT YOURS YET  ·  ' + fmtNum(base.price) + ' SHARDS'));
+    const subS = port ? 10 : 11 * u;
+    text(c, fitText(c, sub, w - 44, subS, 800), x + 22, y + 18 + hs + 20 * (port ? 0.9 : u), { size: subS, weight: 800, color: PAL.dim });
+    // five cells: the levels you have
+    const mY = y + 18 + hs + 32 * (port ? 0.9 : u), mW = Math.min(170 * u, w * 0.36), cellW = (mW - 4 * 4) / 5;
+    for (let i = 1; i <= 5; i++) {
+      const cx2 = x + 22 + (i - 1) * (cellW + 4), on2 = i <= lv;
+      c.save();
+      c.fillStyle = on2 ? hexc : 'rgba(60,66,96,0.5)';
+      c.globalAlpha = on2 ? 0.9 : 1;
+      if (on2) { c.shadowColor = hexc; c.shadowBlur = 8; }
+      roundRect(c, cx2, mY, cellW, 4, 2); c.fill();
+      c.restore();
+      if (i === pv) { c.save(); c.strokeStyle = '#ffffff'; c.globalAlpha = 0.55 + 0.3 * Math.sin(t * 5); c.lineWidth = 1; roundRect(c, cx2 - 1.5, mY - 1.5, cellW + 3, 7, 3); c.stroke(); c.restore(); }
+    }
+    const top = mY + 18 * (port ? 0.9 : u);
+
+    // ---- the buttons, bottom right (portrait: bottom)
+    const P = this.skinDetPrimary(base);
+    const worn = d.skin === id;
+    const btnH = (port ? 42 : 46 * u), b2H = (port ? 34 : 36 * u);
+    let sx, sy, sw, sh, rx, rw, ry0, ry1, pbx, pby, pbw;
+    if (!port) {
+      sx = x + 20; sy = top; sw = (w - 60) * 0.56; sh = y + h - 20 - top;
+      rx = sx + sw + 20; rw = x + w - 20 - rx;
+      pbx = rx; pbw = rw; pby = y + h - 20 - b2H - 10 - btnH;
+      ry0 = top; ry1 = pby - 30 * u;
+    } else {
+      pbx = x + 14; pbw = w - 28; pby = y + h - 14 - b2H - 10 - btnH;
+      rx = x + 14; rw = w - 28;
+      const rowsH = Math.min(5 * 60, (pby - 24 - top) * 0.58);
+      ry1 = pby - 24; ry0 = ry1 - rowsH;
+      sx = x + 14; sy = top; sw = w - 28; sh = ry0 - 10 - top;
+    }
+    // ---- the stage
+    this.skinStage(c, view, sx, sy, sw, sh, t);
+    const lvN = SKIN_LEVELS[pv];
+    tracked(c, 'PREVIEW  ·  LEVEL ' + pv + '  ·  ' + lvN.name, sx + 14, sy + 22, { size: port ? 10 : 11 * u, weight: 900, color: '#ffffff', glow: hexc, blur: 10, track: 2.2, alpha: 0.92 });
+    if (own && pv > lv) text(c, 'NOT UNLOCKED YET', sx + 14, sy + 38 * (port ? 0.95 : u), { size: port ? 9.5 : 10 * u, weight: 800, color: PAL.gold, alpha: 0.75 + 0.2 * Math.sin(t * 4) });
+    text(c, 'dashes every few seconds', sx + sw - 12, sy + sh - 10, { size: port ? 9 : 9.5 * u, weight: 700, align: 'right', color: PAL.dim, alpha: 0.6 });
+
+    // ---- the five rows
+    const gap = 6 * (port ? 1 : u);
+    const rh = Math.max(34, Math.min(70 * u, (ry1 - ry0 - gap * 4) / 5));
+    let hoverRow = -1;
+    for (let i = 1; i <= 5; i++) {
+      const yy = ry0 + (i - 1) * (rh + gap);
+      if (Input.mx > rx && Input.mx < rx + rw && Input.my > yy && Input.my < yy + rh) hoverRow = i;
+    }
+    if (hoverRow > 0 && Input.mmoved && hoverRow !== this._lvHover) { this.skinDetLv = hoverRow; Sound.ui(false); }
+    this._lvHover = hoverRow;
+    for (let i = 1; i <= 5; i++) {
+      const yy = ry0 + (i - 1) * (rh + gap), on = i === pv;
+      const has = own && i <= lv, next = own && i === lv + 1;
+      const L = SKIN_LEVELS[i];
+      const rc = has ? hexc : (next ? PAL.gold : '#5d6690');
+      glass(c, rx, yy, rw, rh, Math.min(14, rh * 0.3), rc, on);
+      const isz = rh * 0.34;
+      this.lvIcon(c, base, i, rx + rh * 0.52, yy + rh / 2, isz, t + i * 0.7, has || on);
+      if (!has) this.passLock(c, rx + rh * 0.82, yy + rh * 0.76, Math.max(5, rh * 0.11), next ? PAL.gold : '#7d86ab', 0.95);
+      const tx = rx + rh * 1.08;
+      // the cost (or the tick), right-aligned
+      const cs = Math.max(9.5, Math.min(13 * u, rh * 0.22));
+      let costW = 0;
+      if (has) {
+        const ok = 'UNLOCKED';
+        costW = tracked(c, ok, rx + rw - 14, yy + rh / 2 + cs * 0.36, { size: cs * 0.86, weight: 900, align: 'right', color: '#8dff6b', track: 1.5 }) + 16;
+        c.save(); c.strokeStyle = '#8dff6b'; c.lineWidth = 2; c.lineCap = 'round'; c.lineJoin = 'round'; c.shadowColor = '#8dff6b'; c.shadowBlur = 6;
+        const kx = rx + rw - 14 - costW, ky = yy + rh / 2;
+        c.beginPath(); c.moveTo(kx - 3, ky); c.lineTo(kx, ky + 3); c.lineTo(kx + 6, ky - 4); c.stroke(); c.restore();
+        costW += 8;
+      } else {
+        let C;
+        if (i === 1) C = own ? null : (base.exclusive ? { shards: 0, vbux: base.vb } : (base.price >= 0 ? { shards: base.price, vbux: 0 } : null));
+        else C = skinLvCost(base, i);
+        if (!C && i === 1) {
+          costW = tracked(c, base.short || 'LOCKED', rx + rw - 14, yy + rh / 2 + cs * 0.36, { size: cs * 0.8, weight: 900, align: 'right', color: '#ff6bd0', track: 1 });
+        } else if (C) {
+          const okS = (d.shards || 0) >= C.shards, okV = !C.vbux || Vbux.can(C.vbux);
+          const lines = (C.shards ? 1 : 0) + (C.vbux ? 1 : 0), lh2 = cs * 1.25;
+          let ly = yy + rh / 2 - (lines - 1) * lh2 / 2 + cs * 0.36;
+          const dimc = next || !own ? null : 'rgba(150,158,190,0.75)';
+          if (C.shards) {
+            const sw2 = tracked(c, fmtNum(C.shards), rx + rw - 14, ly, { size: cs, weight: 900, align: 'right', color: dimc || (okS ? '#c9a3ff' : PAL.hp), mono: true, track: 0.5 });
+            this.shardGem(c, rx + rw - 14 - sw2 - cs * 0.75, ly - cs * 0.36, cs * 0.42, t);
+            costW = Math.max(costW, sw2 + cs * 1.4); ly += lh2;
+          }
+          if (C.vbux) {
+            const vw2 = tracked(c, fmtNum(C.vbux), rx + rw - 14, ly, { size: cs, weight: 900, align: 'right', color: dimc || (okV ? '#ff4fd8' : PAL.hp), mono: true, track: 0.5 });
+            this.vbuxGem(c, rx + rw - 14 - vw2 - cs * 0.75, ly - cs * 0.36, cs * 0.4, t);
+            costW = Math.max(costW, vw2 + cs * 1.4);
+          }
+        }
+      }
+      const room = rw - (tx - rx) - costW - 18;
+      const ts = Math.max(9.5, Math.min(13.5 * u, rh * 0.24));
+      const title = 'LEVEL ' + i + '  ·  ' + L.name;
+      tracked(c, fitText(c, title, room, ts, 900), tx, yy + (rh >= 50 ? rh * 0.42 : rh / 2 + ts * 0.36), { size: ts, weight: 900, color: on ? '#ffffff' : (has ? hexc : (next ? PAL.gold : '#aab2d0')), track: 1.4 });
+      if (rh >= 50) {
+        const what = i === 5 ? 'Its own particle trail: ' + trBare + '.' : L.what;
+        text(c, fitText(c, what, room, Math.max(9, rh * 0.17), 600), tx, yy + rh * 0.42 + Math.max(13, rh * 0.27), { size: Math.max(9, rh * 0.17), weight: 600, color: PAL.text, alpha: on ? 0.85 : 0.6 });
+      }
+      if (next && on) focusTicks(c, rx, yy, rw, rh, PAL.gold, t);
+    }
+
+    // ---- buttons: the one that matters, then EQUIP and BACK
+    const btns = [];
+    btns.push({ id: P.id, label: P.label, col: P.col, ok: P.ok, cost: P.cost, no: P.no, x: pbx, y: pby, w: pbw, h: btnH, big: true });
+    const b2w = (pbw - 10) / 2, b2y = pby + btnH + 10;
+    if (own) {
+      btns.push(worn ? { id: 'worn', label: 'WORN', col: PAL.dim, ok: false, x: pbx, y: b2y, w: b2w, h: b2H } : { id: 'equip', label: 'EQUIP', col: '#9ef7ff', ok: true, x: pbx, y: b2y, w: b2w, h: b2H });
+      btns.push({ id: 'back', label: '‹ BACK', col: '#9ef7ff', ok: true, x: pbx + b2w + 10, y: b2y, w: b2w, h: b2H });
+    } else btns.push({ id: 'back', label: '‹ BACK', col: '#9ef7ff', ok: true, x: pbx, y: b2y, w: pbw, h: b2H });
+    let hb = -1;
+    btns.forEach((b, i) => { if (Input.mx > b.x && Input.mx < b.x + b.w && Input.my > b.y && Input.my < b.y + b.h) hb = i; });
+    if (hb >= 0 && Input.mmoved && hb !== this._lvHb) { this.skinDetSel = hb; Sound.ui(false); }
+    this._lvHb = hb;
+    if (this.skinDetSel >= btns.length) this.skinDetSel = 0;
+    btns.forEach((b, i) => {
+      const on = i === this.skinDetSel;
+      const bc = b.big ? (b.ok ? b.col : (b.id === 'max' ? PAL.gold : (b.id === 'locked' ? '#ff6bd0' : PAL.hp))) : b.col;
+      if (b.big && b.ok) hglow(c, bc, b.x + b.w / 2, b.y + b.h / 2, Math.min(b.w * 0.36, 150), 0.08 + 0.04 * Math.sin(t * 3));
+      glass(c, b.x, b.y, b.w, b.h, b.h / 2, bc, on || (b.big && b.ok));
+      let fs = b.big ? clamp(b.h * 0.34, 12, 16 * u) : clamp(b.h * 0.36, 11, 13 * u);
+      const label = b.big && !b.ok && b.id === 'up' ? b.no : b.label;
+      const showCost = b.big && b.ok && b.cost && (b.cost.shards || b.cost.vbux) && b.id !== 'shop';
+      const cw2 = showCost ? (b.cost.shards ? fmtNum(b.cost.shards).length * fs * 0.62 + fs * 1.6 : 0) + (b.cost.vbux ? String(b.cost.vbux).length * fs * 0.62 + fs * 1.6 : 0) : 0;
+      let lw = tracked(c, label, 0, 0, { size: fs, weight: 900, track: 1.6, measureOnly: true });
+      if (lw + cw2 > b.w - 30) { fs *= (b.w - 30) / (lw + cw2); lw = tracked(c, label, 0, 0, { size: fs, weight: 900, track: 1.6, measureOnly: true }); }
+      const cw3 = showCost ? cw2 * fs / (b.big ? clamp(b.h * 0.34, 12, 16 * u) : fs) : 0;
+      let tx = b.x + b.w / 2 - (lw + (showCost ? cw3 + fs : 0)) / 2;
+      const ty = b.y + b.h / 2 + fs * 0.36;
+      tracked(c, label, tx, ty, { size: fs, weight: 900, color: on || (b.big && b.ok) ? '#ffffff' : bc, track: 1.6, glow: b.big && b.ok ? bc : null, blur: 8 });
+      if (showCost) {
+        tx += lw + fs;
+        if (b.cost.shards) { this.shardGem(c, tx + fs * 0.4, b.y + b.h / 2, fs * 0.42, t); tx += fs * 1.0; tx += tracked(c, fmtNum(b.cost.shards), tx, ty, { size: fs, weight: 900, color: '#ffffff', mono: true, track: 0.5 }) + fs * 0.6; }
+        if (b.cost.vbux) { this.vbuxGem(c, tx + fs * 0.4, b.y + b.h / 2, fs * 0.4, t); tx += fs * 1.0; tracked(c, fmtNum(b.cost.vbux), tx, ty, { size: fs, weight: 900, color: '#ffffff', mono: true, track: 0.5 }); }
+      }
+      if (on) focusTicks(c, b.x, b.y, b.w, b.h, bc, t);
+    });
+    // the line above the buttons: what just happened, or what the big button needs
+    const M = this.skinDetMsg;
+    const my = pby - 12 * (port ? 1 : u);
+    if (M && G.uiT - M.at < M.dur) {
+      const a2 = Math.min(1, (M.dur - (G.uiT - M.at)) * 2);
+      tracked(c, fitText(c, M.s, pbw, port ? 12 : 13 * u, 900), pbx + pbw / 2, my, { size: port ? 12 : 13 * u, weight: 900, align: 'center', color: M.col, glow: M.col, blur: 12, track: 2.5, alpha: a2 });
+    } else {
+      const hint = own ? (lv >= SKIN_LV_MAX ? 'every level is yours' : '↑↓ look at a level  ·  ENTER to upgrade  ·  E to wear')
+        : (base.exclusive ? 'bought with voidbux in the shop  ·  it comes at LEVEL 1' : (base.price < 0 ? 'earned, never bought  ·  it comes at LEVEL 1' : 'it comes at LEVEL 1  ·  shards level it up from there'));
+      text(c, fitText(c, hint, pbw, port ? 10 : 10.5 * u, 700), pbx + pbw / 2, my, { size: port ? 10 : 10.5 * u, weight: 700, align: 'center', color: PAL.dim, alpha: 0.8 });
+    }
+
+    // ---- input
+    if (this.lockT > 0) return;
+    if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) { this.skinDetLv = pv > 1 ? pv - 1 : SKIN_LV_MAX; Sound.ui(false); }
+    if (Input.hit('ArrowDown', 's') || Input.gpPressed[13]) { this.skinDetLv = pv < SKIN_LV_MAX ? pv + 1 : 1; Sound.ui(false); }
+    if (Input.hit('ArrowRight', 'd') || Input.gpPressed[15]) { this.skinDetSel = (this.skinDetSel + 1) % btns.length; Sound.ui(false); }
+    if (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14]) { this.skinDetSel = (this.skinDetSel + btns.length - 1) % btns.length; Sound.ui(false); }
+    if ((Input.hit('e') || Input.gpPressed[2]) && own && !worn) { this.lockT = 0.15; this.skinDetDo(base, { id: 'equip' }); return; }
+    if (Input.mclick && hoverRow > 0) { this.skinDetLv = hoverRow; Sound.ui(false); return; }
+    const fire = (Input.mclick && hb >= 0) || Input.hit('Enter', 'space') || Input.gpPressed[0];
+    if (!fire) return;
+    if (Input.mclick && hb >= 0) this.skinDetSel = hb;
+    const b = btns[this.skinDetSel] || btns[0];
+    this.lockT = 0.15;
+    this.skinDetDo(base, b);
+  }
+});
+
+/* ========================================================================
+   PETS  --  every pet is shown as it really is, owned or not, so nothing is
+   bought blind. The one you are looking at goes round your own ship in the
+   panel, with its perk and what it costs.
+   ======================================================================== */
+Object.assign(UI, {
+  petAct(pt) {
+    const d = Save.data;
+    if (petOwned(pt.id)) {
+      if (d.pet === pt.id) { Sound.ui(false); this.petMsg = { s: pt.name + ' IS ALREADY WITH YOU', col: PAL.dim, at: G.uiT }; return; }
+      d.pet = pt.id; Save.save(); Sound.ui(true); Flash.hit(pt.col, 0.18);
+      this.petMsg = { s: pt.name + ' COMES ALONG', col: pt.col, at: G.uiT };
+      return;
+    }
+    if (pt.price < 0) { Sound.hurt(); this.petMsg = { s: 'LOCKED — ' + (pt.reqText || 'EARNED'), col: '#ff6bd0', at: G.uiT }; return; }
+    if ((d.shards || 0) < pt.price) { Sound.hurt(); this.petMsg = { s: 'NEED ' + fmtNum(pt.price - (d.shards || 0)) + ' MORE SHARDS', col: PAL.hp, at: G.uiT }; return; }
+    d.shards -= pt.price;
+    if (!Array.isArray(d.pets)) d.pets = ['mote'];
+    if (d.pets.indexOf(pt.id) < 0) d.pets.push(pt.id);
+    d.pet = pt.id; Save.save();
+    Sound.levelUp(); Flash.hit(pt.col, 0.25);
+    this.petMsg = { s: pt.name + ' IS YOURS', col: pt.col, at: G.uiT };
+    this.petFx = 1;
+  },
+  pets(c) {
+    this.begin('pets');
+    const t = G.uiT, d = Save.data;
+    // season pets stay off the wall until you own them
+    const PL = PETS.filter(pt => !pt.pass || petOwned(pt.id));
+    const port = VW < 760 || VW < VH * 0.95;
+    this.dim(c, 0.9);
+
+    tracked(c, 'PETS', VW / 2, port ? 48 : 50, { size: Math.min(28, VW * 0.06), weight: 900, align: 'center', color: '#9ef7ff', glow: '#9ef7ff', blur: 16, track: 9 });
+    const subL = 'They never fight, and get out of the way when it matters. Each one brings a small perk.';
+    text(c, fitText(c, subL, VW - 40, 12, 700), VW / 2, port ? 68 : 72, { size: 12, weight: 700, align: 'center', color: PAL.dim });
+    this.shardBadge(c, VW - 24, 40, VW < 520 ? 17 : 21);
+
+    // ---- where things go: the wall of pets, and the panel for the one you are looking at
+    const top = port ? 88 : 100, bot = VH - 46;
+    let gx, gy, gw, gh, ix, iy, iw, ih;
+    if (!port) {
+      iw = clamp(VW * 0.31, 300, 440); ix = VW - 18 - iw; iy = top; ih = bot - top;
+      gx = 18; gw = ix - 16 - gx; gy = top; gh = bot - top;
+    } else {
+      ih = clamp(VH * 0.3, 200, 260); iy = bot - ih; ix = 10; iw = VW - 20;
+      gx = 10; gw = VW - 20; gy = top; gh = iy - 10 - gy;
+    }
+    const gap = 9, n = PL.length;
+    let cols = 3, best = -1;
+    for (let k = 2; k <= 8; k++) {
+      const cw0 = (gw - gap * (k - 1)) / k, rows0 = Math.ceil(n / k);
+      const ch0 = Math.min(cw0 * 1.08, (gh - gap * (rows0 - 1)) / rows0);
+      const sc0 = Math.min(cw0, ch0 / 1.08);
+      if (cw0 >= 84 && sc0 > best + 0.5) { best = sc0; cols = k; }
+    }
+    const rows = Math.ceil(n / cols);
+    const cw = (gw - gap * (cols - 1)) / cols;
+    const chh = Math.max(64, Math.min(cw * 1.08, (gh - gap * (rows - 1)) / rows));
+    const gy0 = gy + Math.max(0, (gh - (rows * (chh + gap) - gap)) / 2);
+
+    if (this.sels.pets === undefined) this.sels.pets = 0;
+    let hover = -1;
+    for (let i = 0; i < n; i++) {
+      const x = gx + (i % cols) * (cw + gap), y = gy0 + ((i / cols) | 0) * (chh + gap);
+      if (Input.mx >= x && Input.mx <= x + cw && Input.my >= y && Input.my <= y + chh) hover = i;
+    }
+    // where each tile and the button are (the regression clicks them)
+    const RR = this._petRects || (this._petRects = []);
+    RR.length = n;
+    for (let i = 0; i < n; i++) { const r = RR[i] || (RR[i] = {}); r.id = PL[i].id; r.x = gx + (i % cols) * (cw + gap); r.y = gy0 + ((i / cols) | 0) * (chh + gap); r.w = cw; r.h = chh; }
+    if (hover >= 0 && Input.mmoved && hover !== this._petHov) { this.sels.pets = hover; Sound.ui(false); }
+    this._petHov = hover;
+    const sel = Math.min(this.sels.pets, n - 1);
+
+    for (let i = 0; i < n; i++) {
+      const pt = PL[i];
+      const owned = petOwned(pt.id), on = d.pet === pt.id, earned = pt.price < 0;
+      const afford = !owned && !earned && (d.shards || 0) >= pt.price;
+      const x = gx + (i % cols) * (cw + gap), y = gy0 + ((i / cols) | 0) * (chh + gap);
+      c.save();
+      c.fillStyle = on ? 'rgba(14,20,28,0.96)' : (owned ? 'rgba(11,13,22,0.92)' : 'rgba(8,9,18,0.8)');
+      roundRect(c, x, y, cw, chh, 7); c.fill();
+      c.strokeStyle = on ? pt.col : (owned ? 'rgba(70,78,110,0.9)' : 'rgba(52,58,84,0.9)');
+      c.lineWidth = on ? 1.9 : 1.1;
+      if (!owned) c.setLineDash([4, 4]);
+      if (on) { c.shadowColor = pt.col; c.shadowBlur = 10; }
+      roundRect(c, x, y, cw, chh, 7); c.stroke(); c.setLineDash([]);
+      c.restore();
+      if (i === sel) focusTicks(c, x, y, cw, chh, owned ? pt.col : '#c4cadf', t);
+
+      // the pet itself, owned or not: what you see is what you get
+      // big windows: the words grow with the tiles, and the pet sits in the middle of what is left
+      const roomy = chh >= 96, tu = clamp(Math.min(cw / 150, chh / 140), 1, 1.6);
+      const lblH = (roomy ? 46 : 32) * tu;
+      const py = y + Math.max(chh * 0.3, (chh - lblH) * 0.5 + 2) + Math.sin(t * 2 + i) * 2.2;
+      const pkT = clamp(Math.min(cw, chh - lblH) / 62, 0.9, 2.4);
+      // the wall is drawn in bands rather than blurs (as allies' pets are); the one
+      // you are looking at, and the panel, get the full glow
+      if (pt.form !== 'none') {
+        NEON_LITE = i !== sel;
+        try { if (pkT > 1.05) this.hubPet(c, pt, x + cw / 2, py, t + i, pkT, owned ? 1 : 0.88, 'pt_' + pt.id); else drawPetPreview(c, pt, x + cw / 2, py, t + i, owned ? 1 : 0.88); }
+        finally { NEON_LITE = false; }
+      }
+      else {
+        c.save(); c.strokeStyle = 'rgba(125,134,171,0.6)'; c.lineWidth = 1.2; c.setLineDash([3, 4]);
+        c.beginPath(); c.arc(x + cw / 2, py, 11, 0, TAU); c.stroke(); c.restore();
+      }
+      if (!owned) this.passLock(c, x + cw - 13, y + 13, 5.5, earned ? '#ff6bd0' : (afford ? PAL.gold : '#8a6a7a'), 0.95);
+
+      const nmS = Math.min(10.5, cw * 0.085) * tu, sm = 9 * tu;
+      tracked(c, fitText(c, pt.name, cw - 10, nmS, 800), x + cw / 2, y + chh - (roomy ? 40 : 26) * tu, { size: nmS, weight: 800, align: 'center', color: owned ? pt.col : '#c4cadf', track: 1.6 * tu });
+      if (roomy) text(c, fitText(c, perkText(pt), cw - 10, sm, 700), x + cw / 2, y + chh - 26 * tu, { size: sm, weight: 700, align: 'center', color: '#9ef7ff', alpha: pt.id === 'none' ? 0.45 : 0.85 });
+      let sub2;
+      if (on) sub2 = 'WITH YOU';
+      else if (owned) sub2 = 'OWNED';
+      else if (earned) sub2 = pt.reqText;
+      else sub2 = fmtNum(pt.price) + ' shards';
+      const o2 = { size: sm, weight: 800, align: 'center', color: on ? PAL.gold : (owned ? PAL.dim : (earned ? 'rgba(255,107,208,0.85)' : (afford ? '#8dff6b' : '#b07080'))) };
+      text(c, fitText(c, sub2, cw - 10, sm, 800), x + cw / 2, y + chh - 11 * tu, o2);
+    }
+
+    // ---- the panel: the one you are looking at, going round your ship
+    const cur = PL[sel];
+    const owned = petOwned(cur.id), on = d.pet === cur.id, earned = cur.price < 0;
+    glass(c, ix, iy, iw, ih, 16, cur.form === 'none' ? '#7d86ab' : cur.col, true);
+    let stX, stY, stW, stH, tx0, ty0, tw0;
+    // on a big window the panel's words grow with it
+    const pu = port ? 1 : clamp(Math.min(iw / 340, ih / 560), 1, 1.45);
+    if (!port) { stX = ix + 12; stY = iy + 12; stW = iw - 24; stH = Math.min(ih * 0.5, stW * 0.9); tx0 = ix + 20; ty0 = stY + stH + 30 * pu; tw0 = iw - 40; }
+    else { stW = Math.min(iw * 0.44, ih - 24); stX = ix + 10; stY = iy + 12; stH = ih - 24; tx0 = stX + stW + 14; ty0 = iy + 30; tw0 = ix + iw - 12 - tx0; }
+    c.save();
+    c.fillStyle = 'rgba(3,4,12,0.9)'; roundRect(c, stX, stY, stW, stH, 12); c.fill();
+    c.beginPath(); roundRect(c, stX + 1, stY + 1, stW - 2, stH - 2, 11); c.clip();
+    const scx = stX + stW / 2, scy = stY + stH / 2 + 4;
+    c.globalCompositeOperation = 'lighter'; c.strokeStyle = 'rgba(150,120,255,0.07)'; c.lineWidth = 1;
+    for (let r = 22; r < stW; r += 22) { c.beginPath(); c.arc(scx, scy, r, 0, TAU); c.stroke(); }
+    c.globalCompositeOperation = 'source-over';
+    const sk = currentSkin(), pr = clamp(Math.min(stW, stH) * 0.12, 12, 34);
+    const pk = clamp(Math.min(stW, stH) / 120, 0.8, 2.2);
+    const pa = t * 0.95, prx = Math.min(stW * 0.36, pr * 3.3), pry = Math.min(stH * 0.2, pr * 1.2);
+    const px = scx + Math.cos(pa) * prx, ppy = scy + Math.sin(pa) * pry;
+    const behind = Math.sin(pa) < 0;
+    if (cur.form !== 'none' && behind) this.hubPet(c, cur, px, ppy, t, pk, 0.8, 'inspect');
+    if (!(sk.lv < 2)) hglow(c, sk.core, scx, scy, pr * 1.6, 0.4 + Math.sin(t * 6) * 0.05);
+    this.passSkin(c, sk, scx, scy + Math.sin(t * 1.7) * 2, pr, Math.sin(t * 0.6) * 0.3, t);
+    if (cur.form !== 'none' && !behind) this.hubPet(c, cur, px, ppy, t, pk, 1, 'inspect');
+    if (this.petFx > 0) {
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = this.petFx; c.strokeStyle = cur.col; c.lineWidth = 3 * this.petFx;
+      c.beginPath(); c.arc(px, ppy, 14 + (1 - this.petFx) * 60, 0, TAU); c.stroke(); c.restore();
+      this.petFx = Math.max(0, this.petFx - 1 / 50);
+    }
+    c.restore();
+    c.save(); c.strokeStyle = cur.form === 'none' ? 'rgba(125,134,171,0.4)' : trRgba(/^#[0-9a-f]{6}$/i.test(cur.col) ? cur.col : '#9ef7ff', 0.4); c.lineWidth = 1.1;
+    roundRect(c, stX, stY, stW, stH, 12); c.stroke(); c.restore();
+    if (!owned) text(c, 'PREVIEW', stX + 10, stY + 18, { size: 9.5, weight: 900, color: '#ffffff', alpha: 0.7 });
+
+    // the words
+    let ns = port ? 17 : 22 * pu;
+    const nmw = tracked(c, cur.name, 0, 0, { size: ns, weight: 900, track: 3, measureOnly: true });
+    if (nmw > tw0) ns *= tw0 / nmw;
+    const tAlign = port ? 'left' : 'center', tcx = port ? tx0 : ix + iw / 2;
+    tracked(c, cur.name, tcx, ty0, { size: ns, weight: 900, align: tAlign, color: cur.form === 'none' ? '#c4cadf' : cur.col, glow: cur.col, blur: 14, track: 3 });
+    const state = on ? 'WITH YOU' : (owned ? 'YOURS' : (earned ? 'EARNED, NEVER BOUGHT' : 'NOT YOURS YET  \u00b7  ' + fmtNum(cur.price) + ' SHARDS'));
+    text(c, state, tcx, ty0 + 17 * pu, { size: 9.5 * pu, weight: 900, align: tAlign, color: on ? PAL.gold : (owned ? '#8dff6b' : PAL.dim) });
+    // the perk, in a chip of its own
+    const pkS = port ? 11.5 : 13 * pu;
+    const ptxt = perkText(cur);
+    const chipW = Math.min(tw0, tracked(c, ptxt, 0, 0, { size: pkS, weight: 900, track: 1, measureOnly: true }) + 74 * pu);
+    const chipX = port ? tx0 : ix + iw / 2 - chipW / 2, chipY = ty0 + 28 * pu, chipH = pkS * 2.3;
+    glass(c, chipX, chipY, chipW, chipH, chipH / 2, '#9ef7ff', false);
+    text(c, 'PERK', chipX + 12, chipY + chipH / 2 + 3.3 * pu, { size: 9 * pu, weight: 900, color: '#9ef7ff', alpha: 0.8 });
+    tracked(c, fitText(c, ptxt, chipW - 58 * pu, pkS, 900), chipX + 46 * pu, chipY + chipH / 2 + pkS * 0.36, { size: pkS, weight: 900, color: '#ffffff', glow: '#9ef7ff', blur: 8, track: 1 });
+    let by2 = chipY + chipH + 18 * pu;
+    if (!port || ih > 220) {
+      by2 = wrapText(c, cur.blurb || '', tcx, by2, tw0, 15 * pu, { size: 11.5 * pu, weight: 600, align: tAlign, color: PAL.text, alpha: 0.8 }) + 16;
+      if (earned && !owned) text(c, fitText(c, 'HOW: ' + (cur.reqText || ''), tw0, 10.5 * pu, 800), tcx, by2, { size: 10.5 * pu, weight: 800, align: tAlign, color: '#ff6bd0', alpha: 0.9 });
+    }
+    // the button
+    const bh = port ? 36 : 42 * pu, bw = port ? tw0 : iw - 40, bx = port ? tx0 : ix + 20, bby = iy + ih - bh - (port ? 12 : 18);
+    let blab, bcol, bok = true, cost = 0;
+    if (owned) { blab = on ? 'WITH YOU' : 'TAKE IT ALONG'; bcol = on ? PAL.dim : '#9ef7ff'; bok = !on; }
+    else if (earned) { blab = 'LOCKED'; bcol = '#ff6bd0'; bok = false; }
+    else if ((d.shards || 0) >= cur.price) { blab = 'BUY'; bcol = '#8dff6b'; cost = cur.price; }
+    else { blab = 'NEED ' + fmtNum(cur.price - (d.shards || 0)) + ' MORE SHARDS'; bcol = PAL.hp; bok = false; }
+    const bOn = Input.mx > bx && Input.mx < bx + bw && Input.my > bby && Input.my < bby + bh;
+    const BR = this._petBtn || (this._petBtn = {}); BR.x = bx; BR.y = bby; BR.w = bw; BR.h = bh;
+    if (bok) hglow(c, bcol, bx + bw / 2, bby + bh / 2, bw * 0.5, 0.08 + 0.04 * Math.sin(t * 3));
+    glass(c, bx, bby, bw, bh, bh / 2, bcol, bOn || bok);
+    let bfs = port ? 12.5 : 14 * pu;
+    let blw = tracked(c, blab, 0, 0, { size: bfs, weight: 900, track: 1.6, measureOnly: true });
+    let cwid = cost ? fmtNum(cost).length * bfs * 0.62 + bfs * 1.8 : 0;
+    if (blw + cwid > bw - 24) {
+      bfs *= (bw - 24) / (blw + cwid);
+      blw = tracked(c, blab, 0, 0, { size: bfs, weight: 900, track: 1.6, measureOnly: true });
+      cwid = cost ? fmtNum(cost).length * bfs * 0.62 + bfs * 1.8 : 0;
+    }
+    let btx = bx + bw / 2 - (blw + cwid) / 2;
+    tracked(c, blab, btx, bby + bh / 2 + bfs * 0.36, { size: bfs, weight: 900, color: bok ? '#ffffff' : bcol, glow: bok ? bcol : null, blur: 8, track: 1.6 });
+    if (cost) {
+      btx += blw + bfs * 0.9;
+      this.shardGem(c, btx + bfs * 0.3, bby + bh / 2, bfs * 0.42, t);
+      tracked(c, fmtNum(cost), btx + bfs * 1.05, bby + bh / 2 + bfs * 0.36, { size: bfs, weight: 900, color: '#ffffff', mono: true, track: 0.5 });
+    }
+    if (bOn) focusTicks(c, bx, bby, bw, bh, bcol, t);
+    const M = this.petMsg;
+    if (M && G.uiT - M.at < 1.8) tracked(c, fitText(c, M.s, bw, 11.5, 900), bx + bw / 2, bby - 10, { size: 11.5, weight: 900, align: 'center', color: M.col, glow: M.col, blur: 10, track: 2, alpha: Math.min(1, (1.8 - (G.uiT - M.at)) * 2) });
+
+    const modeW = d.petMode === 1 ? 'SHOWN' : (d.petMode === 0.5 ? 'FADED' : 'HIDDEN');
+    text(c, fitText(c, 'ENTER to equip or buy  ·  H: pets ' + modeW + '  ·  BACKSPACE to go back  ·  perks work in every mode', VW - 30, 11.5, 700),
+      VW / 2, VH - 18, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+
+    if (this.lockT > 0) return;
+    const move = dd => { this.sels.pets = (sel + dd + n) % n; Sound.ui(false); };
+    if (Input.hit('ArrowRight') || Input.hit('d')) move(1);
+    if (Input.hit('ArrowLeft') || Input.hit('a')) move(-1);
+    if (Input.hit('ArrowDown') || Input.hit('s')) move(cols);
+    if (Input.hit('ArrowUp') || Input.hit('w')) move(-cols);
+    if (Input.hit('h')) {
+      d.petMode = d.petMode === 1 ? 0.5 : (d.petMode === 0.5 ? 0 : 1);
+      Save.save(); Sound.ui(true); this.lockT = 0.18;
+    }
+    if (Input.mclick && bOn) { this.lockT = 0.18; this.petAct(cur); return; }
+    if (Input.mclick && hover >= 0) {
+      this.sels.pets = hover;
+      const pt = PL[hover];
+      // a click on one you own takes it along; on one you don't, it only shows it
+      if (petOwned(pt.id) && d.pet !== pt.id) { this.lockT = 0.18; this.petAct(pt); }
+      else Sound.ui(false);
+      return;
+    }
+    if (Input.hit('Enter') || Input.hit('space') || Input.gpPressed[0]) { this.lockT = 0.18; this.petAct(cur); }
+  }
+});
 boot();
 })();
 </script>
