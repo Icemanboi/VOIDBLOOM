@@ -24178,7 +24178,7 @@ const Game = {
     this.postBloom = false; this.eliteCount = 0; this.ascend = 0;
     this.arenaR = 1500; this.arenaTarget = 0;
     this.revives = D.revives || 0;
-    this.continues = 0; this.contT = 0; this.chestTix = 0;
+    this.continues = 0; this.contT = 0; this.chestTix = 0; this.endlessTix = 0;
     this.enemyCap = D.cap;
     this.eliteTimes = ELITE_TIMES.map(t => Math.round(t * D.eliteMul)).filter(t => !D.shortRun || t < (D.bossT || BOSS_T));
     Particles.clear(); Pops.clear();
@@ -26373,7 +26373,7 @@ const Game = {
         tide: this.tide || 0, evolved: evoN, level: this.level });
     }
     // the chest after a won level: a standard ticket (desktop app)
-    this.chestTix = (win && !this.coop) ? Standard.award(this.diff) : 0;
+    this.chestTix = this.coop ? 0 : (win ? Standard.award(this.diff) : (this.endless ? Standard.awardEndless(this.tide | 0, this) : 0));
     // what pops up in the lobby: the shards (chest included), pilot XP, pass XP
     Payout.owe(earned + ((!this.coop && Pass.last && Pass.last.chest) || 0), !this.coop ? Pilot.last : null, !this.coop ? Pass.last : null);
     if (!d.owned) d.owned = ['seed'];
@@ -29626,11 +29626,11 @@ function leftText(ms) {
    Only the premium unlock -- the thing that costs money -- is asked of
    the server.
    ======================================================================== */
-const PASS_TIERS = 30;
+const PASS_TIERS = 50;
 const PASS_BONUS_XP = 1000;                 // past the last tier: a bonus drop every 1000 XP
-const PASS_BONUS_SHARDS = 150;              // ... worth this on each track you own
+const PASS_BONUS_SHARDS = 250;              // ... worth this on each track you own
 /* XP to climb from tier t-1 to tier t. Tier 1 is where everyone starts. */
-function passNeed(t) { return t <= 1 ? 0 : 450 + 25 * t; }
+function passNeed(t) { return t <= 1 ? 0 : (t <= 30 ? 450 + 25 * t : 700); }
 const PASS_AT = [0, 0];
 for (let t = 2; t <= PASS_TIERS; t++) PASS_AT[t] = PASS_AT[t - 1] + passNeed(t);
 
@@ -29649,10 +29649,14 @@ const PASS_SEASONS = [
     // VOIDBUX: 100 on the free track (tiers 6, 12, 18, 24, 28), 120 on premium (3, 10, 18, 26)
     free: [_sh(100), _sh(100), _sh(150), _sk('ember'), _sh(150), _vb(15), _sh(200), _sh(200), _sh(200), _pt('wishling'),
            _sh(200), _vb(20), _sh(250), _sh(250), _sk('verdant'), _sh(250), _sh(300), _vb(20), _sh(300), _pt('sprig'),
-           _sh(300), _sh(350), _sh(350), _vb(20), _sh(400), _sh(400), _sh(400), _vb(25), _sh(450), _sk('meteor')],
+           _sh(300), _sh(350), _sh(350), _vb(20), _sh(400), _sh(400), _sh(400), _vb(25), _sh(450), _sk('meteor'),
+           _sh(450), _sh(450), _vb(25), _sh(500), _sh(500), _vb(25), _sh(550), _sh(550), _vb(30), _sh(600),
+           _sh(600), _vb(30), _sh(650), _sh(650), _vb(35), _sh(700), _sh(700), _vb(40), _sh(800), _sh(1500)],
     prem: [_sk('starfall'), _sh(200), _vb(20), _sh(250), _pt('cinder'), _sh(300), _sh(300), _sk('andromeda'), _sh(350), _vb(25),
            _sh(400), _pt('nimbus'), _sh(450), _sh(450), _sh(500), _sk('asterism'), _sh(500), _vb(30), _sh(550), _pt('starling'),
-           _sh(600), _sh(600), _sh(650), _pt('revenant'), _sh(700), _vb(45), _sh(750), _sh(800), _sh(900), _sk('supernova')] }
+           _sh(600), _sh(600), _sh(650), _pt('revenant'), _sh(700), _vb(45), _sh(750), _sh(800), _sh(900), _sk('supernova'),
+           _sh(950), _vb(40), _sh(1000), _sh(1000), _vb(45), _sh(1100), _sh(1100), _vb(50), _sh(1200), _sh(1200),
+           _vb(55), _sh(1300), _sh(1300), _vb(60), _sh(1400), _sh(1400), _vb(70), _sh(1600), _sh(1800), _vb(100)] }
 ];
 
 /* ------------------------------------------------------------ daily quests
@@ -29661,22 +29665,26 @@ const PASS_SEASONS = [
 const QUESTS = {
   /* g and xp are indexed by tier: [tiny, medium, hard]. null = not offered at that tier. */
   slay:    { g: [250, 700, 1500],  xp: [50, 100, 150], t: n => 'Slay ' + fmtNum(n) + ' enemies', s: n => 'Slay ' + fmtNum(n),            goal: n => n, inc: (r, n) => r.dk },
-  bosses:  { g: [null, 2, 4],      xp: [0, 100, 150],  t: n => 'Kill ' + n + ' bosses', s: n => 'Kill ' + n + ' bosses',                      goal: n => n, inc: (r, n) => r.db },
+  bosses:  { g: [1, 2, 4],         xp: [50, 100, 150], t: n => n === 1 ? 'Kill a boss' : 'Kill ' + n + ' bosses', s: n => n === 1 ? 'Kill a boss' : 'Kill ' + n + ' bosses',                      goal: n => n, inc: (r, n) => r.db },
   survive: { g: [3, 6, 9],         xp: [50, 100, 150], t: n => 'Survive ' + n + ' min in one run', s: n => 'Survive ' + n + ' min',           goal: () => 1, inc: (r, n) => r.secs >= n * 60 ? 1 : 0 },
   level:   { g: [8, 18, 26],       xp: [50, 100, 150], t: n => 'Reach level ' + n + ' in one run', s: n => 'Reach level ' + n,           goal: () => 1, inc: (r, n) => r.level >= n ? 1 : 0 },
-  dash:    { g: [40, 120, null],   xp: [50, 100, 0],   t: n => 'Dash ' + n + ' times', s: n => 'Dash ' + n + ' times',                       goal: n => n, inc: (r, n) => r.ddash },
-  runs:    { g: [1, 3, null],      xp: [50, 100, 0],   t: n => n === 1 ? 'Finish a run' : 'Finish ' + n + ' runs', s: n => n === 1 ? 'Finish a run' : 'Finish ' + n + ' runs', goal: n => n, inc: (r, n) => r.first ? 1 : 0 },
-  minutes: { g: [8, 20, null],     xp: [55, 100, 0],   t: n => 'Play for ' + n + ' minutes', s: n => 'Play ' + n + ' min',                 goal: n => n * 60, inc: (r, n) => r.dsecs, secs: true },
+  dash:    { g: [40, 120, 300],    xp: [50, 100, 150],   t: n => 'Dash ' + n + ' times', s: n => 'Dash ' + n + ' times',                       goal: n => n, inc: (r, n) => r.ddash },
+  runs:    { g: [1, 3, 5],         xp: [50, 100, 150],   t: n => n === 1 ? 'Finish a run' : 'Finish ' + n + ' runs', s: n => n === 1 ? 'Finish a run' : 'Finish ' + n + ' runs', goal: n => n, inc: (r, n) => r.first ? 1 : 0 },
+  minutes: { g: [8, 20, 45],       xp: [55, 100, 150],   t: n => 'Play for ' + n + ' minutes', s: n => 'Play ' + n + ' min',                 goal: n => n * 60, inc: (r, n) => r.dsecs, secs: true },
   win:     { g: [null, 'easy', 'medium'], xp: [0, 100, 150], t: n => 'Win on ' + DIFFS[n].name + ' or harder', s: n => 'Win on ' + DIFFS[n].name + '+', goal: () => 1,
              inc: (r, n) => r.win && passDiffRank(r.diff) >= passDiffRank(n) ? 1 : 0 },
   planet:  { g: [null, null, 1],   xp: [0, 0, 150],    t: () => 'Conquer a planet', s: () => 'Conquer a planet',                          goal: () => 1, inc: r => r.win && r.planet ? 1 : 0 },
   daily:   { g: [null, null, 1],   xp: [0, 0, 150],    t: () => 'Play the DAILY CHALLENGE', s: () => 'The DAILY',                  goal: () => 1, inc: r => r.daily ? 1 : 0 },
-  tide:    { g: [null, 4, 8],      xp: [0, 100, 150],  t: n => 'Reach tide ' + n + ' in ENDLESS', s: n => 'Tide ' + n + ' ENDLESS',            goal: () => 1, inc: (r, n) => r.endless && r.tide >= n ? 1 : 0 },
-  evolve:  { g: [null, 1, null],   xp: [0, 100, 0],    t: () => 'Evolve a weapon', s: () => 'Evolve a weapon',                           goal: () => 1, inc: r => r.evolved >= 1 ? 1 : 0 }
+  tide:    { g: [2, 4, 8],         xp: [50, 100, 150],  t: n => 'Reach tide ' + n + ' in ENDLESS', s: n => 'Tide ' + n + ' ENDLESS',            goal: () => 1, inc: (r, n) => r.endless && r.tide >= n ? 1 : 0 },
+  evolve:  { g: [1, 2, 3],         xp: [50, 100, 150], t: n => n === 1 ? 'Evolve a weapon' : 'Evolve ' + n + ' weapons', s: n => n === 1 ? 'Evolve a weapon' : 'Evolve ' + n + ' weapons', goal: () => 1, inc: (r, n) => r.evolved >= n ? 1 : 0 },
+  burst:   { g: [120, 350, 900],   xp: [50, 100, 150], t: n => 'Slay ' + fmtNum(n) + ' in one run', s: n => 'Slay ' + fmtNum(n) + ' in a run', goal: () => 1, inc: (r, n) => r.kills >= n ? 1 : 0 },
+  planetrun: { g: [1, null, null], xp: [50, 0, 0],     t: () => 'Play a planet run', s: () => 'Play a planet run',                         goal: () => 1, inc: r => r.planet ? 1 : 0 }
 };
 /* eight a day: three tiny, three medium, two hard -- about 765 XP, and the chest on top */
-const QUEST_SHAPE = [0, 0, 0, 1, 1, 1, 2, 2];
-const QUEST_CHEST_SHARDS = 250, QUEST_CHEST_XP = 60;
+/* eighteen a day, hard ones first: three hard, eight medium, seven tiny */
+const QUEST_SHAPE = [2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];
+/* the day's chest opens at twelve of the eighteen: shards, voidbux, a standard ticket and pass XP */
+const QUEST_CHEST_AT = 12, QUEST_CHEST_SHARDS = 1200, QUEST_CHEST_VB = 40, QUEST_CHEST_XP = 150;
 function passDiffRank(d) {
   const i = ['easy', 'medium', 'hard', 'impossible', 'hardcore'].indexOf(d);
   return i < 0 ? (d === 'endless' ? 1 : 1) : i;
@@ -29921,19 +29929,19 @@ const Pass = {
   quests() {
     const d = Save.data, day = dailyKey();
     let q = d.quests;
-    if (!q || q.day !== day || !Array.isArray(q.list) || q.ver !== 2) {
-      q = d.quests = { day: day, ver: 2, list: this.roll(day), rer: 2, chest: 0 };
+    if (!q || q.day !== day || !Array.isArray(q.list) || q.ver !== 3) {
+      q = d.quests = { day: day, ver: 3, list: this.roll(day), rer: 2, chest: 0 };
       Save.save();
     }
     return q;
   },
   roll(day) {
-    const R = mulberry32(dailySeed('bloompass:v2:' + day));
+    const R = mulberry32(dailySeed('bloompass:v3:' + day));
     const ids = [], out = [];
     for (const v of QUEST_SHAPE) {
-      const pool = Object.keys(QUESTS).filter(id => QUESTS[id].g[v] != null && ids.indexOf(id) < 0);
+      const pool = Object.keys(QUESTS).filter(id => QUESTS[id].g[v] != null && ids.indexOf(id + ':' + v) < 0);
       const id = pool[(R() * pool.length) | 0];
-      ids.push(id); out.push(this.make(id, v));
+      ids.push(id + ':' + v); out.push(this.make(id, v));
     }
     return out;
   },
@@ -29947,7 +29955,7 @@ const Pass = {
     const q = this.quests(), cur = q.list[i];
     if (!cur || cur.done || !(q.rer > 0)) return false;
     const R = mulberry32(dailySeed('bloompass:' + q.day + ':re:' + i + ':' + q.rer));
-    const pool = Object.keys(QUESTS).filter(id => QUESTS[id].g[cur.v] != null && !q.list.some(x => x.id === id));
+    const pool = Object.keys(QUESTS).filter(id => QUESTS[id].g[cur.v] != null && !q.list.some(x => x.id === id && x.v === cur.v));
     if (!pool.length) return false;
     q.list[i] = this.make(pool[(R() * pool.length) | 0], cur.v);
     q.rer--;
@@ -29987,16 +29995,22 @@ const Pass = {
       if (q.prog >= q.goal) { q.done = true; done.push(q); }
     }
     const qxpQ = done.reduce((a, q) => a + q.xp, 0);
+    let qTix = 0;
+    if (Standard.on()) for (const q of done) if (q.v === 2) qTix++;
+    if (qTix) Save.data.stdTix = Standard.n() + qTix;
     let qxp = qxpQ, chest = 0;
     // every quest of the day cleared: the chest opens, once
-    if (!qs.chest && qs.list.length && qs.list.every(q => q.done)) {
+    if (!qs.chest && qs.list.filter(q => q.done).length >= QUEST_CHEST_AT) {
       qs.chest = 1; chest = QUEST_CHEST_SHARDS; qxp += QUEST_CHEST_XP;
       Save.data.shards = (Save.data.shards || 0) + chest;
+      Vbux.add(QUEST_CHEST_VB);
+      if (Standard.on()) Save.data.stdTix = Standard.n() + 1;
     }
     this.addXp(S, xp + qxp);
     if (done.length === 1) this.toast('QUEST COMPLETE', '+' + done[0].xp + ' XP  \u00b7  ' + this.qtext(done[0]), S.col2);
     else if (done.length > 1) this.toast('QUESTS COMPLETE', done.length + ' quests  \u00b7  +' + qxpQ + ' XP', S.col2);
-    if (chest) this.toast('DAILY CHEST OPENED', '+' + chest + ' shards  \u00b7  +' + QUEST_CHEST_XP + ' XP', S.col);
+    if (qTix) this.toast('HARD QUEST \u00b7 +' + qTix + (qTix > 1 ? ' TICKETS' : ' TICKET'), 'standard ticket' + (qTix > 1 ? 's' : '') + ' added', '#ffb347');
+    if (chest) this.toast('DAILY CHEST OPENED', '+' + fmtNum(chest) + ' shards  \u00b7  +' + QUEST_CHEST_VB + ' voidbux' + (Standard.on() ? '  \u00b7  +1 ticket' : '') + '  \u00b7  +' + QUEST_CHEST_XP + ' XP', S.col);
     Save.save();
     this.last = { xp: xp + qxp, run: xp, quests: done.length, chest: chest, from: t0, to: this.tierOf(rec.xp), season: S.id };
     return this.last;
@@ -30522,7 +30536,7 @@ const STD = {
     { id: 'vb10',  p: 2.5, vb: 10,       col: '#ff4fd8', t: '10 VOIDBUX' },
     { id: 'cos',   p: 1,                 col: '#fff3a3', t: 'A SKIN OR PET' }
   ],
-  DUPE_SHARDS: 10000, DUPE_VB: 200, BUY_VB: 60, BUY_DAY: 3,
+  DUPE_SHARDS: 10000, DUPE_VB: 200, BUY_VB: 60, BUY_SH: 150, BUY_DAY: 3,
   CHEST2: { easy: 0, medium: 0.10, hard: 0.25, impossible: 0.40, hardcore: 0.60, daily: 0.10 }
 };
 /* ================================================================ TICKET ICONS
@@ -30964,6 +30978,15 @@ const Standard = {
     d.stdBuy.n++; d.stdTix = this.n() + 1;
   },
   /* what a won level's chest drops */
+  /* ENDLESS has no finish line: the chest comes with how far the tides carried you.
+     tide 4, 8, 12 = 1, 2, 3 tickets. PRESS ON ends a run twice, so only the new part pays. */
+  awardEndless(tide, g) {
+    if (!this.on()) return 0;
+    const want = tide >= 12 ? 3 : tide >= 8 ? 2 : tide >= 4 ? 1 : 0, k = want - (g.endlessTix | 0);
+    if (k <= 0) return 0;
+    g.endlessTix = want; Save.data.stdTix = this.n() + k; Save.save();
+    return k;
+  },
   award(diffId) {
     if (!this.on()) return 0;
     const k = 1 + (Math.random() < (STD.CHEST2[diffId] || 0) ? 1 : 0);
@@ -31452,9 +31475,9 @@ BOSS_BODY.hstraw = function (c, R, col, core, hurt) {
    ======================================================================== */
 const HWB_ID = 'halloween26';
 const HW_LV = [
-  { id: 'fright', name: 'FRIGHT', col: '#8dff6b', tix: 1, tag: 'DECENTLY HARD',  hp: 1,   bs: 1.06, bn: 1.2,  bcd: 0.85, tele: 1,    brood: 1.15, dmg: 1,    bd: 1.05, regen: 1.0, harder: false, extra: false },
-  { id: 'terror', name: 'TERROR', col: '#ffb347', tix: 2, tag: 'CHALLENGING',    hp: 1.35, bs: 1.16, bn: 1.3, bcd: 0.82, tele: 0.9, brood: 1.3,  dmg: 1,    bd: 1.0,  regen: 0.85, harder: true,  extra: false },
-  { id: 'hollow', name: 'HOLLOW', col: '#ff5a3c', tix: 3, tag: 'LOCK IN',        hp: 2.0, bs: 1.26, bn: 1.5, bcd: 0.76, tele: 0.82, brood: 1.55, dmg: 1.05, bd: 1.1,  regen: 0.6, harder: true,  extra: false }
+  { id: 'fright', name: 'FRIGHT', col: '#8dff6b', tix: 3, tag: 'DECENTLY HARD',  hp: 1,   bs: 1.06, bn: 1.2,  bcd: 0.85, tele: 1,    brood: 1.15, dmg: 1,    bd: 1.05, regen: 1.0, harder: false, extra: false },
+  { id: 'terror', name: 'TERROR', col: '#ffb347', tix: 6, tag: 'CHALLENGING',    hp: 1.35, bs: 1.16, bn: 1.3, bcd: 0.82, tele: 0.9, brood: 1.3,  dmg: 1,    bd: 1.0,  regen: 0.85, harder: true,  extra: false },
+  { id: 'hollow', name: 'HOLLOW', col: '#ff5a3c', tix: 9, tag: 'LOCK IN',        hp: 2.0, bs: 1.26, bn: 1.5, bcd: 0.76, tele: 0.82, brood: 1.55, dmg: 1.05, bd: 1.1,  regen: 0.6, harder: true,  extra: false }
 ];
 const HW_HP = [100000, 150000, 230000];            // the three bodies, at FRIGHT
 const HW_PAY = [120, 200, 350], HW_PAYMUL = [1, 1.5, 2];
@@ -31462,9 +31485,14 @@ const HW_FORMS = ['hwarden', 'hwscarecrow', 'hmoon'];
 const HW_TITLES = ['I · THE GOURD WARDEN', 'II · THE SCARECROW', 'III · THE HARVEST MOON'];
 const HW_LINES = ['the lantern is lit', 'it has been standing here all year', 'the last light in the hollow'];
 const HW_TASKS = [
-  { id: 'gourd', n: 'BREAK THE GOURD',  d: 'defeat the Gourd Warden' },
-  { id: 'brood', n: 'UNTOUCHED BROOD',  d: 'clear a brood wave without being hit' },
-  { id: 'moon',  n: 'MOONSET',          d: 'defeat the Harvest Moon' }
+  { id: 'gourd',  n: 'BREAK THE GOURD',   d: 'defeat the Gourd Warden', sh: 200 },
+  { id: 'scare',  n: 'FELL THE SCARECROW', d: 'defeat the Scarecrow', sh: 300 },
+  { id: 'brood',  n: 'UNTOUCHED BROOD',   d: 'clear a brood wave without being hit', tix: 1 },
+  { id: 'moon',   n: 'MOONSET',           d: 'defeat the Harvest Moon', sh: 400 },
+  { id: 'swift',  n: 'SWIFT HARVEST',     d: 'win in under seven minutes', sh: 350 },
+  { id: 'clean',  n: 'CLEAN HANDS',       d: 'win and be hit five times or fewer', tix: 1 },
+  { id: 'both',   n: 'DOUBLE UNTOUCHED',  d: 'clear both broods without being hit', tix: 1 },
+  { id: 'lock',   n: 'LOCKED IN',         d: 'win on HOLLOW', tix: 2 }
 ];
 /* what comes for you while the boss is shielded */
 const HW_BROOD = [[['hsprout', 5], ['hwisp', 4]], [['hcrow', 5], ['hstraw', 3]]];
@@ -31528,6 +31556,18 @@ Thicket.boss.hollow = {
         Sound.shoot();
       }
     }
+    // the crescent: one arc of seven every 0.13 s, turning as it goes (dt-timed)
+    if (e.hwSw > 0) {
+      e.hwSwT = (e.hwSwT || 0) - dt;
+      if (e.hwSwT <= 0) {
+        e.hwSwT = 0.13; e.hwSw--; e.hwSwA += 0.17 * e.hwSwD;
+        for (let j = -3; j <= 3; j++) {
+          const a = e.hwSwA + j * 0.1;
+          G.enemyBullet(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, Math.cos(a) * 205, Math.sin(a) * 205, 11 * G.dmgScale, j % 2 ? '#fff3a3' : BOSS_BULLET.hmoon);
+        }
+        if (e.hwSw % 2) Sound.shoot();
+      }
+    }
   },
   attack(e, ph, col, p) {
     const st = e.hwStage | 0, sub = e.sub, aim = Math.atan2(p.y - e.y, p.x - e.x);
@@ -31542,17 +31582,32 @@ Thicket.boss.hollow = {
       else if (sub === 1) { e.attackT = G.bossCd(2.8); G.sowerFan(e, 7 + ph, 215); Thicket.later(G.bossTele(0.45), () => { if (!e.dead && !e.hwShield) G.sowerFan(e, 6 + ph, 245); }); G.callout('STRAW WHIP', col, e); }
       else if (sub === 2) { e.attackT = G.bossCd(3.0); G.sowerRing(e, { n: 22 + ph * 4, spd: 160, gapW: 0.66, gapA: aim, dmg: 11 }); }
       else { e.attackT = G.bossCd(3.2); Hollow.lanes(e, ph, true); }
-    } else {                                          // THE HARVEST MOON: moonfall rings, bats, spirals
-      if (sub === 0) {
-        e.attackT = G.bossCd(3.6 - ph * 0.3);
-        G.sowerRing(e, { n: 26, spd: 150, gapW: 0.62, gapA: aim, dmg: 12 });
+    } else {                                          // THE HARVEST MOON: six attacks nothing else has, in a rolling order
+      const k = e.hwN = ((e.hwN | 0) + 1) % 6;
+      if (k === 1) {                                  // MOONFALL: rings with a door that moves; a third on the later phases
+        e.attackT = G.bossCd(3.7 - ph * 0.3);
+        G.sowerRing(e, { n: 28, spd: 150, gapW: 0.58, gapA: aim, dmg: 12 });
         const sd = rand() < 0.5 ? 1 : -1;
-        Thicket.later(G.bossTele(0.9), () => { if (!e.dead) G.sowerRing(e, { n: 26, spd: 160, gapW: 0.62, gapA: Math.atan2(G.player.y - e.y, G.player.x - e.x) + sd * 0.7, dmg: 12 }); });
+        Thicket.later(G.bossTele(0.9), () => { if (!e.dead) G.sowerRing(e, { n: 28, spd: 160, gapW: 0.58, gapA: Math.atan2(G.player.y - e.y, G.player.x - e.x) + sd * 0.7, dmg: 12 }); });
+        if (ph >= 1) Thicket.later(G.bossTele(1.7), () => { if (!e.dead) G.sowerRing(e, { n: 30, spd: 170, gapW: 0.55, gapA: Math.atan2(G.player.y - e.y, G.player.x - e.x) - sd * 0.9, dmg: 12 }); });
         G.callout('MOONFALL', col, e);
       }
-      else if (sub === 1) { e.attackT = G.bossCd(3.2); Hollow.bats(e, 4 + ph); }
-      else if (sub === 2) { e.attackT = G.bossCd(3.4); spiral(26 + ph * 6, 3, bc); G.callout('MOONLIGHT', col, e); }
-      else { e.attackT = G.bossCd(3.0); G.sowerFan(e, 7 + ph * 2, 210); G.sowerRing(e, { n: 16, spd: 140, gapW: 0.8, gapA: aim + Math.PI, dmg: 11 }); }
+      else if (k === 2) { e.attackT = G.bossCd(3.9); Hollow.noose(e, ph); }
+      else if (k === 3) {                             // CRESCENT: a wall of arcs sweeps across you
+        e.attackT = G.bossCd(3.6); e.hwSw = 12 + ph * 3; e.hwSwD = rand() < 0.5 ? 1 : -1; e.hwSwT = 0;
+        e.hwSwA = aim - 0.17 * e.hwSw * e.hwSwD * 0.5;
+        G.callout('CRESCENT', col, e);
+      }
+      else if (k === 4) {                             // ECLIPSE: crossing lanes, and a ring walks through them
+        e.attackT = G.bossCd(4.0); Hollow.lanes(e, ph, true);
+        Thicket.later(G.bossTele(1.25), () => { if (!e.dead) G.sowerRing(e, { n: 26, spd: 150, gapW: 0.66, gapA: Math.atan2(G.player.y - e.y, G.player.x - e.x), dmg: 12 }); });
+        G.callout('ECLIPSE', col, e);
+      }
+      else if (k === 5) {                             // NEW MOON: the wall closes in, then the swarm
+        e.attackT = G.bossCd(3.9); G.sowerCollapse(e, 34, bc);
+        Thicket.later(G.bossTele(1.4), () => { if (!e.dead) Hollow.bats(e, 3 + ph); });
+      }
+      else { e.attackT = G.bossCd(3.4); spiral(26 + ph * 6, 3, bc); G.callout('MOONLIGHT', col, e); if (ph >= 1) Hollow.bats(e, 2 + ph); }
     }
     G.bossChain(e);
   }
@@ -31628,9 +31683,10 @@ const Hollow = {
     hw.state = 'brood'; hw.broodT = hw.t; hw.hitsAt = hw.hits; hw.cleared = st + 1;
     G.ebullets.length = 0;
     for (let i = G.fx.length - 1; i >= 0; i--) { const f = G.fx[i]; if (f.t === 'tele' || f.t === 'hex' || f.t === 'eshock') G.fx.splice(i, 1); }
-    Thicket.timers.length = 0; e.hwSp = 0;
+    Thicket.timers.length = 0; e.hwSp = 0; e.hwSw = 0;
     this.pay(st);
     if (st === 0) this.task('gourd');
+    if (st === 1) this.task('scare');
     this.spawnBrood(st);
     G.banner(e.def.name + ' · SHIELDED', '#9ec6ff');
     G.callout('KILL THE BROOD', '#9ec6ff', e);
@@ -31656,7 +31712,7 @@ const Hollow = {
   broodClear() {
     const hw = G.hollow, e = hw.boss;
     if (!e || e.dead) return;
-    if (hw.hits === hw.hitsAt) this.task('brood');
+    if (hw.hits === hw.hitsAt) { this.task('brood'); hw.clean = (hw.clean | 0) + 1; if (hw.clean >= 2) this.task('both'); }
     e.hwShield = false;
     G.banner('BROOD CLEARED', '#8dff6b');
     Sound.fanfare(true); Flash.hit('#8dff6b', 0.3);
@@ -31692,7 +31748,7 @@ const Hollow = {
     e.hwStage = st; e.def = def; e.r = def.r;
     e.maxHp = e.hp = Math.round(HW_HP[st] * L.hp);
     e.dmg = BOSS_CONTACT * G.dmgScale;
-    e.phase = 0; e.attackT = 3; e.sub = 0; e.hwSp = 0;
+    e.phase = 0; e.attackT = 3; e.sub = 0; e.hwSp = 0; e.hwSw = 0; e.hwN = 0;
     e.hwT = 1.6; e.downed = 1.6; e.vx = e.vy = e.kx = e.ky = 0;
     G.ebullets.length = 0;
     G.arenaTarget = st === 2 ? 1060 : 1180;
@@ -31723,6 +31779,27 @@ const Hollow = {
     G.callout('CROWS', e.def.col, e);
     Sound.bossHorn();
   },
+  /* THE MOON's noose: a ring of light forms around YOU and draws in. One door, and it moves between rings. */
+  noose(e, ph) {
+    const waves = 1 + (ph >= 1 ? 1 : 0) + (ph >= 2 ? 1 : 0);
+    const wave = i => {
+      if (e.dead || e.hwShield) return;
+      const p = G.player, R = 440, n = G.bossN(36), gapA = rnd(TAU), lim = G.arenaR - 40;
+      for (let j = 0; j < n; j++) {
+        const a = j / n * TAU;
+        if (Math.abs(angDiff(a, gapA)) < 0.46) continue;
+        let x = p.x + Math.cos(a) * R, y = p.y + Math.sin(a) * R;
+        const m = Math.hypot(x, y); if (m > lim) { x = x / m * lim; y = y / m * lim; }
+        const da = Math.atan2(p.y - y, p.x - x);
+        G.enemyBullet(x, y, Math.cos(da) * 118, Math.sin(da) * 118, 12 * G.dmgScale, i % 2 ? '#fff3a3' : BOSS_BULLET.hmoon, { life: 6, arm: 0.6 });
+      }
+      Sound.shoot('nova');
+    };
+    wave(0);
+    for (let i = 1; i < waves; i++) Thicket.later(G.bossTele(1.1 * i), () => wave(i));
+    G.callout('LUNAR NOOSE', e.def.col, e);
+    Sound.bossHorn();
+  },
   /* the bats: a swarm that arcs in. Never shielded, never counted. */
   bats(e, n) {
     let alive = 0; for (const o of G.enemies) if (o.def.id === 'hbat' && !o.dead) alive++;
@@ -31745,10 +31822,12 @@ const Hollow = {
     const hw = G.hollow, h = this.d();
     if (h.tasks[id] || !this.on()) return;
     h.tasks[id] = 1;
-    Banners.rec(this.banner()).tickets += 1; Save.save();
     const T = HW_TASKS.find(t => t.id === id);
+    if (T.tix) { Banners.rec(this.banner()).tickets += T.tix; hw.taskTix = (hw.taskTix | 0) + T.tix; }
+    else { Save.data.shards = (Save.data.shards | 0) + T.sh; hw.shards += T.sh; }
+    Save.save();
     hw.tasks.push(T.n);
-    G.banner('TASK DONE · ' + T.n + ' · +1 TICKET', '#8dff6b');
+    G.banner('TASK DONE · ' + T.n + (T.tix ? ' · +' + T.tix + (T.tix > 1 ? ' TICKETS' : ' TICKET') : ' · +' + T.sh + ' SHARDS'), '#8dff6b');
     Sound.fanfare(true);
   },
   /* the run is over: no continue, no chest, no score. Shards were paid as the bodies fell. */
@@ -31762,6 +31841,9 @@ const Hollow = {
     if (win) {
       this.pay(2);
       this.task('moon');
+      if (hw.t < 420) this.task('swift');
+      if (hw.hits <= 5) this.task('clean');
+      if (hw.lv === 2) this.task('lock');
       hw.tix = L.tix;
       Banners.rec(this.banner()).tickets += L.tix;
       h.wins[hw.lv] = (h.wins[hw.lv] | 0) + 1;
@@ -35439,8 +35521,8 @@ const UI = {
     const x = VW / 2 - w / 2, y = VH / 2 - h / 2;
     this.panel(c, x, y, w, h, 'rgba(255,209,102,0.26)');
     const headH = narrow ? 128 : (short ? 84 : 100);
-    const footH = narrow ? 92 : 50;
-    const qCards = QUEST_SHAPE.length, qStack = narrow, qCompact = narrow || short;
+    const footH = narrow ? 92 : (short ? 40 : 50);
+    const qVis = Math.min(short && !narrow ? 4 : 8, QUEST_SHAPE.length), qCards = qVis, qStack = narrow, qCompact = narrow || short;
     const qCols = narrow ? 1 : 4, qRows = Math.ceil(qCards / qCols);
     const qCh = qCompact ? 28 : 52, qStride = qCh + (qCompact ? 5 : 8);
     const qH = live ? 38 + qRows * qStride : 56;
@@ -35450,7 +35532,7 @@ const UI = {
     const room = h - headH - qH - footH - infoH - 24;
     const railH = narrow ? 30 : 34, capH = 22;       // capH: room for the CLAIM chip under a lane
     const lanes = showP ? 2 : 1;
-    const cs = clamp((room - railH - capH * lanes - (narrow ? 34 : 6)) / lanes, 54, narrow ? 128 : 118);
+    const cs = clamp((room - railH - capH * lanes - (narrow ? 34 : 6)) / lanes, short && !narrow ? 38 : 54, narrow ? 128 : 118);
     const colW = cs + (narrow ? 12 : 16);
     // whatever height is left over is shared out: a little above the track,
     // more between it and the quests, so nothing huddles at the top
@@ -35772,18 +35854,29 @@ const UI = {
       const nDone = Q.list.filter(q => q.done).length;
       tracked(c, 'DAILY QUESTS', x + 22, qTop + 10, { size: 11, weight: 900, color: S.col2, track: 2.6 });
       const qw0 = tracked(c, 'DAILY QUESTS', 0, 0, { size: 11, weight: 900, track: 2.6, measureOnly: true });
-      text(c, 'new in ' + Math.floor(ms / 3600000) + 'h ' + Math.floor(ms % 3600000 / 60000) + 'm' + (Q.rer > 0 && !narrow ? '  ·  ' + Q.rer + (Q.rer === 1 ? ' REROLL' : ' REROLLS') : ''), x + 22 + qw0 + 12, qTop + 10,
+      text(c, 'new in ' + Math.floor(ms / 3600000) + 'h ' + Math.floor(ms % 3600000 / 60000) + 'm' + (narrow ? '' : '  ·  ' + NQ + ' TODAY') + (Q.rer > 0 && !narrow ? '  ·  ' + Q.rer + (Q.rer === 1 ? ' REROLL' : ' REROLLS') : ''), x + 22 + qw0 + 12, qTop + 10,
         { size: 10, weight: 700, color: PAL.dim });
-      this.questChest(c, S, Q, nDone, NQ, x + w - 22, qTop + 2, narrow, t);
+      this.questChest(c, S, Q, nDone, QUEST_CHEST_AT, x + w - 22, qTop + 2, narrow, t);
       const cardsY = qTop + 29;
       let hoverQ = -1;
       const gap = 8;
       const qw = (w - 44 - gap * (qCols - 1)) / qCols;
       const qh = qCh;
-      for (let i = 0; i < NQ; i++) {
-        const q = Q.list[i];
+      const qTotRows = Math.ceil(NQ / qCols), qVisRows = Math.ceil(qVis / qCols);
+      let qOff = this.passQOff | 0;
+      { const selRow = sel.row === 'quests' ? Math.floor(sel.q / qCols) : -1;
+        if (selRow >= 0) { if (selRow < qOff) qOff = selRow; if (selRow >= qOff + qVisRows) qOff = selRow - qVisRows + 1; }
+        if (act && Input.wheel && Input.mx > x + 10 && Input.mx < x + w - 10 && Input.my > cardsY - 6 && Input.my < cardsY + qVisRows * qStride) qOff += Input.wheel > 0 ? 1 : -1;
+        qOff = clamp(qOff, 0, Math.max(0, qTotRows - qVisRows)); this.passQOff = qOff; }
+      if (qTotRows > qVisRows) {                       // a thin bar: how far down the eighteen you are
+        const bh = qVisRows * qStride - 8, th = bh * qVisRows / qTotRows, ty0 = cardsY + (bh - th) * qOff / (qTotRows - qVisRows);
+        c.save(); c.fillStyle = 'rgba(160,170,220,0.16)'; roundRect(c, x + w - 14, cardsY, 3, bh, 1.5); c.fill();
+        c.fillStyle = S.col2; c.shadowColor = S.col2; c.shadowBlur = 6; roundRect(c, x + w - 14, ty0, 3, th, 1.5); c.fill(); c.restore();
+      }
+      for (let ii = 0; ii < qVis; ii++) {
+        const i = qOff * qCols + ii, q = Q.list[i];
         if (!q) continue;
-        const qx = x + 22 + (i % qCols) * (qw + gap), qy = cardsY + Math.floor(i / qCols) * qStride;
+        const qx = x + 22 + (ii % qCols) * (qw + gap), qy = cardsY + Math.floor(ii / qCols) * qStride;
         const on = !modal && sel.row === 'quests' && sel.q === i;
         const hov = !modal && Input.mx > qx && Input.mx < qx + qw && Input.my > qy && Input.my < qy + qh;
         if (hov && act && this._passHoverQ !== i) { sel.row = 'quests'; sel.q = i; }
@@ -35815,11 +35908,12 @@ const UI = {
         const txt = Pass.qtext(q, tight);
         let tt2 = txt;
         const tx0 = tight ? 28 : 38;
-        const tmax = qw - tx0 - 2 - (tight ? 30 : 56) - (canRe && qCompact ? 26 : 8) - (qCompact && showPT ? 54 : 0);
+        const tmax = qw - tx0 - 2 - (tight ? 30 : 56) - (canRe && qCompact ? 26 : 8) - (qCompact && showPT ? 54 : 0) - (q.v === 2 && Standard.on() ? 26 : 0);
         while (c.measureText(tt2).width > tmax && tt2.length > 6) tt2 = tt2.slice(0, -2);
         if (tt2 !== txt) tt2 = tt2.trim() + '…';
         text(c, tt2, qx + tx0, ty, { size: tsz, weight: 800, color: q.done ? PAL.dim : PAL.text });
         text(c, xl, qx + qw - 12, ty, { size: 10.5, weight: 900, align: 'right', color: q.done ? PAL.dim : tc, mono: true });
+        if (q.v === 2 && Standard.on()) { c.save(); if (q.done) c.globalAlpha = 0.45; ticketIcon(c, qx + qw - 12 - xl.length * 6.3 - 16, ty - 4, 17, 'std', t, 0); c.restore(); }
         // progress
         const frac = clamp(q.prog / q.goal, 0, 1);
         const pbx = qCompact ? qx + 12 : qx + 38, pbw = qCompact ? qw - 24 : qw - 38 - 12 - 24, pby = qCompact ? qy + qh - 5 : qy + 36, pbt = qCompact ? 3 : 5;
@@ -36287,7 +36381,7 @@ const UI = {
     rows.push(['SHARDS EARNED', '+' + fmtNum(G.lastEarned || 0) + (G.lastMul > 1 ? '   \u00d7' + (Math.round(G.lastMul * 100) / 100) + ' EVENT' : '')]);
     if (PL0) rows.push(['BLOOM PASS', '+' + fmtNum(Pass.last.xp) + ' XP  \u00b7  TIER ' + Pass.last.to + (Pass.last.to > Pass.last.from ? '  \u25b2' : '')]);
     if (PLT) rows.push(['PILOT', '+' + fmtNum(PLT.xp) + ' XP  \u00b7  LEVEL ' + PLT.to + (PLT.to > PLT.from ? '  \u25b2' : '')]);
-    if (G.chestTix) rows.push(['STANDARD TICKET', '+' + G.chestTix + (G.chestTix > 1 ? '   LUCKY CHEST' : '')]);
+    if (G.chestTix) rows.push(['STANDARD TICKET', '+' + G.chestTix + (G.chestTix > 1 ? (G.endless && !G.state.startsWith('win') ? '   TIDE ' + (G.tide | 0) : '   LUCKY CHEST') : '')]);
     let ry = y + 40 - (42 - rowH) * 0.4;
     for (const [k, v] of rows) {
       text(c, k, x + 34, ry, { size: 13, weight: 700, color: PAL.dim });
@@ -38153,29 +38247,31 @@ Object.assign(UI, {
     if (narrow && !short) tixCount(c, VW / 2, 92, 24, 'evt', tix, 'center');
     else if (short) tixCount(c, VW - 14, 18, 20, 'evt', tix, 'right');
     else tixCount(c, VW - 20, 38, 34, 'evt', tix, 'right');
-    // the three tasks
-    const rw = Math.min(560, VW - 36), x0 = VW / 2 - rw / 2;
+    // the tasks: eight, the hard ones pay a ticket and the rest pay shards
+    const NT = HW_TASKS.length, doneN = HW_TASKS.filter(k => h.tasks[k.id]).length;
+    const pay = k => k.tix ? '+' + k.tix + (k.tix > 1 ? ' TICKETS' : ' TICKET') : '+' + k.sh + ' SHARDS';
     let ny;
     if (short) {
-      const cw = (rw - 12) / 3, y = 62;
+      const rw = Math.min(780, VW - 36), x0 = VW / 2 - rw / 2, cols = 4, cw = (rw - 6 * (cols - 1)) / cols;
       HW_TASKS.forEach((k, i) => {
-        const done = !!h.tasks[k.id], col = done ? '#8dff6b' : A, x = x0 + i * (cw + 6);
+        const done = !!h.tasks[k.id], col = done ? '#8dff6b' : (k.tix ? '#ffd166' : A), x = x0 + (i % cols) * (cw + 6), y = 60 + ((i / cols) | 0) * 40;
         glass(c, x, y, cw, 34, 10, col, false);
-        tracked(c, k.n, x + cw / 2, y + 15, { size: 10, weight: 900, align: 'center', color: col, glow: done ? col : null, blur: 6, track: 1.5 });
-        text(c, done ? 'DONE' : '+1 TICKET', x + cw / 2, y + 28, { size: 9.5, weight: 800, align: 'center', color: done ? '#8dff6b' : '#ffffff' });
+        tracked(c, k.n, x + cw / 2, y + 14, { size: 9.5, weight: 900, align: 'center', color: col, glow: done ? col : null, blur: 6, track: 1 });
+        text(c, done ? 'DONE' : pay(k), x + cw / 2, y + 27, { size: 9, weight: 800, align: 'center', color: done ? '#8dff6b' : '#ffffff' });
       });
-      ny = 118;
+      ny = 60 + 2 * 40 + 18;
     } else {
+      const cols = VW >= 640 ? 2 : 1, rw = Math.min(cols === 2 ? 900 : 560, VW - 36), x0 = VW / 2 - rw / 2, cw = (rw - (cols - 1) * 10) / cols;
       const rh = narrow ? 40 : 46, y0 = narrow ? 118 : 94;
-      tracked(c, 'TASKS  ·  ONE TICKET EACH, ONCE', x0, y0 - 8, { size: 10, weight: 800, color: PAL.dim, track: 3 });
+      tracked(c, narrow ? 'TASKS  ·  ' + doneN + ' / ' + NT : 'TASKS  ·  ' + doneN + ' / ' + NT + '  ·  THE HARD ONES PAY TICKETS, THE REST PAY SHARDS', x0, y0 - 8, { size: 10, weight: 800, color: PAL.dim, track: narrow ? 3 : 2.5 });
       HW_TASKS.forEach((k, i) => {
-        const y = y0 + i * (rh + 6), done = !!h.tasks[k.id], col = done ? '#8dff6b' : A;
-        glass(c, x0, y + 4, rw, rh, 12, col, false);
-        tracked(c, k.n, x0 + 20, y + 4 + rh * 0.42, { size: narrow ? 12 : 14, weight: 900, color: col, glow: done ? col : null, blur: 8, track: 2.5 });
-        text(c, k.d, x0 + 20, y + 4 + rh * 0.78, { size: 10.5, weight: 600, color: PAL.dim });
-        tracked(c, done ? 'DONE' : '+1 TICKET', x0 + rw - 20, y + 4 + rh * 0.58, { size: 12, weight: 900, align: 'right', color: done ? '#8dff6b' : '#ffffff', track: 2 });
+        const cx0 = x0 + (i % cols) * (cw + 10), y = y0 + ((i / cols) | 0) * (rh + 6), done = !!h.tasks[k.id], col = done ? '#8dff6b' : (k.tix ? '#ffd166' : A);
+        glass(c, cx0, y + 4, cw, rh, 12, col, false);
+        tracked(c, k.n, cx0 + 18, y + 4 + rh * 0.42, { size: clamp(cw / 24, 10.5, 14), weight: 900, color: col, glow: done ? col : null, blur: 8, track: 2 });
+        text(c, k.d, cx0 + 18, y + 4 + rh * 0.78, { size: 10, weight: 600, color: PAL.dim });
+        tracked(c, done ? 'DONE' : pay(k), cx0 + cw - 16, y + 4 + rh * 0.78, { size: 10.5, weight: 900, align: 'right', color: done ? '#8dff6b' : (k.tix ? '#ffd166' : '#ffffff'), track: 1.5 });
       });
-      ny = y0 + 3 * (rh + 6) + 24;
+      ny = y0 + Math.ceil(NT / cols) * (rh + 6) + 24;
     }
     const wd = WEAPONS[h.weapon];
     text(c, 'you begin with ' + wd.name + ' fully evolved' + (narrow ? '' : ' (' + wd.evo.name + ')') + ', and no utility', VW / 2, ny, { size: 11, weight: 700, align: 'center', color: wd.evo.color || wd.color });
@@ -38207,7 +38303,7 @@ Object.assign(UI, {
       ['SHARDS EARNED', '+' + fmtNum(hw.shards)],
       ['EVENT TICKETS', win ? '+' + hw.tix : '—']
     ];
-    for (const n of hw.tasks) rows.push(['TASK', n + '  +1']);
+    if (hw.tasks.length) rows.push(['TASKS DONE', hw.tasks.length + (hw.taskTix ? '  \u00b7  +' + hw.taskTix + (hw.taskTix > 1 ? ' TICKETS' : ' TICKET') : '')]);
     rows.push(['TICKETS HELD', String(Hollow.tickets())]);
     const rowH = clamp(Math.min((VH * 0.4) / rows.length, 40), 24, 38);
     const w = Math.min(470, VW - 60), h = 28 + rows.length * rowH, x = VW / 2 - w / 2, y = VH * 0.31;
@@ -38215,7 +38311,7 @@ Object.assign(UI, {
     let ry = y + 40 - (42 - rowH) * 0.4;
     for (const [k, v] of rows) {
       text(c, k, x + 34, ry, { size: 13, weight: 700, color: PAL.dim });
-      text(c, v, x + w - 34, ry, { size: Math.min(k === 'TASK' && VW < 500 ? 14 : 19, rowH * 0.5), weight: 900, align: 'right', color: k === 'TASK' ? '#8dff6b' : PAL.text });
+      text(c, v, x + w - 34, ry, { size: Math.min(k === 'TASKS DONE' && VW < 500 ? 14 : 19, rowH * 0.5), weight: 900, align: 'right', color: k === 'TASKS DONE' ? '#8dff6b' : PAL.text });
       ry += rowH;
     }
     const items = [
@@ -38355,9 +38451,9 @@ Object.assign(UI, {
     if (Standard.on()) out.splice(1, 0, { id: 'standard', title: 'STANDARD ROLL', note: 'ALWAYS HERE', col: '#ff9a3c', cards: [{ kind: 'standard', w: 1.25 }] });
     { const bl = Banners.live(); if (bl.length) { Banners.purge(); out.splice(1, 0, { id: 'banner', title: 'EVENT BANNER', note: 'DESKTOP', col: '#ffd166', cards: bl.map(b => ({ kind: 'banner', b: b, w: 1.25 })) }); } }
     { const tc = [];
-      if (Standard.on()) tc.push({ kind: 'tix', tk: 'std', w: 1.1 });
+      if (Standard.on()) { tc.push({ kind: 'tix', tk: 'std', w: 1.1 }); tc.push({ kind: 'tix', tk: 'std', cur: 'shards', w: 1.1 }); }
       if (Hollow.on()) tc.push({ kind: 'tix', tk: 'evt', b: Hollow.banner(), w: 1.1 });
-      if (tc.length) out.splice(1, 0, { id: 'tickets', title: 'TICKETS', note: STD.BUY_VB + ' VOIDBUX \u00b7 ' + STD.BUY_DAY + ' A DAY EACH', col: '#ffd166', cards: tc }); }
+      if (tc.length) out.splice(1, 0, { id: 'tickets', title: 'TICKETS', note: STD.BUY_DAY + ' A DAY EACH \u00b7 STANDARD: ' + STD.BUY_SH + ' SHARDS OR ' + STD.BUY_VB + ' VOIDBUX', col: '#ffd166', cards: tc }); }
     if (live) out.push({ id: 'pass', title: 'BLOOM PASS', note: 'SEASON ' + S.n, col: S.col, cards: [{ kind: 'pass', S: S, w: 1.2 }] });
     out.push({ id: 'shards', title: 'SHARD PACKS', note: 'FOR VOIDBUX', col: '#c9a3ff', cards: SHARD_PACKS.map(p => ({ kind: 'shards', p: p, w: 0.9 })) });
     out.push({ id: 'vbux', title: 'VOIDBUX', note: VbuxStore.kind() ? '' : 'COMING SOON', col: '#ff4fd8', cards: VBUX_PACKS.map(p => ({ kind: 'vbuxpack', p: p, w: 0.9 })) });
@@ -38390,6 +38486,7 @@ Object.assign(UI, {
     if (cd.kind === 'tix') {
       const left = cd.tk === 'evt' ? Banners.buyLeft() : Standard.buyLeft();
       if (left <= 0) return { state: 'owned', label: 'LIMIT TODAY' };
+      if (cd.cur === 'shards') return { state: 'buy', cur: 'shards', n: STD.BUY_SH, ok: (Save.data.shards || 0) >= STD.BUY_SH };
       return { state: 'buy', cur: 'vbux', n: STD.BUY_VB, ok: Vbux.can(STD.BUY_VB) };
     }
     if (cd.kind === 'banner') return { state: 'enter', label: 'OPEN BANNER' };
@@ -38417,7 +38514,7 @@ Object.assign(UI, {
     if (cd.kind === 'standard') return 'TICKETS ' + Standard.n() + ' \u00b7 FROM EVERY WIN';
     if (cd.kind === 'tix') {
       const n = cd.tk === 'evt' ? Banners.rec(cd.b).tickets : Standard.n(), left = cd.tk === 'evt' ? Banners.buyLeft() : Standard.buyLeft();
-      return 'YOU HAVE ' + n + ' \u00b7 ' + left + ' LEFT TODAY';
+      return (cd.cur === 'shards' ? 'IN SHARDS \u00b7 ' : '') + 'YOU HAVE ' + n + ' \u00b7 ' + left + ' LEFT TODAY';
     }
     if (cd.kind === 'banner') { const r = Banners.rec(cd.b); return 'TICKETS ' + r.tickets + ' \u00b7 PITY ' + r.pity + '/' + ROLL.PITY; }
     if (cd.kind === 'code') return Codes.count() ? Codes.count() + ' / ' + CODE_LIST.length + ' REDEEMED' : 'SKINS · PETS · SHARDS · PASS';
@@ -38751,13 +38848,7 @@ Object.assign(UI, {
         c.beginPath(); c.arc(x, y - r * 0.1, r * (1.0 + i * 0.07), a, a + 0.9); c.stroke();
       }
       c.restore();
-      c.save(); c.translate(x, y - r * 0.1); c.rotate(Math.sin(t * 0.9) * 0.07);
-      c.shadowColor = A; c.shadowBlur = 14; c.fillStyle = '#080510'; roundRect(c, -tw / 2, -th / 2, tw, th, r * 0.16); c.fill();
-      c.strokeStyle = A; c.lineWidth = 1.8; roundRect(c, -tw / 2, -th / 2, tw, th, r * 0.16); c.stroke();
-      c.shadowBlur = 0; c.strokeStyle = '#ffd166'; c.globalAlpha = 0.75; c.lineWidth = 1.2; c.setLineDash([3, 4]);
-      c.beginPath(); c.moveTo(tw * 0.22, -th * 0.42); c.lineTo(tw * 0.22, th * 0.42); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
-      c.translate(-tw * 0.12, 0); neon(c, q => pathStar(q, 5, th * 0.3, th * 0.13, t * 0.5 - Math.PI / 2), '#ffd166', { lw: 1.6, blur: 10, core: 'rgba(30,14,2,0.9)' });
-      c.restore();
+      ticketIcon(c, x, y - r * 0.1, r * 1.45, 'std', t);
     } else if (cd.kind === 'code') {
       const A = '#63ffc9', B = '#c9a3ff', C = '#ffd166', tw = r * 1.55, th = r * 0.95;
       c.save(); c.translate(x, y - r * 0.08);
