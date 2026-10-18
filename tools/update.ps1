@@ -122,6 +122,121 @@ if ($LASTEXITCODE -eq 0) {
     Info "GitHub has no $branch branch yet - this will be the first push"
 }
 
+# ---------------------------------------------------------------- newest-build guard
+# 17 Oct 2026: VOIDBLOOM.html was quietly overwritten by an OLD build (the
+# same bytes as one kept in _archive\old builds) while the newest build sat in
+# game\ unshipped. The size check passed - the two were within 5% - and this
+# script shipped the old game to everyone as 1.1.16. So before anything is
+# copied, VOIDBLOOM.html is checked against every build ever shipped from here
+# and against the archive, and a different unshipped build in game\ stops it.
+# Builds are compared by their git hash, which ignores Windows/Unix line
+# endings, so a copy that only differs by line endings counts as the same.
+
+function Git-Quiet {
+    param([string[]]$GitArgs)
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $out = & git @GitArgs 2>$null } finally { $ErrorActionPreference = $old }
+    if ($LASTEXITCODE -ne 0) { return @() }
+    return @($out)
+}
+
+function Build-Id {
+    param([string]$Path)
+    $r = @(Git-Quiet @('hash-object', '--path=game/VOIDBLOOM.html', '--', $Path))
+    if ($r.Count -lt 1) { return '' }
+    return ([string]$r[0]).Trim()
+}
+
+function Keep-Copy {
+    # a build about to be overwritten goes to _archive\old builds first
+    param([string]$Path, [string]$Tag)
+    $dir = Join-Path (Split-Path -Parent $root) '_archive\old builds'
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $name = 'VOIDBLOOM-' + (Get-Date).ToString('yyyy-MM-dd-HHmm') + '-' + $Tag + '.html'
+    Copy-Item -LiteralPath $Path -Destination (Join-Path $dir $name) -Force
+    Info "kept a copy: _archive\old builds\$name"
+}
+
+function Check-NewestBuild {
+    # returns $true to ship the build already in game\, $false to ship
+    # VOIDBLOOM.html; stops the script when VOIDBLOOM.html is an old build
+    param([string]$Src, [string]$Dest)
+    $srcId = Build-Id $Src
+    if (-not $srcId) {
+        Info "(couldn't fingerprint VOIDBLOOM.html - old-build check skipped)"
+        return $false
+    }
+    $headId = ''
+    $h = @(Git-Quiet @('rev-parse', '-q', '--verify', 'HEAD:game/VOIDBLOOM.html'))
+    if ($h.Count -gt 0) { $headId = ([string]$h[0]).Trim() }
+
+    # 1. a build shipped before (not the one shipping now)?
+    $was = ''
+    if ($srcId -ne $headId) {
+        $cur = ''
+        foreach ($ln in @(Git-Quiet @('log', '--format=C|%ad|%s', '--date=format:%d %b %Y', '--raw', '--no-abbrev', '--', 'game/VOIDBLOOM.html'))) {
+            $ln = [string]$ln
+            if ($ln.StartsWith('C|')) {
+                $p = $ln -split '\|', 3
+                $cur = '"' + $p[2] + '" on ' + $p[1]
+                continue
+            }
+            if ($ln -match '^:\S+ \S+ \S+ ([0-9a-f]{40,64})\s') {
+                if ($Matches[1] -eq $srcId) { $was = 'the build shipped as ' + $cur; break }
+            }
+        }
+    }
+    # 2. or a build kept in _archive\old builds? (only same-size files are
+    #    read, so OneDrive never has to download the whole archive)
+    if (-not $was) {
+        $dir = Join-Path (Split-Path -Parent $root) '_archive\old builds'
+        if (Test-Path -LiteralPath $dir) {
+            $len = (Get-Item -LiteralPath $Src).Length
+            foreach ($f in @(Get-ChildItem -LiteralPath $dir -Filter '*.html' -File | Where-Object { $_.Length -eq $len })) {
+                if ((Build-Id $f.FullName) -eq $srcId) { $was = 'the same as _archive\old builds\' + $f.Name; break }
+            }
+        }
+    }
+    if ($was) {
+        Write-Host ""
+        Write-Host "  OLD   " -ForegroundColor Red -NoNewline
+        Write-Host "VOIDBLOOM.html is an old build." -ForegroundColor White
+        Info "It is $was."
+        Info "Something has put an old copy back over the new one, and shipping it"
+        Info "would give everyone the old game. Put the newest build at VOIDBLOOM.html."
+        Write-Host ""
+        Write-Host "       only if you are rolling back ON PURPOSE, type OLD: " -NoNewline -ForegroundColor DarkGray
+        $t = ([string](Read-Host)).Trim()
+        if ($t -ne 'OLD') {
+            Stop-Here "Stopped - nothing was changed." "Put the build you want at VOIDBLOOM.html, then run this again."
+        }
+        Ok "rolling back on purpose"
+    }
+
+    # 3. a different build waiting in game\ that was never shipped?
+    if ((Test-Path -LiteralPath $Dest) -and $headId) {
+        $destId = Build-Id $Dest
+        if ($destId -and $destId -ne $headId -and $destId -ne $srcId) {
+            $si = Get-Item -LiteralPath $Src
+            $di = Get-Item -LiteralPath $Dest
+            Write-Host ""
+            Write-Host "  CHECK " -ForegroundColor Yellow -NoNewline
+            Write-Host "there are two different new builds, and only one can be the newest." -ForegroundColor White
+            Info ("1  VOIDBLOOM.html        {0,6} KB   changed {1}" -f [math]::Round($si.Length / 1KB), $si.LastWriteTime.ToString('d MMM yyyy  HH:mm'))
+            Info ("2  game\VOIDBLOOM.html   {0,6} KB   changed {1}   never shipped" -f [math]::Round($di.Length / 1KB), $di.LastWriteTime.ToString('d MMM yyyy  HH:mm'))
+            Info "Not sure which is newer? Stop here and ask Claude to compare them."
+            Write-Host ""
+            Write-Host "       ship 1 or 2 (Enter stops): " -NoNewline -ForegroundColor DarkGray
+            $pick = ([string](Read-Host)).Trim()
+            if ($pick -eq '2') { Keep-Copy $Src 'replaced'; return $true }
+            if ($pick -ne '1') { Stop-Here "Stopped - nothing was changed." }
+            Keep-Copy $Dest 'unshipped'
+        }
+    }
+    return $false
+}
+
 # ---------------------------------------------------------------- 1. the game file
 Write-Host ""
 Say "1. the game file" 'Cyan'
@@ -132,7 +247,12 @@ $src  = Join-Path (Split-Path -Parent $root) 'VOIDBLOOM.html'   # ..\VOIDBLOOM.h
 if (Test-Path $src) {
     $srcHash  = (Get-FileHash $src  -Algorithm SHA256).Hash
     $destHash = if (Test-Path $dest) { (Get-FileHash $dest -Algorithm SHA256).Hash } else { '' }
-    if ($srcHash -ne $destHash) {
+    $useDest = $false
+    if ($srcHash -ne $destHash) { $useDest = [bool](Check-NewestBuild $src $dest | Select-Object -Last 1) }
+    if ($useDest) {
+        Copy-Item -LiteralPath $dest -Destination $src -Force
+        Ok "shipping the build in game\ (copied it up to VOIDBLOOM.html too)"
+    } elseif ($srcHash -ne $destHash) {
         $si = Get-Item $src
         $newKB = [math]::Round($si.Length / 1KB)
         if (Test-Path $dest) {

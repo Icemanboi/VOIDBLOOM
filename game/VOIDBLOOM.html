@@ -7,7 +7,7 @@
 <title>VOIDBLOOM</title>
 <!-- Sentry (browser Loader Script). Errors only: no tracing, no replay -- the
      game is a canvas/WebGL loop and every extra observer costs frame time.
-     It is injected only on a real hosted page (itch, CrazyGames, a web host):
+     It is injected only on a real hosted page (itch, a web host; not CrazyGames):
      never on file:// or the desktop app's voidbloom:// scheme, never on
      localhost, and never under an automated browser, so double-click play and
      the test harness make zero off-site requests. -->
@@ -15,6 +15,8 @@
 (function(){
   var h = location.hostname || '';
   if (!/^https?:$/.test(location.protocol) || !h || h === 'localhost' || h === '127.0.0.1' || navigator.webdriver) return;
+  // not on CrazyGames: their rules ask for a privacy notice before any third-party data collection
+  if (/crazygames\./i.test(h) || /crazygames\./i.test(document.referrer || '')) return;
   window.SENTRY_RELEASE = { id: 'voidbloom@3.0' };
   window.sentryOnLoad = function () {
     Sentry.init({
@@ -54,6 +56,12 @@
   #grille{position:fixed;inset:0;z-index:3;pointer-events:none;display:none;
           opacity:0;transition:opacity .35s ease}
   #grille.on{display:block;opacity:1}
+  /* a phone's notch and rounded corners: every layer sits inside the safe area
+     (0 everywhere there is none); the body's dark ground fills the strips */
+  #game,#cosmos,#fx,#grain,#grille{top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);
+    bottom:env(safe-area-inset-bottom,0px);left:env(safe-area-inset-left,0px)}
+  #cosmos,#fx{width:calc(100vw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));
+    height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
   /* the scanline pitch is in device-independent px so it reads the same
      on a laptop panel and on a 4K monitor */
   #grille .scan{position:absolute;inset:0;
@@ -725,9 +733,14 @@ const Save = {
     while (this.data.dailyLog.length > 14) this.data.dailyLog.shift();
     return r;
   },
-  load() {
-    try { const s = localStorage.getItem(this.key); if (s) Object.assign(this.data, JSON.parse(s)); }
+  mirror: null,         // CrazyGames: every save is copied into their Data module too
+  load(json) {
+    if (!this._def) this._def = JSON.stringify(this.data);
+    try { const s = json || localStorage.getItem(this.key); if (s) Object.assign(this.data, JSON.parse(s)); }
     catch (e) { }
+    // when this save was last written, as it was read: the menus save as the game boots, so by
+    // the time another device's copy is compared with it the stamp in data._t says "now"
+    this.t0 = +this.data._t || 0;
     // a field of the wrong type (an old build, a hand edit, an odd restore)
     // goes back to its default here, not into a crash on some screen later
     const D = this.data, isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -762,7 +775,24 @@ const Save = {
     const bs = this.data.bossSeen || (this.data.bossSeen = {});
     for (const [k, id] of [['grave', 'gravewalker'], ['null', 'nullarch'], ['void', 'voidheart']]) if (bs[k]) bs[id] = 1;
   },
-  save() { if (window.__restoringSave) return; try { localStorage.setItem(this.key, JSON.stringify(this.data)); } catch (e) { } }
+  save() {
+    if (window.__restoringSave) return;
+    this.data._t = Date.now();          // when it was saved: the newer of two copies wins
+    let j = null;
+    try { j = JSON.stringify(this.data); localStorage.setItem(this.key, j); } catch (e) { }
+    if (j && this.mirror && j.length < 900000) this.mirror(j);
+  },
+  /* take a whole save from elsewhere (CrazyGames' cloud, a newer device): it goes
+     through load()'s mending like any save read from disk */
+  adopt(json) {
+    try { JSON.parse(json); } catch (e) { return false; }
+    try { localStorage.setItem(this.key, json); } catch (e) { }   // a blocked localStorage: their cloud is the only copy
+    const D = this.data;
+    for (const k of Object.keys(D)) delete D[k];
+    Object.assign(D, JSON.parse(this._def || '{}'));
+    this.load(json);
+    return true;
+  }
 };
 
 /* ========================================================================
@@ -24318,7 +24348,7 @@ const Game = {
     this.postBloom = false; this.eliteCount = 0; this.ascend = 0;
     this.arenaR = 1500; this.arenaTarget = 0;
     this.revives = D.revives || 0;
-    this.continues = 0; this.contT = 0; this.chestTix = 0; this.endlessTix = 0;
+    this.continues = 0; this.contT = 0; this.chestTix = 0; this.endlessTix = 0; this.cgAd = null; this.cgOffered = false;
     this.enemyCap = (this.quality === 0 && Settings.effects && !this.coop) ? Math.min(D.cap, 200) : D.cap;
     this.eliteTimes = ELITE_TIMES.map(t => Math.round(t * D.eliteMul)).filter(t => !D.shortRun || t < (D.bossT || BOSS_T));
     Particles.clear(); Pops.clear();
@@ -24685,8 +24715,11 @@ const Game = {
      Not offered in co-op (that has its own down-and-revive). */
   contCost() { return CONT_STEP * ((this.continues | 0) + 1); },
   offerContinue() {
-    if (this.coop || this.over || (this.continues | 0) >= CONT_MAX) return false;
+    if (this.coop || this.over || (this.continues | 0) >= contMax()) return false;
     this.state = 'continue'; this.contT = CONT_SECS; this._contTick = CONT_SECS;
+    // CrazyGames: the run's first continue can be an ad. 'ready' | 'playing' | 'none' (no ad came) | 'blocked' | null
+    this.cgAd = CG.site() && (this.continues | 0) === 0 && CG.ads() ? (CG.adblock ? 'blocked' : 'ready') : null;
+    this.cgOffered = this.cgAd === 'ready';
     this.player.dead = true;
     UI.lastState = '';
     Sound.stopMusic(true);
@@ -24694,17 +24727,21 @@ const Game = {
     for (let i = 0; i < 50; i++) Particles.spark(this.player.x, this.player.y, rnd(TAU), rnd(90, 420), { col: PAL.hp, life: rnd(0.4, 1.0), w: 3 });
     return true;
   },
-  payContinue() {
+  payContinue(byAd) {
     const d = Save.data, cost = this.contCost();
-    if (this.state !== 'continue') return false;
-    if ((d.shards || 0) < cost) { Sound.hurt(); UI.contShake = 0.4; return false; }
-    d.shards -= cost; this.continues = (this.continues | 0) + 1;
+    if (this.state !== 'continue' || CG.adBusy) return false;
+    if (!byAd) {
+      if ((d.shards || 0) < cost) { Sound.hurt(); UI.contShake = 0.4; return false; }
+      d.shards -= cost;
+    }
+    this.continues = (this.continues | 0) + 1;
+    this.cgAd = null; this.cgOffered = false;
     Save.save();
     const p = this.player;
     p.hp = p.maxHp; p.inv = 4; p.dead = false;
     for (let i = this.ebullets.length - 1; i >= 0; i--) this.ebullets[i].dead = true;
     this.state = 'playing'; this.contT = 0;
-    this.banner('CONTINUE  ' + this.continues + ' / ' + CONT_MAX, PAL.xp);
+    this.banner('CONTINUE  ' + this.continues + ' / ' + contMax(), PAL.xp);
     Flash.hit(PAL.xp, 0.5); Cam.shake(0.7); this.hitstop = 0.2;
     Sound.fanfare(true);
     Particles.ring(p.x, p.y, 14, 900, { col: PAL.xp, life: 1.0, w: 12 });
@@ -24718,8 +24755,23 @@ const Game = {
     if (this.coop) { Sound.stopMusic(); this.state = 'hub'; UI.lastState = ''; return; }
     this.contT = 0; this.gameOver(false);
   },
+  /* CrazyGames: watch one rewarded ad instead of paying for the first continue.
+     The countdown waits for the ad; only an ad that ran to the end continues. */
+  adContinue() {
+    if (this.state !== 'continue' || this.cgAd !== 'ready' || CG.adBusy) return;
+    this.cgAd = 'playing';
+    Sound.ui(true);
+    CG.rewarded((ok, why) => {
+      if (this.state !== 'continue') return;
+      if (ok) { this.cgAd = 'ready'; this.payContinue(true); return; }
+      this.cgAd = why === 'blocked' ? 'blocked' : 'none';
+      UI.sels.continue = 0;                      // the ad row is gone: stay on the shards, never slide onto QUIT
+      this.contT = Math.max(this.contT, 6);
+      Sound.hurt();
+    });
+  },
   declineContinue() {
-    if (this.state !== 'continue') return;
+    if (this.state !== 'continue' || CG.adBusy) return;
     this.contT = 0; this.gameOver(false);
   },
   rebloom() {
@@ -29478,6 +29530,8 @@ function codeHash(str) {
 }
 
 const CONT_MAX = 5, CONT_STEP = 100, CONT_SECS = 10;   // continues a run, shards for the first (and each next), seconds to decide
+/* continues a run: three on CrazyGames (the first can be an ad), five everywhere else */
+function contMax() { return CG.site() ? CG_CONT_MAX : CONT_MAX; }
 const CODE_LIST = [
   { h: '1mf9xpi',     name: 'VOIDBLOOM',     shards: 500,
     msg: 'For turning up.' },
@@ -30699,8 +30753,9 @@ const VBUX_PACKS = [
 /* three deals a day, the same three for everyone (seeded by the UTC day),
    drawn from what this save does not own yet */
 /* ------------------------------------------------------------------------
-   EVENT BANNERS  --  desktop app only (it needs Cloud, so the itch and
-   CrazyGames builds never show one). A banner is one event's roll: three
+   EVENT BANNERS  --  a banner marked `yearly` (THE HOLLOW HARVEST) runs on
+   every build, every year, on the player's own clock; any other one is the
+   desktop app's, switched on by the server. A banner is one event's roll: three
    skins, one TOP, one MID, one LOW. A roll costs one TICKET. Tickets come
    from the event (boss kill, tasks: not wired yet) or are bought with
    voidbux, five a day at most. Pity, and duplicates turning into shards,
@@ -30713,8 +30768,20 @@ const ROLL = { TICKET_VB: 60, BUY_DAY: 3, PITY: 20,
 const ROLL_COL = { top: '#ffd166', mid: '#c9a3ff', low: '#63d4ff' };
 const BANNERS = [
   { id: 'halloween26', ev: 'halloween26', title: 'THE HOLLOW HARVEST', col: '#ff9a3c', start: Date.UTC(2026, 9, 1), end: Date.UTC(2026, 10, 1),
+    yearly: { from: [9, 1], to: [10, 1], first: 2026 },        // 1 Oct to the end of 31 Oct, every year, local time
     skins: { top: 'harvestmoon', mid: 'witchfire', low: 'gourdlight' } }
 ];
+/* a yearly banner's window this year, on the player's own clock: { y, start, end }.
+   No server: every build sees the same dates, and it comes back every October. */
+function bannerWin(b, now) {
+  if (!b || !b.yearly) return { y: 0, start: b ? b.start : 0, end: b ? b.end : 0 };
+  const t = now === undefined ? Date.now() : now, Y = b.yearly, y = new Date(t).getFullYear();
+  return { y: y, start: new Date(y, Y.from[0], Y.from[1]).getTime(), end: new Date(y, Y.to[0], Y.to[1]).getTime() };
+}
+function bannerOpen(b, now) {
+  const t = now === undefined ? Date.now() : now, w = bannerWin(b, t);
+  return t >= w.start && t < w.end;
+}
 /* GAME EVENTS: switched on, off and scheduled from the stats dashboard (vb_content).
    The server's answer is `content`: the enabled events that have not ended. No answer
    from a server that predates it -> the event's own dates. No answer at all (offline,
@@ -30751,14 +30818,79 @@ const Events = {
     return c && c !== 'old' && c.ends_at ? Date.parse(c.ends_at) : fbEnd;
   }
 };
+/* ========================================================================
+   FREE VOIDBUX  --  CrazyGames only (it runs on their rewarded ads). Watch one
+   short ad, spin the wheel, keep what it lands on. Five spins a day (the UTC
+   day, like the daily and the deals), ten minutes apart; the lobby tile counts
+   down to the next one, so the offer is never pushed at anyone.
+
+   The wheel is 48 equal steps round, and each slice is as wide as its chance:
+   10 has 20 steps, 15 has 14, 20 has 7, 30 has 4, 60 has 2, 300 has 1 -- about
+   23 voidbux a spin, and the 300 about one spin in 48. The voidbux are paid
+   the moment the ad finishes (a reload cannot lose them); the wheel only shows
+   where they came from. An ad that errors pays nothing and uses no spin.
+   ======================================================================== */
+const FVB = {
+  DAY: 5, GAP: 600, UNITS: 48, SPIN: 4.4,
+  SEG: [[300, 1], [10, 3], [15, 2], [20, 2], [10, 3], [15, 3], [30, 2], [10, 3], [15, 2], [60, 1],
+        [10, 3], [20, 3], [15, 3], [10, 4], [30, 2], [15, 2], [10, 4], [20, 2], [60, 1], [15, 2]],
+  COL: { 10: '#63d4ff', 15: '#c9a3ff', 20: '#8dff6b', 30: '#ffb347', 60: '#ff4fd8', 300: '#ffd166' }
+};
+FVB.at = [];      // the first step of each slice
+FVB.of = [];      // step -> slice
+FVB.SEG.forEach(([, n], i) => { FVB.at.push(FVB.of.length); for (let k = 0; k < n; k++) FVB.of.push(i); });
+
+const FreeVb = {
+  on() { return CG.ads(); },
+  rec() {
+    const d = Save.data;
+    let r = d.fvb;
+    if (!r || typeof r !== 'object') r = d.fvb = { day: '', n: 0, next: 0, tot: 0 };
+    if (r.day !== dailyKey()) { r.day = dailyKey(); r.n = 0; }
+    return r;
+  },
+  left() { return Math.max(0, FVB.DAY - (this.rec().n | 0)); },
+  /* seconds until the next spin may be asked for (a clock set back never makes it longer than the gap) */
+  wait() { return clamp(((+this.rec().next || 0) - Date.now()) / 1000, 0, FVB.GAP); },
+  ready() { return this.on() && !CG.adblock && this.left() > 0 && this.wait() <= 0; },
+  /* what the lobby tile says under the wheel when a spin is not ready */
+  note() {
+    if (!this.on()) return '';
+    if (CG.adblock) return 'ADS OFF';
+    if (this.left() <= 0) return 'TOMORROW';
+    const w = Math.ceil(this.wait());
+    return w > 0 ? Math.floor(w / 60) + ':' + String(w % 60).padStart(2, '0') : '';
+  },
+  /* the ad ran to the end: the spin's result, paid now */
+  grant() {
+    const r = this.rec(), u = Math.floor(Math.random() * FVB.UNITS) % FVB.UNITS, i = FVB.of[u], v = FVB.SEG[i][0];
+    r.n = (r.n | 0) + 1; r.next = Date.now() + FVB.GAP * 1000; r.tot = (r.tot | 0) + v;
+    Vbux.add(v);
+    Save.save();
+    return { u: u, i: i, v: v };
+  },
+  /* the click of the pointer against a divider: higher while it is fast */
+  tick(p) {
+    if (!Sound._can('fvbtick', 0.018)) return;
+    Sound._tone({ type: 'square', f: 900 + 700 * p, d: 0.03, v: 0.05, filter: 'highpass', ff: 600 });
+  }
+};
+
 const Banners = {
-  on() { return Cloud.on(); },
-  live() { if (!this.on()) return []; const t = Date.now(); return BANNERS.filter(b => b.ev ? Events.live(b.ev, b.start, b.end) : (t >= b.start && (!b.end || t < b.end))); },
+  on() { return Cloud.on() || BANNERS.some(b => b.yearly); },
+  live() {
+    if (!this.on()) return [];
+    const t = Date.now();
+    return BANNERS.filter(b => b.yearly ? bannerOpen(b, t) : (Cloud.on() && (b.ev ? Events.live(b.ev, b.start, b.end) : (t >= b.start && (!b.end || t < b.end)))));
+  },
   /* the tickets of a banner that has ended are gone */
   purge() {
     const r = Save.data.roll; if (!r || typeof r !== 'object') return;
     const t = Date.now(); let ch = false;
-    for (const b of BANNERS) { const be = b.ev ? Events.end(b.ev, b.end) : b.end; if (be && t >= be && r[b.id] && r[b.id].tickets) { r[b.id].tickets = 0; ch = true; } }
+    for (const b of BANNERS) {
+      if (b.yearly) { if (!bannerOpen(b, t) && r[b.id] && r[b.id].tickets) { r[b.id].tickets = 0; ch = true; } continue; }
+      const be = b.ev ? Events.end(b.ev, b.end) : b.end; if (be && t >= be && r[b.id] && r[b.id].tickets) { r[b.id].tickets = 0; ch = true; }
+    }
     if (ch) Save.save();
   },
   rec(b) {
@@ -30766,6 +30898,12 @@ const Banners = {
     if (!d.roll || typeof d.roll !== 'object') d.roll = {};
     let r = d.roll[b.id];
     if (!r || typeof r !== 'object') r = d.roll[b.id] = { tickets: 0, pity: 0, rolls: 0 };
+    // a yearly banner: last year's tickets are gone when this year's opens (the pity stays)
+    if (b.yearly) {
+      if (r.yr == null) r.yr = b.yearly.first;
+      const w = bannerWin(b);
+      if (bannerOpen(b) && r.yr !== w.y) { r.yr = w.y; r.tickets = 0; }
+    }
     return r;
   },
   buyLeft() { const r = Save.data.rollBuy; return r && r.day === dailyKey() ? Math.max(0, ROLL.BUY_DAY - (r.n | 0)) : ROLL.BUY_DAY; },
@@ -31816,7 +31954,7 @@ BOSS_BODY.hstraw = function (c, R, col, core, hurt) {
 };
 
 /* ========================================================================
-   THE HOLLOW HARVEST  --  the Halloween event (desktop app, until 31 Oct).
+   THE HOLLOW HARVEST  --  the Halloween event: every build, 1-31 October, every year.
    One boss in three bodies: the Gourd Warden, the Scarecrow, the Harvest
    Moon. After the first two it cannot be hurt and its brood comes for you;
    kill them all and you choose an ultimate weapon or a maxed utility, and
@@ -31976,6 +32114,13 @@ const Hollow = {
     if (!Array.isArray(h.wins)) h.wins = [0, 0, 0];
     if (!h.weapon || !WEAPONS[h.weapon]) h.weapon = 'pulse';
     if (!(h.lv >= 0 && h.lv < 3)) h.lv = 0;
+    // every October is a new harvest: the tasks and the level records start over
+    const B = this.banner();
+    if (B && B.yearly) {
+      if (h.yr == null) h.yr = B.yearly.first;
+      const w = bannerWin(B);
+      if (bannerOpen(B) && h.yr !== w.y) { h.yr = w.y; h.tasks = {}; h.best = [0, 0, 0]; h.taskTix = 0; Save.save(); }
+    }
     return h;
   },
   tickets() { return Banners.rec(this.banner()).tickets | 0; },
@@ -32356,7 +32501,7 @@ const VbuxStore = {
 
 /* where the lobby's PLAY button goes */
 const Hub = {
-  mode() { const m = Save.data.hubMode; return m === 'skirmish' || m === 'multi' ? m : 'conquest'; },
+  mode() { const m = Save.data.hubMode; return m === 'skirmish' || (m === 'multi' && !CG.site()) ? m : 'conquest'; },
   setMode(m) { Save.data.hubMode = m; Save.save(); },
   /* the world the lobby shows behind your ship: the next one on the road */
   world() {
@@ -32379,6 +32524,24 @@ const Hub = {
       UI.sels.conq = W.i;
       G.state = 'planet'; UI.lastState = '';
     }
+  }
+};
+
+/* CrazyGames: "games should land new users in gameplay immediately; a maximum of
+   1 click". On their site a brand-new save's START goes straight into the first
+   world's run (no lobby, no dossier); the lobby opens as normal after it. */
+const FirstRun = {
+  want() {
+    const d = Save.data;
+    return CG.site() && !d.cgFirst && (d.runs | 0) === 0 && !Object.keys(Conquest.d().conquered).length;
+  },
+  go() {
+    if (!this.want()) return false;
+    Save.data.cgFirst = 1; Save.data.hubMode = 'conquest'; Save.save();
+    const W = Hub.world();
+    applySky(null);
+    Descent.start(W.pl.id, W.gal.diff);
+    return true;
   }
 };
 
@@ -32408,7 +32571,7 @@ const UI = {
     return st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' ||
            st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' ||
            st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' ||
-           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'gifts';
+           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'gifts' || st === 'freevb';
   },
   /* true while an online screen owns the keyboard for typing */
   typing() {
@@ -32583,8 +32746,10 @@ const UI = {
           glow: on ? (it.color || PAL.player) : null, blur: 16, track: size * 0.14
         };
         // on a narrow window a long label shrinks to sit between the arrows
-        // (the arrows sit 18px in from each end; the text may come to within 30)
-        const room = (opt.w || 340) - 60, mk = label + '|' + size.toFixed(1);
+        // (the arrows sit 18px in from each end; the text may come to within 30).
+        // A row with an icon gives it room on the left of the label.
+        const ico = it.icon ? size * 1.5 : 0;
+        const room = (opt.w || 340) - 60 - ico, mk = label + '|' + size.toFixed(1);
         let lw = this._lw.get(mk);
         if (lw === undefined) {
           lw = tracked(c, label, 0, 0, Object.assign({}, lo, { measureOnly: true, weight: 800 }));
@@ -32592,7 +32757,8 @@ const UI = {
           this._lw.set(mk, lw);
         }
         if (lw > room) { const k = room / lw; lo.size = size * k; lo.track = size * 0.14 * k; }
-        tracked(c, label, x, iy + lo.size * 0.34, lo);
+        tracked(c, label, x + ico / 2, iy + lo.size * 0.34, lo);
+        if (ico) it.icon(c, x + ico / 2 - Math.min(lw, room) / 2 - ico * 0.66, iy, lo.size, on, it.color || PAL.player);
       }
       if (on) {
         const bob = Math.sin(G.uiT * 6) * 3;
@@ -33042,7 +33208,7 @@ const UI = {
     tracked(c, 'a garden grows in the dark', VW / 2, VH * 0.29 + 34, { size: 14, weight: 600, align: 'center', color: PAL.dim, track: 4 });
 
     const items = [
-      { label: 'START', color: '#9ef7ff', act: () => { Sound.resume(); applySky(null); G.state = 'hub'; UI.lastState = ''; } },
+      { label: 'START', color: '#9ef7ff', act: () => { Sound.resume(); if (FirstRun.go()) return; applySky(null); G.state = 'hub'; UI.lastState = ''; } },
       { label: 'SETTINGS', color: '#8dff6b', act: () => { Sound.resume(); UI.settingsFrom = 'title'; G.state = 'settings'; UI.lastState = ''; } },
       { label: () => 'ACHIEVEMENTS  ' + Ach.count() + '/' + ACHS.length, color: '#63ffc9', act: () => { Sound.resume(); UI.achFrom = 'title'; G.state = 'achievements'; UI.lastState = ''; } }
     ];
@@ -36857,16 +37023,56 @@ const UI = {
     c.restore();
     const beat = left % 1, pulse = 1 + 0.2 * Math.pow(beat, 3);
     text(c, String(Math.ceil(left)), cx, cy + R * 0.34, { size: R * 0.95 * pulse, weight: 900, align: 'center', color: '#ffffff', glow: A, blur: 16 });
-    const sub = 'CONTINUE ' + (used + 1) + ' OF ' + CONT_MAX;
+    const CM = contMax(), last = used + 1 >= CM;
+    const sub = 'CONTINUE ' + (used + 1) + ' OF ' + CM;
     tracked(c, sub, cx, cy + R + 36, { size: 12, weight: 900, align: 'center', color: PAL.dim, track: 4 });
     let sh = 0; if (this.contShake > 0) { this.contShake -= G.uiDt || 1 / 60; sh = Math.sin(t * 60) * 5 * Math.max(0, this.contShake / 0.4); }
-    const mm = this.menu(c, [
-      { label: () => 'CONTINUE  \u00b7  ' + fmtNum(cost) + ' SHARDS', color: can ? '#8dff6b' : '#ff5470', act: () => { G.payContinue(); } },
-      { label: 'QUIT', color: PAL.hp, act: () => { Sound.ui(false); G.declineContinue(); } }
-    ], VW / 2 + sh, cy + R + 84, 48, { size: 21, w: 380, id: 'continue' });
-    text(c, can ? 'you have ' + fmtNum(have) + ' shards  \u00b7  the next continue costs ' + fmtNum(cost + CONT_STEP)
+    // CrazyGames: the first continue can be an ad. Their rule: the ways on without
+    // the ad (shards, quit) look just like it -- same size, font and colour
+    const ad = G.cgAd, offer = ad === 'ready' || ad === 'playing', one = offer ? '#9ef7ff' : null;
+    // the focus starts on the shards, as it always has: the ad is offered, never pushed
+    if (fresh) this.sels.continue = offer ? 1 : 0;
+    const items = [];
+    if (offer) items.push({ label: ad === 'playing' ? 'THE AD IS PLAYING\u2026' : 'WATCH AN AD  \u00b7  CONTINUE', color: one, icon: (c2, ix, iy, s2, on2, col2) => this.adIcon(c2, ix, iy, s2, on2, col2), act: () => G.adContinue() });
+    items.push({ label: () => 'CONTINUE  \u00b7  ' + fmtNum(cost) + ' SHARDS', color: can ? (one || '#8dff6b') : '#ff5470', act: () => { G.payContinue(); } });
+    items.push({ label: 'QUIT', color: one || PAL.hp, act: () => { Sound.ui(false); G.declineContinue(); } });
+    if (CG.adBusy) this.lockT = Math.max(this.lockT, 0.25);
+    const my = cy + R + 84;
+    this.menu(c, items, VW / 2 + sh, my, 48, { size: 21, w: Math.min(400, VW - 24), id: 'continue' });
+    let ny = my + (items.length - 1) * 48 + 38;
+    text(c, can ? 'you have ' + fmtNum(have) + ' shards  \u00b7  ' + (last ? 'this is the last continue' : 'the next continue costs ' + fmtNum(cost + CONT_STEP))
                : 'you have ' + fmtNum(have) + ' shards  \u00b7  ' + fmtNum(cost - have) + ' more to continue',
-      cx, cy + R + 84 + 48 + 38, { size: 12, weight: 700, align: 'center', color: can ? PAL.dim : '#ff7a90' });
+      cx, ny, { size: 12, weight: 700, align: 'center', color: can ? PAL.dim : '#ff7a90' });
+    // why there is no ad this time (their rules: say so, and never take shards away for it)
+    let why = null;
+    if (ad === 'blocked') why = 'an ad blocker is on, so the free continue is off  \u00b7  shards still work';
+    else if (ad === 'none') why = 'no ad to show right now  \u00b7  try again later  \u00b7  shards still work';
+    else if (offer) why = 'one free continue a run with a short video  \u00b7  or pay in shards';
+    if (why) text(c, why, cx, ny + 20, { size: 11.5, weight: 700, align: 'center', color: offer ? PAL.dim : '#ffb347', alpha: 0.9 });
+  },
+
+  /* a small video screen with a play mark: "this one is an ad". A dark core, a
+     rim in the row's colour, a gold play mark, and a sheen that sweeps when it
+     has focus. Baked once per size; only the sheen and the breath are live. */
+  adIcon(c, x, y, s, on, col) {
+    const w = Math.round(s * 1.25), h = Math.round(s * 0.92);
+    const e = hsprite('adico|' + w + '|' + col, w + 16, h + 16, g => {
+      neon(g, x2 => roundRect(x2, -w / 2, -h / 2, w, h, h * 0.24), col, { lw: Math.max(1.3, s * 0.08), blur: 8, core: 'rgba(6,8,22,0.92)' });
+      neon(g, x2 => { x2.beginPath(); x2.moveTo(-w * 0.13, -h * 0.25); x2.lineTo(w * 0.2, 0); x2.lineTo(-w * 0.13, h * 0.25); x2.closePath(); }, '#ffd166', { lw: Math.max(1, s * 0.06), blur: 6, core: 'rgba(255,224,140,0.9)', inner: false });
+    });
+    const b = on ? 1 + 0.06 * Math.sin(G.uiT * 5) : 1;
+    c.save(); c.translate(x, y); c.scale(b, b); c.drawImage(e.cv, -e.w / 2, -e.h / 2, e.w, e.h);
+    if (on) {
+      // a sheen across the screen
+      const u = (G.uiT * 0.8) % 1.6 - 0.3;
+      c.save(); c.beginPath(); roundRect(c, -w / 2 + 2, -h / 2 + 2, w - 4, h - 4, h * 0.2); c.clip();
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.35;
+      const gx = -w / 2 + u * w, gg = c.createLinearGradient(gx - h * 0.4, 0, gx + h * 0.4, 0);
+      gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(0.5, '#ffffff'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = gg; c.fillRect(-w / 2, -h / 2, w, h);
+      c.restore();
+    }
+    c.restore();
   },
 
   endScreen(c, win) {
@@ -37105,7 +37311,7 @@ Object.assign(UI, {
 
   /* ------------------------------------------------------------ layout */
   hubLayout() {
-    const key = VW + 'x' + VH + (Cloud.on() ? 'c' : '') + (Hollow.on() ? 'h' : '');
+    const key = VW + 'x' + VH + (Cloud.on() ? 'c' : '') + (Hollow.on() ? 'h' : '') + (FreeVb.on() ? 'v' : '');
     if (this._hubL && this._hubL.key === key) return this._hubL;
     const port = VW < 700 || VW < VH * 0.9;
     const m = port ? 12 : clamp(Math.min(VW, VH) * 0.028, 12, 24);
@@ -37113,7 +37319,7 @@ Object.assign(UI, {
     const u = uiScale();
     const L = { key: key, port: port, m: m, u: u, it: Object.create(null), order: [] };
     const R = (id, x, y, w, h, extra) => { const r = Object.assign({ id: id, x: x, y: y, w: w, h: h, cx: x + w / 2, cy: y + h / 2 }, extra || {}); L.it[id] = r; L.order.push(id); return r; };
-    const right = (Hollow.on() ? ['event'] : []).concat(['daily', 'achievements', 'records']).concat(Cloud.on() ? ['boards'] : []).concat(['how']);
+    const right = (Hollow.on() ? ['event'] : []).concat(FreeVb.on() ? ['freevb'] : []).concat(['daily', 'achievements', 'records']).concat(Cloud.on() ? ['boards'] : []).concat(['how']);
     const left = ['shop', 'gifts', 'skins', 'pets', 'relics'];
     // top bar
     const topH = port ? 50 : clamp(VH * 0.085, 48, 64 * u);
@@ -37151,7 +37357,7 @@ Object.assign(UI, {
         for (let i = 0; i < ids.length; i++) {
           const col = i % cols, row = Math.floor(i / cols);
           const x = dir > 0 ? xEdge + col * (T + 12 * u) : xEdge - T - col * (T + 12 * u);
-          R(ids[i], x, colTop + row * (T + 26 * u), T, T, { tile: true });
+          R(ids[i], x, colTop + row * (T + 26 * u), T, T, { tile: true, room: cols > 1 ? T + 12 * u + 2 : 0 });
         }
         return rows;
       };
@@ -37208,7 +37414,9 @@ Object.assign(UI, {
       case 'pilot': go('pilot'); break;
       case 'shop': this.openShop(null); break;
       case 'shards': this.openShop('shards'); break;
-      case 'vbux': this.openShop('vbux'); break;
+      // on CrazyGames the money packs are not sold: the voidbux chip opens FREE VOIDBUX
+      case 'vbux': if (!CG.site()) this.openShop('vbux'); else if (FreeVb.on()) this.openFreevb('hub'); else this.openShop(null); break;
+      case 'freevb': this.openFreevb('hub'); break;
       case 'skins': case 'stage': go('skins'); break;
       case 'pets': go('pets'); break;
       case 'relics': this.openRelics('hub'); break;
@@ -37483,23 +37691,27 @@ Object.assign(UI, {
     relics: { label: 'RELICS', col: '#c9a3ff' },
     daily: { label: 'DAILY', col: '#ffb347' },
     event: { label: 'HARVEST', col: '#ff9a3c' },
-    achievements: { label: 'ACHIEVEMENTS', col: '#63ffc9' },
+    freevb: { label: 'FREE VOIDBUX', short: 'FREE SPIN', col: '#ff4fd8' },
+    achievements: { label: 'ACHIEVEMENTS', short: 'AWARDS', col: '#63ffc9' },
     records: { label: 'RECORDS', col: '#7ea8ff' },
-    boards: { label: 'LEADERBOARDS', col: '#ff7ae6' },
-    how: { label: 'HOW TO PLAY', col: '#b9c4ff' }
+    boards: { label: 'LEADERBOARDS', short: 'BOARDS', col: '#ff7ae6' },
+    how: { label: 'HOW TO PLAY', short: 'HELP', col: '#b9c4ff' }
   },
   hubTile(c, r, on, t) {
     const D = this.HUB_TILES[r.id];
     const lift = on ? 3 : 0, x = r.x, y = r.y - lift, s = r.w;
     if (on) hglow(c, D.col, x + s / 2, y + s / 2, s * 1.05, 0.22 + 0.06 * Math.sin(t * 3));
     glass(c, x, y, s, s, Math.max(8, s * 0.17), D.col, on);
-    this.hubIcon(c, r.id, x + s / 2, y + s / 2 - (r.id === 'achievements' ? s * 0.06 : 0), s * 0.36, t, D.col, on);
+    const fvn = r.id === 'freevb' ? FreeVb.note() : '';
+    this.hubIcon(c, r.id, x + s / 2, y + s / 2 - (r.id === 'achievements' || fvn ? s * 0.06 : 0), s * 0.36, t, D.col, on);
+    if (fvn) text(c, fvn, x + s / 2, y + s - s * 0.1, { size: Math.max(8.5, s * 0.13), weight: 800, align: 'center', color: fvn === 'ADS OFF' ? '#ffb347' : '#ffd6f4', alpha: 0.9 });
     if (r.id === 'achievements') text(c, Ach.count() + '/' + ACHS.length, x + s / 2, y + s - s * 0.1, { size: Math.max(8.5, s * 0.13), weight: 800, align: 'center', color: D.col, alpha: 0.85 });
     // the label under it, shrunk to fit
-    const lab = D.label, hu = this.hubLayout().u;
-    let ls = clamp(s * 0.16, 9, 11.5 * hu);
-    const lw = tracked(c, lab, 0, 0, { size: ls, weight: 900, track: 1.6, measureOnly: true });
+    const hu = this.hubLayout().u;
+    let lab = D.label, ls = clamp(s * 0.16, 9, 11.5 * hu);
+    let lw = tracked(c, lab, 0, 0, { size: ls, weight: 900, track: 1.6, measureOnly: true });
     const room = r.room || s + 22 * hu;
+    if (D.short && lw * 0.8 > room) { lab = D.short; lw = tracked(c, lab, 0, 0, { size: ls, weight: 900, track: 1.6, measureOnly: true }); }
     if (lw > room) ls *= room / lw;
     tracked(c, lab, x + s / 2, y + s + 15 * hu, { size: ls, weight: 900, align: 'center', color: on ? D.col : '#cdd4f0', glow: on ? D.col : null, blur: 10, track: 1.6 * Math.min(1, room / lw) });
     if (on) focusTicks(c, x, y, s, s, D.col, t);
@@ -37510,6 +37722,7 @@ Object.assign(UI, {
     if (id === 'gifts') return Gifts.can() ? true : 0;
     if (id === 'daily') return Save.dailyRec(dailyKey()).runs ? 0 : true;
     if (id === 'event') return Hollow.on() && Hollow.d().best.every(b => !b) ? true : 0;
+    if (id === 'freevb') return FreeVb.ready() ? true : 0;
     if (id === 'shop') { const sh = Save.data.shop; return !sh || sh.day !== dailyKey() || !sh.seen ? true : 0; }
     if (id === 'skins') return skinCanUp(Save.data.skin) ? true : 0;
     return 0;
@@ -37569,6 +37782,28 @@ Object.assign(UI, {
         break;
       }
       case 'gifts': giftBoxIcon(c, x, y, U, t, col, Gifts.can()); break;
+      case 'freevb': {
+        // a small prize wheel that turns (fast when a spin is ready), the voidbux gem at its hub, a gold pointer
+        const e = glyph('fvbw', g => {
+          const cols = ['#63d4ff', '#c9a3ff', '#8dff6b', '#ffb347', '#ff4fd8', '#ffd166'];
+          for (let k = 0; k < 6; k++) {
+            const a0 = k / 6 * TAU;
+            g.save(); g.globalAlpha = 0.55; g.fillStyle = cols[k];
+            g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, U * 0.8, a0, a0 + TAU / 6); g.closePath(); g.fill(); g.restore();
+          }
+          g.fillStyle = 'rgba(6,6,18,0.8)'; g.beginPath(); g.arc(0, 0, U * 0.34, 0, TAU); g.fill();
+          nn(g, x2 => { x2.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; x2.moveTo(Math.cos(a) * U * 0.34, Math.sin(a) * U * 0.34); x2.lineTo(Math.cos(a) * U * 0.8, Math.sin(a) * U * 0.8); } }, '#ffffff', { core: null, inner: false, lw: Math.max(0.8, U * 0.035), blur: 4 });
+          nn(g, x2 => { x2.beginPath(); x2.arc(0, 0, U * 0.84, 0, TAU); }, col, { core: null, inner: false });
+        });
+        const rdy = FreeVb.ready();
+        c.save(); if (!rdy) c.globalAlpha *= 0.55;
+        c.translate(x, y); c.rotate(t * (rdy ? 0.9 : 0.2)); c.drawImage(e.cv, -e.w / 2, -e.h / 2, e.w, e.h); c.restore();
+        this.vbuxGem(c, x, y, Math.max(3, U * 0.22), t);
+        const p = glyph('fvbp', g => nn(g, x2 => { x2.beginPath(); x2.moveTo(-U * 0.15, -U * 1.04); x2.lineTo(U * 0.15, -U * 1.04); x2.lineTo(0, -U * 0.72); x2.closePath(); }, '#ffd166', { core: 'rgba(40,24,2,0.9)', inner: false }));
+        hstamp(c, p, x, y);
+        if (rdy) hglow(c, '#ff4fd8', x, y, U * 1.2, 0.12 + 0.08 * Math.sin(t * 3));
+        break;
+      }
       case 'daily': {
         const e = glyph('sun', g => {
           nn(g, x2 => { x2.beginPath(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; x2.moveTo(Math.cos(a) * U * 0.62, Math.sin(a) * U * 0.62); x2.lineTo(Math.cos(a) * U * 0.95, Math.sin(a) * U * 0.95); } }, '#ffd166', { core: null, inner: false });
@@ -38786,8 +39021,9 @@ Object.assign(UI, {
     const short = VH < 520, tk = narrow ? 4 : 8;
     const ts = clamp(((VW - 30) / 18 - tk) / 0.68, 14, 28);
     tracked(c, 'THE HOLLOW HARVEST', VW / 2, short ? 30 : 46, { size: ts, weight: 900, align: 'center', color: A, glow: A, blur: 18, track: tk });
-    const left = Math.max(0, Math.ceil((Events.end(HWB_ID, Hollow.banner().end) - Date.now()) / 86400000));
-    text(c, (narrow ? 'three bodies · no clock · continue for shards · ' : 'three bodies  ·  no clock  ·  continue for shards  ·  ') + left + (left === 1 ? ' DAY' : ' DAYS') + ' LEFT', VW / 2, short ? 48 : 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    const left = Math.max(0, Math.ceil((bannerWin(Hollow.banner()).end - Date.now()) / 86400000));
+    const cfs = CG.site() ? 'continue: an ad, then shards' : 'continue for shards';
+    text(c, (narrow ? 'three bodies · no clock · ' + cfs + ' · ' : 'three bodies  ·  no clock  ·  ' + cfs + '  ·  ') + left + (left === 1 ? ' DAY' : ' DAYS') + ' LEFT', VW / 2, short ? 48 : 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
     const tix = Hollow.tickets();
     const tl = 'EVENT TICKETS  ' + tix;
     const tcol = tix ? '#8dff6b' : PAL.dim, tg = tix ? '#8dff6b' : null;
@@ -39003,14 +39239,15 @@ Object.assign(UI, {
       { id: 'skins', title: 'EXCLUSIVE SKINS', note: 'ONLY HERE', col: '#ff4fd8', cards: VB_SKINS.map(sk => ({ kind: 'vbskin', sk: sk, w: 1.12 })) }
     ];
     if (Standard.on()) out.splice(1, 0, { id: 'standard', title: 'STANDARD ROLL', note: 'ALWAYS HERE', col: '#ff9a3c', cards: [{ kind: 'standard', w: 1.25 }] });
-    { const bl = Banners.live(); if (bl.length) { Banners.purge(); out.splice(1, 0, { id: 'banner', title: 'EVENT BANNER', note: 'DESKTOP', col: '#ffd166', cards: bl.map(b => ({ kind: 'banner', b: b, w: 1.25 })) }); } }
+    { const bl = Banners.live(); if (bl.length) { Banners.purge(); out.splice(1, 0, { id: 'banner', title: 'EVENT BANNER', note: bl.every(b => b.yearly) ? 'EVERY OCTOBER' : 'DESKTOP', col: '#ffd166', cards: bl.map(b => ({ kind: 'banner', b: b, w: 1.25 })) }); } }
     { const tc = [];
       if (Standard.on()) { tc.push({ kind: 'tix', tk: 'std', w: 1.1 }); tc.push({ kind: 'tix', tk: 'std', cur: 'shards', w: 1.1 }); }
       if (Hollow.on()) tc.push({ kind: 'tix', tk: 'evt', b: Hollow.banner(), w: 1.1 });
-      if (tc.length) out.splice(1, 0, { id: 'tickets', title: 'TICKETS', note: STD.BUY_DAY + ' A DAY EACH \u00b7 STANDARD: ' + STD.BUY_SH + ' SHARDS OR ' + STD.BUY_VB + ' VOIDBUX', col: '#ffd166', cards: tc }); }
+      if (tc.length) out.splice(1, 0, { id: 'tickets', title: 'TICKETS', note: Standard.on() ? STD.BUY_DAY + ' A DAY EACH \u00b7 STANDARD: ' + STD.BUY_SH + ' SHARDS OR ' + STD.BUY_VB + ' VOIDBUX' : ROLL.BUY_DAY + ' A DAY \u00b7 ' + ROLL.TICKET_VB + ' VOIDBUX EACH', col: '#ffd166', cards: tc }); }
     if (live) out.push({ id: 'pass', title: 'BLOOM PASS', note: 'SEASON ' + S.n, col: S.col, cards: [{ kind: 'pass', S: S, w: 1.2 }] });
     out.push({ id: 'shards', title: 'SHARD PACKS', note: 'FOR VOIDBUX', col: '#c9a3ff', cards: SHARD_PACKS.map(p => ({ kind: 'shards', p: p, w: 0.9 })) });
-    out.push({ id: 'vbux', title: 'VOIDBUX', note: VbuxStore.kind() ? '' : 'COMING SOON', col: '#ff4fd8', cards: VBUX_PACKS.map(p => ({ kind: 'vbuxpack', p: p, w: 0.9 })) });
+    // no outside payments on CrazyGames: the money packs are not shown there
+    if (!CG.site()) out.push({ id: 'vbux', title: 'VOIDBUX', note: VbuxStore.kind() ? '' : 'COMING SOON', col: '#ff4fd8', cards: VBUX_PACKS.map(p => ({ kind: 'vbuxpack', p: p, w: 0.9 })) });
     out.push({ id: 'codes', title: 'CODES', note: 'GIFTS AND PASS CODES', col: '#63ffc9', cards: [{ kind: 'code', w: 1.1 }] });
     return out;
   },
@@ -40877,9 +41114,24 @@ Object.assign(UI, {
    stay self-contained and offline-clean. Every call is a guarded no-op
    when the SDK is not there.
    ======================================================================== */
-const CG_ADS = true;   // set false to ship without between-run ads
+const CG_ADS = true;      // set false to ship with no ads at all (between runs, the continue, FREE VOIDBUX)
+const CG_CONT_MAX = 3;   // continues a run on CrazyGames: the first can be an ad, the rest are shards
 const CG = {
-  sdk: null, ready: false, playing: false, adBusy: false, wasMuted: false,
+  sdk: null, ready: false, playing: false, played: false, adBusy: false, wasMuted: false, adMuted: false,
+  adblock: false, dataOn: false, adFails: 0, adsDead: false,
+
+  /* on CrazyGames (their page, or ?cg=1 to test) -- known at once, before the SDK loads */
+  site() { if (this._site === undefined) this._site = this.wanted(); return this._site; },
+  /* the SDK is up */
+  on() { return !!(this.ready && this.sdk); },
+  /* ads can be asked for. Three failures in a row (a Basic Launch, where their ads are off, or no
+     ads to fill) and no ad is offered again this session: their rule is never to keep an ad
+     button that does nothing */
+  ads() { return CG_ADS && !this.adsDead && this.on() && !!(this.sdk.ad && this.sdk.ad.requestAd); },
+  adResult(ok) {
+    if (ok) { this.adFails = 0; return; }
+    if (++this.adFails >= 3 && !this.adsDead) { this.adsDead = true; UI._hubL = null; }
+  },
 
   wanted() {
     try {
@@ -40893,7 +41145,7 @@ const CG = {
   },
 
   init() {
-    if (!this.wanted()) return;
+    if (!this.site()) return;
     try {
       const s = document.createElement('script');
       s.src = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
@@ -40902,7 +41154,19 @@ const CG = {
         try {
           this.sdk = window.CrazyGames && window.CrazyGames.SDK;
           if (!this.sdk) return;
-          const done = () => { this.ready = true; this.call('game', 'loadingStop'); };
+          const done = () => {
+            if (this.ready) return;
+            this.ready = true;
+            this.call('game', 'loadingStop');
+            // a run already under way when the SDK arrived
+            if (this.playing) this.call('game', 'gameplayStart');
+            try {
+              const a = this.sdk.ad && this.sdk.ad.hasAdblock ? this.sdk.ad.hasAdblock() : false;
+              if (a && a.then) a.then(v => { this.adblock = !!v; }, () => { }); else this.adblock = !!a;
+            } catch (e) { }
+            this.dataSync();
+            UI._hubL = null;
+          };
           if (this.sdk.init) { const r = this.sdk.init(); if (r && r.then) r.then(done, () => { }); else done(); }
           else done();
         } catch (e) { }
@@ -40920,6 +41184,7 @@ const CG = {
   /* the frame loop tells us what the game is doing; we tell them */
   setPlaying(on) {
     on = !!on && !this.adBusy;
+    if (on) this.played = true;
     if (on === this.playing) return;
     this.playing = on;
     this.call('game', on ? 'gameplayStart' : 'gameplayStop');
@@ -40927,30 +41192,88 @@ const CG = {
 
   win() { this.call('game', 'happytime'); },
 
-  /* between runs only -- never during play. Falls straight through with no SDK. */
+  /* their rule: the sound goes off when an ad actually starts, not when it is asked for */
+  adMute() { if (this.adMuted) return; this.adMuted = true; this.wasMuted = Sound.muted; try { Sound.setMuted(true); } catch (e) { } },
+  adUnmute() { if (!this.adMuted) return; this.adMuted = false; try { if (!this.wasMuted) Sound.setMuted(false); } catch (e) { } },
+
+  /* between runs only -- never during play. Falls straight through with no SDK.
+     Not at a break where a rewarded continue was just offered: one or the other. */
   midgameAd(then) {
-    if (!CG_ADS || !this.ready || !this.sdk || !this.sdk.ad || this.adBusy) { then(); return; }
+    if (G.cgOffered) { G.cgOffered = false; then(); return; }
+    if (!this.ads() || this.adBusy) { then(); return; }
     this.adBusy = true;
     this.setPlaying(false);
-    this.wasMuted = Sound.muted;
-    let done = false;
-    const finish = () => {
+    let done = false, started = false;
+    const finish = ok => {
       if (done) return;
       done = true;
       this.adBusy = false;
-      try { if (!this.wasMuted) Sound.setMuted(false); } catch (e) { }
+      this.adUnmute();
+      if (ok !== undefined) this.adResult(ok);
       then();
     };
-    try { Sound.setMuted(true); } catch (e) { }
-    // if their callbacks never come back, do not strand the player
-    setTimeout(finish, 30000);
+    // if their callbacks never come back, do not strand the player: an ad that
+    // never starts is given up on; one that started gets as long as it needs
+    setTimeout(() => { if (!started) finish(); }, 12000);
+    setTimeout(finish, 180000);
     try {
       this.sdk.ad.requestAd('midgame', {
-        adFinished: finish,
-        adError: finish,
-        adStarted: () => { }
+        adStarted: () => { started = true; this.adMute(); },
+        adFinished: () => finish(true),
+        adError: () => finish(false)
       });
-    } catch (e) { finish(); }
+    } catch (e) { finish(false); }
+  },
+
+  /* a rewarded ad. cb(ok, why) -- ok only when the ad ran to the end: an error
+     never rewards. why: 'off' (no SDK), 'blocked' (an ad blocker), 'unfilled'
+     (no ad right now), 'error'. */
+  rewarded(cb) {
+    if (!this.ads()) { cb(false, 'off'); return; }
+    if (this.adblock) { cb(false, 'blocked'); return; }
+    if (this.adBusy) return;
+    this.adBusy = true;
+    this.setPlaying(false);
+    let done = false, started = false;
+    const finish = (ok, why) => {
+      if (done) return;
+      done = true;
+      this.adBusy = false;
+      this.adUnmute();
+      this.adResult(!!ok);
+      try { cb(!!ok, why || ''); } catch (e) { }
+    };
+    setTimeout(() => { if (!started) finish(false, 'error'); }, 15000);
+    setTimeout(() => finish(false, 'error'), 180000);
+    try {
+      this.sdk.ad.requestAd('rewarded', {
+        adStarted: () => { started = true; this.adMute(); },
+        adFinished: () => finish(true, ''),
+        adError: e => finish(false, e && e.code === 'unfilled' ? 'unfilled' : 'error')
+      });
+    } catch (e) { finish(false, 'error'); }
+  },
+
+  /* their Data module: the save follows a signed-in player to any device. The game
+     still saves to localStorage first; every save is mirrored there. On the way in,
+     a newer save in their cloud (from another device) is taken -- but only while
+     nothing has been played yet, so a run is never thrown away. */
+  dataSync() {
+    const D = this.sdk && this.sdk.data;
+    if (!D || typeof D.getItem !== 'function' || typeof D.setItem !== 'function') return;
+    this.dataOn = true;
+    let remote = null, local = null;
+    try { remote = D.getItem(Save.key); } catch (e) { }
+    try { local = localStorage.getItem(Save.key); } catch (e) { }
+    if (remote && remote !== local) {
+      let rt = 0;
+      try { rt = +JSON.parse(remote)._t || 0; } catch (e) { remote = null; }
+      if (remote && rt > (Save.t0 || 0) && !this.played && (G.state === 'title' || BootHold.on)) {
+        if (Save.adopt(remote)) { UI._hubL = null; try { Ach.sweepMeta(); } catch (e) { } }
+      }
+    }
+    Save.mirror = j => { try { D.setItem(Save.key, j); } catch (e) { } };
+    Save.save();
   }
 };
 
@@ -40965,10 +41288,28 @@ Cam.base = 1;
 const _camReset = Cam.reset.bind(Cam);
 Cam.reset = function (x, y) { _camReset(x, y); Cam.zoom = Cam.tzoom = Cam.base; };
 
+/* the safe area's insets in CSS px: a hidden probe padded by env(safe-area-inset-*) */
+let _saEl = null;
+function safeInsets() {
+  try {
+    if (!_saEl && document.body) {
+      _saEl = document.createElement('div');
+      _saEl.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+        'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+      document.body.appendChild(_saEl);
+    }
+    if (_saEl) {
+      const cs = getComputedStyle(_saEl), f = v => Math.max(0, parseFloat(v) || 0);
+      return { t: f(cs.paddingTop), r: f(cs.paddingRight), b: f(cs.paddingBottom), l: f(cs.paddingLeft) };
+    }
+  } catch (e) { }
+  return { t: 0, r: 0, b: 0, l: 0 };
+}
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1) * (typeof RenderRes === 'undefined' ? 1 : RenderRes.cur);
-  VW = Math.max(320, window.innerWidth);
-  VH = Math.max(240, window.innerHeight);
+  const sa = safeInsets();
+  VW = Math.max(320, window.innerWidth - sa.l - sa.r);
+  VH = Math.max(240, window.innerHeight - sa.t - sa.b);
   cvs.width = Math.round(VW * DPR);
   cvs.height = Math.round(VH * DPR);
   cvs.style.width = VW + 'px';
@@ -41271,6 +41612,7 @@ function frame(now) {
   if (Payout.q && Payout.q.state !== st) Payout.finish();
   if (UI.conqPick && st !== 'conquest' && st !== 'modes') UI.conqPick = false;
   if (UI.giftOpen && st !== 'gifts') UI.giftCancel();
+  if (UI.fvb && UI.fvb.held && st !== 'freevb') UI.fvbCancel();
   if (st === 'pass') {
     if (Input.hit('Escape') || Input.gpPressed[1]) UI.passBack();
     else if (Input.hit('Backspace') && !UI.passTyping()) UI.passBack();
@@ -41286,6 +41628,7 @@ function frame(now) {
   if (st === 'roll' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rollBack();
   if (st === 'std' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.stdBack();
   if (st === 'hollow' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.hollowBack();
+  if (st === 'freevb' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.fvbBack();
   if (st === 'mp' && (Input.hit('Escape') || Input.gpPressed[1] || (Input.hit('Backspace') && !Input.textOn))) {
     if (UI.mpMode !== 'menu') { UI.mpMode = 'menu'; Input.textOn = false; Input.text = ''; } else UI.leaveMp();
     Sound.ui(false);
@@ -41316,7 +41659,7 @@ function frame(now) {
   } else if (st === 'continue') {
     Particles.update(dt * 0.5); Pops.update(dt); Flash.update(dt);
     Cam.update(dt, G.player.x, G.player.y, 0, 0);
-    G.contT -= dt;
+    if (!CG.adBusy) G.contT -= dt;          // the clock waits while an ad plays
     const sec = Math.ceil(Math.max(0, G.contT));
     if (sec !== G._contTick) { G._contTick = sec; if (sec <= 3 && sec > 0) Sound.ui(false); }
     if (G.contT <= 0) G.declineContinue();
@@ -41352,7 +41695,7 @@ function frame(now) {
 
   if (st === 'settings' && UI.settingsFrom === 'paused') {
     UI.world(c); UI.hud(c); UI.settings(c);
-  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts') {
+  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb') {
     Cosmos.req = null;
     const cosOn = Cosmos.show(st === 'conquest' || st === 'planet' || st === 'modes' || st === 'hub');
     if (cosOn) c.clearRect(0, 0, VW, VH);
@@ -41366,6 +41709,7 @@ function frame(now) {
     else if (st === 'hollow') { UI.hollow(c); }
     else if (st === 'pilot') { UI.fit(c, 0, 540, () => UI.pilot(c)); }
     else if (st === 'gifts') { UI.fit(c, 0, 560, () => UI.gifts(c)); }
+    else if (st === 'freevb') { UI.freevb(c); Payout.draw(c, k => UI.payTarget(UI.hubLayout(), k)); }
     else if (st === 'how') { UI.hub(c, true); UI.how(c); }
     else if (st === 'select') { UI.hub(c, true); UI.fit(c, 0, 520, () => UI.select(c)); }
     else if (st === 'skins') { UI.skins(c); }
@@ -41411,7 +41755,7 @@ function frame(now) {
     if (st === 'levelup') UI.fit(c, 0, 520, () => UI.levelup(c));
     else if (st === 'covenant') UI.fit(c, 0, 520, () => UI.covenant(c));
     else if (st === 'paused') UI.paused(c);
-    else if (st === 'continue') UI.continueScreen(c);
+    else if (st === 'continue') UI.fit(c, 0, G.cgAd ? 520 : 0, () => UI.continueScreen(c));
     else if (st === 'dead') UI.endScreen(c, false);
     else if (st === 'mpend') Coop.endScreen(c);
     else if (st === 'win') UI.endScreen(c, true);
@@ -44704,6 +45048,8 @@ BOSS_LIVE.interred = {
    cosmos layer, seen through a hole in the card; the other two are small
    scenes drawn with the game's own sprites.
    ======================================================================== */
+/* the cards START shows: MULTIPLAYER is not offered on CrazyGames (Isaac, 18 Oct 2026) */
+function modeCards() { return CG.site() ? MODE_CARDS.filter(m => m.id !== 'multi') : MODE_CARDS; }
 const MODE_CARDS = [
   { id: 'conquest', name: 'CONQUEST', col: '#9ef7ff',
     lines: ['Take the galaxy one world at a time.', 'Twelve planets, each with its own', 'boss, and a relic to win.'] },
@@ -44989,34 +45335,36 @@ Object.assign(UI, {
   modes(c) {
     const fresh = this.lastState !== 'modes';
     this.begin('modes');
-    if (fresh) this.sels.modes = Math.max(0, MODE_CARDS.findIndex(m => m.id === Hub.mode()));
+    const MC = modeCards(), N = MC.length;
+    if (fresh) this.sels.modes = Math.max(0, MC.findIndex(m => m.id === Hub.mode()));
+    if (!(this.sels.modes < N)) this.sels.modes = 0;
     const t = G.uiT;
     const narrow = VW < 760;
     const hy = VH < 560 ? -14 : 0;
     tracked(c, 'CHOOSE A WAY DOWN', VW / 2, 52 + hy, { size: Math.min(28, VW * 0.05), weight: 900, align: 'center', color: '#dfe7ff', glow: '#c9a3ff', blur: 18, track: 7 });
-    text(c, 'three ways into the dark', VW / 2, 74 + hy, { size: 12.5, weight: 700, align: 'center', color: PAL.dim });
+    text(c, N === 3 ? 'three ways into the dark' : 'two ways into the dark', VW / 2, 74 + hy, { size: 12.5, weight: 700, align: 'center', color: PAL.dim });
 
     const top = 96 + hy, bottom = VH - 56;
     let cards = [];
     if (!narrow) {
       const gap = Math.min(26, VW * 0.018);
-      const cw = Math.min(380, (VW - 56 - gap * 2) / 3);
+      const cw = Math.min(380, (VW - 56 - gap * (N - 1)) / N);
       const ch = Math.min(470, bottom - top);
-      const x0 = VW / 2 - (cw * 3 + gap * 2) / 2;
+      const x0 = VW / 2 - (cw * N + gap * (N - 1)) / 2;
       const y0 = top + Math.max(0, (bottom - top - ch) / 2);
       // the picture gives up height until the words under it fit
       const noEnter = ch < 300;
-      for (let i = 0; i < 3; i++) cards.push({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch, pw: cw - 20, ph: clamp(ch - (noEnter ? 154 : 176), 56, ch * 0.52), noEnter: noEnter });
+      for (let i = 0; i < N; i++) cards.push({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch, pw: cw - 20, ph: clamp(ch - (noEnter ? 154 : 176), 56, ch * 0.52), noEnter: noEnter });
     } else {
       const gap = 10;
       const cw = Math.min(460, VW - 24);
-      const ch = Math.min(210, (bottom - top - gap * 2) / 3);
-      const y0 = top + Math.max(0, (bottom - top - ch * 3 - gap * 2) / 2);
-      for (let i = 0; i < 3; i++) cards.push({ x: VW / 2 - cw / 2, y: y0 + i * (ch + gap), w: cw, h: ch, pw: cw * 0.42, ph: ch - 20, side: true });
+      const ch = Math.min(210, (bottom - top - gap * (N - 1)) / N);
+      const y0 = top + Math.max(0, (bottom - top - ch * N - gap * (N - 1)) / 2);
+      for (let i = 0; i < N; i++) cards.push({ x: VW / 2 - cw / 2, y: y0 + i * (ch + gap), w: cw, h: ch, pw: cw * 0.42, ph: ch - 20, side: true });
     }
     // input
     let hover = -1;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < N; i++) {
       const R = cards[i];
       if (Input.mx >= R.x && Input.mx <= R.x + R.w && Input.my >= R.y && Input.my <= R.y + R.h) hover = i;
     }
@@ -45025,14 +45373,14 @@ Object.assign(UI, {
     if (this.lockT <= 0) {
       const nextK = narrow ? ['ArrowDown', 's'] : ['ArrowRight', 'd'];
       const prevK = narrow ? ['ArrowUp', 'w'] : ['ArrowLeft', 'a'];
-      if (Input.hit(nextK[0], nextK[1]) || Input.gpPressed[narrow ? 13 : 15]) { sel = (sel + 1) % 3; Sound.ui(false); }
-      if (Input.hit(prevK[0], prevK[1]) || Input.gpPressed[narrow ? 12 : 14]) { sel = (sel + 2) % 3; Sound.ui(false); }
+      if (Input.hit(nextK[0], nextK[1]) || Input.gpPressed[narrow ? 13 : 15]) { sel = (sel + 1) % N; Sound.ui(false); }
+      if (Input.hit(prevK[0], prevK[1]) || Input.gpPressed[narrow ? 12 : 14]) { sel = (sel + N - 1) % N; Sound.ui(false); }
     }
     this.sels.modes = sel;
     // resting on MULTIPLAYER starts the server waking, so the wait is shorter
     // (timed by the clock, not by frames, so it is the same wait at 30 fps or 144)
     const hdt = clamp(t - (this.modeHoverT || t), 0, 0.1); this.modeHoverT = t;
-    if (sel === 2) { this.modeHover += hdt; if (this.modeHover > 0.6 && NET.status === 'off') NET.wake(); }
+    if (MC[sel] && MC[sel].id === 'multi') { this.modeHover += hdt; if (this.modeHover > 0.6 && NET.status === 'off') NET.wake(); }
     else this.modeHover = 0;
 
     // the conquest card looks through to real shaded planets
@@ -45042,8 +45390,8 @@ Object.assign(UI, {
     const Q = ModeArt.conquestReq(px0, py0, R0.pw, R0.ph, t);
     if (cosOn) Cosmos.req = { planets: Q.planets, sel: -1, deep: 0, hero: Q.hole, gal: Q.gal };
 
-    for (let i = 0; i < 3; i++) {
-      const M = MODE_CARDS[i], R = cards[i], on = i === sel;
+    for (let i = 0; i < N; i++) {
+      const M = MC[i], R = cards[i], on = i === sel;
       const lift = on ? 6 : 0;
       const x = R.x, y = R.y - lift, w = R.w, h = R.h;
       const px = x + 10, py = y + 10, pw = R.pw, ph = R.ph;
@@ -45145,7 +45493,7 @@ Object.assign(UI, {
     if (click || Input.hit('Enter', 'space') || Input.gpPressed[0]) {
       Sound.ui(true); Sound.resume();
       // the lobby's mode box opened this: choosing sets what PLAY does
-      const id = MODE_CARDS[this.sels.modes].id;
+      const id = MC[this.sels.modes].id;
       Hub.setMode(id);
       if (id === 'skirmish') { UI.selPick = true; G.state = 'select'; }
       else if (id === 'conquest') { UI.conqPick = true; applySky(null); G.state = 'conquest'; }
@@ -46013,6 +46361,325 @@ function boot() {
   BootHold.start();
   requestAnimationFrame(frame);
 }
+/* ========================================================================
+   FREE VOIDBUX, on screen  --  the wheel. Drawn on the 2D layer (the player
+   reads it): the face is baked once per size (slices, dividers, numbers, the
+   lit rim of each slice) and turned; what moves on top is cheap -- a ring of
+   bulbs that chase, a hub that turns against the wheel, a pointer that kicks
+   back at every divider, and the burst when it lands. The pointer's clicks are
+   counted by angle, not by frame, so they are the same at 30 fps or 144.
+   ======================================================================== */
+Object.assign(UI, {
+  fvb: null,
+  openFreevb(from) {
+    this.fvbFrom = from || 'hub';
+    const th = this.fvb ? this.fvb.th : 0;
+    this.fvb = { ph: 'idle', th: th, flap: 0, seg: -1, msg: null, retry: 0, held: 0, paid: false };
+    G.state = 'freevb'; this.lastState = '';
+  },
+  /* leaving mid-show: the voidbux are already in the save; the chip just stops holding them back */
+  fvbCancel() {
+    const F = this.fvb;
+    if (!F) return;
+    if (F.held) { Payout.held.vbux = Math.max(0, Payout.held.vbux - F.held); F.held = 0; }
+    if (F.ph === 'spin' || F.ph === 'won') { F.ph = 'idle'; F.paid = true; }
+  },
+  fvbBack() {
+    if (CG.adBusy) return;
+    this.fvbCancel();
+    G.state = 'hub'; this.lastState = ''; Sound.ui(false);
+  },
+  /* WATCH AN AD: only a finished ad spins the wheel */
+  fvbGo() {
+    const F = this.fvb;
+    if (!F || F.ph !== 'idle' || !FreeVb.ready() || CG.adBusy || G.uiT < F.retry) return;
+    F.ph = 'ad'; F.msg = null;
+    Sound.ui(true);
+    CG.rewarded((ok, why) => {
+      if (this.fvb !== F) return;
+      if (!ok) {
+        F.ph = 'idle';
+        if (why !== 'blocked') { F.msg = 'no ad to show right now  ·  try again in a minute'; F.retry = G.uiT + 60; }
+        Sound.hurt();
+        return;
+      }
+      const res = FreeVb.grant();
+      Payout.held.vbux += res.v; F.held = res.v;            // the chip waits for the coins
+      const unitA = TAU / FVB.UNITS, f = 0.2 + Math.random() * 0.6;
+      const want = -(res.u + f) * unitA, delta = (((want - F.th) % TAU) + TAU) % TAU;
+      F.res = res; F.th0 = F.th; F.tot = TAU * 5 + delta; F.t0 = G.uiT; F.ph = 'spin'; F.paid = false;
+      if (G.state !== 'freevb') this.fvbCancel();
+    });
+  },
+
+  freevb(c) {
+    const fresh = this.lastState !== 'freevb';
+    this.begin('freevb');
+    if (fresh) this.lockT = 0.35;
+    if (!this.fvb) this.openFreevb('hub');
+    const F = this.fvb, t = G.uiT, dt = clamp(G.uiDt || 1 / 60, 0, 0.1);
+    const L = this.hubLayout(), u = uiScale();
+    this.dim(c, 0.35);
+    // the top bar: BACK, and the two currencies where the lobby keeps them (the coins fly there)
+    this.backPill(c, () => this.fvbBack());
+    this.curChip(c, L.it.shards, 'shards', false, t);
+    this.curChip(c, L.it.vbux, 'vbux', false, t);
+    const topBot = L.it.shards.y + L.it.shards.h + 10;
+
+    // -------------------------------------------------- layout
+    // the frame round the wheel reaches rb = R * 1.1 + 8; the words and buttons under it need ~210
+    const side = VW > VH * 1.3 && VH < 620;   // a short wide window: the wheel left, the words right
+    let R, wx, wy, tx, colW, ty, rb;
+    if (side) {
+      R = Math.min(VH * 0.33, VW * 0.2, ((VH - topBot - 14) / 2 - 8) / 1.1);
+      rb = R * 1.1 + 8;
+      wx = Math.max(rb + 18, VW * 0.29); wy = Math.max(topBot + 4 + rb, VH * 0.55);
+      const x0 = wx + rb + 24; tx = (x0 + VW) / 2; colW = VW - x0 - 16;
+      ty = topBot + 34;
+    } else {
+      ty = VW >= 1000 ? Math.max(52 * u, 40) : topBot + 30;
+      R = Math.min(VH * 0.21, VW * 0.36, 170 * u, ((VH - 250 - ty) / 2 - 8) / 1.1);
+      rb = R * 1.1 + 8;
+      wy = ty + 30 + rb;
+      wx = VW / 2; tx = VW / 2; colW = Math.min(560, VW - 32);
+      // a tall screen: the whole of it a little lower, toward the middle
+      const off = Math.max(0, (VH - 16 - (wy + rb + 210)) * 0.4);
+      ty += off; wy += off;
+    }
+    const tsz = clamp(colW * 0.075, 18, 30 * u);
+    tracked(c, 'FREE VOIDBUX', tx, ty, { size: tsz, weight: 900, align: 'center', color: '#ff4fd8', glow: '#ff4fd8', blur: 18, track: tsz * 0.28 });
+    const subS = colW < 360 ? 'watch a short ad  \u00b7  spin  \u00b7  keep it' : 'watch a short ad, spin the wheel, keep what it lands on';
+    text(c, subS, tx, ty + 22, { size: 12, weight: 700, align: 'center', color: PAL.dim });
+
+    // -------------------------------------------------- the spin
+    let sp = 0;
+    if (F.ph === 'spin') {
+      const k = clamp((t - F.t0) / FVB.SPIN, 0, 1);
+      F.th = F.th0 + F.tot * (1 - Math.pow(1 - k, 3.4));
+      sp = 1 - k;
+      if (k >= 1) { F.th = F.th0 + F.tot; F.ph = 'won'; F.tw = t; if (F.res.v >= 300) { Sound.fanfare(true); Sound.achieve(); } else Sound.achieve(); }
+    } else if (F.ph === 'idle' || F.ph === 'ad') F.th += dt * (F.ph === 'ad' ? 0.5 : 0.1);
+    // the pointer, counted by angle: one click per divider that passes it
+    const q = (((-F.th / (TAU / FVB.UNITS)) % FVB.UNITS) + FVB.UNITS) % FVB.UNITS;
+    const seg = FVB.of[Math.floor(q) % FVB.UNITS];
+    if (seg !== F.seg) {
+      if (F.seg >= 0 && F.ph === 'spin') { F.flap = Math.min(1, F.flap + 0.6); FreeVb.tick(sp); }
+      F.seg = seg;
+    }
+    F.flap *= Math.exp(-dt * 11);
+
+    if (F.ph === 'won' && F.res.v >= 300) this.fvbRays(c, wx, wy, R, F, t);
+    this.fvbWheel(c, wx, wy, R, F, t, sp);
+    if (F.ph === 'won') this.fvbBurst(c, wx, wy, R, F, t);
+
+    // the coins rise out of the hub and fly to the voidbux chip
+    if (F.ph === 'won' && !F.paid && t - F.tw > 0.95) this.fvbPay(wx, wy);
+
+    // -------------------------------------------------- the words under it
+    let sy = side ? ty + 60 : wy + rb + 28;
+    const left = FreeVb.left(), wait = FreeVb.wait();
+    if (F.res && (F.ph === 'won' || (F.paid && t - (F.tw || 0) < 30))) {
+      const v = F.res.v, col = FVB.COL[v], k = clamp((t - F.tw) / 0.55, 0, 1), pop = 1 + 0.25 * Math.sin(Math.min(1, (t - F.tw) / 0.35) * Math.PI);
+      const n = Math.round(v * (1 - Math.pow(1 - k, 3)));
+      if (v >= 300) { tracked(c, 'JACKPOT', tx, sy, { size: 15, weight: 900, align: 'center', color: '#ffd166', glow: '#ffd166', blur: 14, track: 8, alpha: 0.65 + 0.35 * Math.sin(t * 6) }); sy += 26; }
+      textScaled(c, '+' + n + ' VOIDBUX', tx, sy + 12, { size: 30, weight: 900, align: 'center', color: v >= 300 ? '#fff3c4' : '#ffffff', glow: col, blur: 18 }, pop);
+      sy += 44;
+    }
+    let st, scol = PAL.dim;
+    if (CG.adblock) { st = 'an ad blocker is on  ·  this needs a short video ad'; scol = '#ffb347'; }
+    else if (!FreeVb.on()) { st = 'ads are not available right now'; scol = '#ffb347'; }
+    else if (left <= 0) { const L = Deals.left(), hh = Math.floor(L / 3600), mm = Math.floor(L % 3600 / 60); st = 'all five spins used today  ·  more in ' + hh + 'h ' + String(mm).padStart(2, '0') + 'm'; }
+    else if (F.ph === 'ad') st = 'the ad is playing…';
+    else if (F.ph === 'spin') st = 'spinning…';
+    else if (wait > 0) { const w = Math.ceil(wait); st = 'next spin in ' + Math.floor(w / 60) + ':' + String(w % 60).padStart(2, '0') + '  ·  ' + left + ' left today'; }
+    else if (F.msg && t < F.retry) { st = F.msg; scol = '#ffb347'; }
+    else st = left + ' of ' + FVB.DAY + ' spins left today';
+    text(c, st, tx, sy, { size: 12.5, weight: 700, align: 'center', color: scol });
+    if (CG.adblock) text(c, 'turn the blocker off and reload the page to spin', tx, sy + 17, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    // five pips: the day's spins
+    const py = sy + (CG.adblock ? 34 : 18), pg = 16;
+    for (let k = 0; k < FVB.DAY; k++) {
+      const px = tx + (k - (FVB.DAY - 1) / 2) * pg, on = k < left;
+      c.save(); c.translate(px, py); c.rotate(Math.PI / 4);
+      c.fillStyle = on ? '#ff4fd8' : 'rgba(255,255,255,0.12)';
+      if (on) { c.shadowColor = '#ff4fd8'; c.shadowBlur = 8; }
+      c.fillRect(-3.5, -3.5, 7, 7); c.restore();
+    }
+
+    // -------------------------------------------------- the buttons
+    // their rule: the way out looks just like the ad -- same size, font and colour
+    const can = F.ph === 'idle' && FreeVb.ready() && t >= F.retry;
+    const items = [];
+    if (F.ph === 'ad') items.push({ label: 'THE AD IS PLAYING…', color: '#ff4fd8', act: () => { } });
+    else if (F.ph === 'spin') items.push({ label: 'SKIP TO THE RESULT', color: '#ff4fd8', act: () => { F.t0 = t - FVB.SPIN; } });
+    else {
+      if (can) items.push({ label: 'WATCH AN AD  ·  SPIN', color: '#ff4fd8', icon: (c2, ix, iy, s2, on2, col2) => this.adIcon(c2, ix, iy, s2, on2, col2), act: () => this.fvbGo() });
+      items.push({ label: can ? 'NOT NOW' : (F.ph === 'won' ? 'DONE' : 'BACK'), color: '#ff4fd8', act: () => this.fvbBack() });
+    }
+    if (CG.adBusy) this.lockT = Math.max(this.lockT, 0.25);
+    const by = py + (side ? 40 : 44), gap = side ? 40 : 46;
+    this.menu(c, items, tx, by, gap, { size: side ? 16 : 18 * Math.min(1.25, u), w: Math.min(380 * Math.min(1.25, u), colW), id: 'fvb' });
+    // the odds, always on screen
+    const oy = by + (items.length - 1) * gap + (side ? 34 : 38);
+    if (oy < VH - 8) {
+      const od = colW < 400 ? '10 · 15 · 20 · 30 · 60 · 300  ·  slices as wide as their odds'
+                            : 'each slice is as wide as its chance  ·  10 · 15 · 20 · 30 · 60 · 300 (1 in 48)';
+      text(c, od, tx, oy, { size: 11, weight: 700, align: 'center', color: 'rgba(170,178,215,0.7)' });
+    }
+    // a tap on the wheel while it turns skips to where it lands
+    if (F.ph === 'spin' && this.lockT <= 0 && Input.mclick && Math.hypot(Input.mx - wx, Input.my - wy) < R) F.t0 = t - FVB.SPIN;
+    this._fvbAt = { x: wx, y: wy };
+  },
+
+  fvbPay(x, y) {
+    const F = this.fvb;
+    if (!F || F.paid) return;
+    F.paid = true;
+    const n = F.held;
+    Payout.held.vbux = Math.max(0, Payout.held.vbux - n); F.held = 0;
+    if (n > 0) Payout.start({ vbux: n }, { state: 'freevb', quick: true, ox: x, oy: y });
+  },
+
+  /* the face: baked once per size */
+  fvbFace(R) {
+    const Rr = Math.max(20, Math.round(R));
+    return hsprite('fvbface|' + Rr, Rr * 2 + 24, Rr * 2 + 24, g => {
+      const unitA = TAU / FVB.UNITS, r0 = Rr * 0.26, top = -Math.PI / 2;
+      g.fillStyle = 'rgba(5,5,16,0.97)'; g.beginPath(); g.arc(0, 0, Rr, 0, TAU); g.fill();
+      // the slices, in their colours
+      FVB.SEG.forEach(([v, n], i) => {
+        const a0 = top + FVB.at[i] * unitA, a1 = a0 + n * unitA;
+        g.save(); g.globalAlpha = v >= 300 ? 0.62 : (i % 2 ? 0.32 : 0.22); g.fillStyle = FVB.COL[v];
+        g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, Rr - 1, a0, a1); g.closePath(); g.fill(); g.restore();
+      });
+      // darker toward the hub, so the numbers out at the rim read
+      const sh = g.createRadialGradient(0, 0, 0, 0, 0, Rr);
+      sh.addColorStop(0, 'rgba(4,4,14,0.95)'); sh.addColorStop(0.42, 'rgba(4,4,14,0.6)'); sh.addColorStop(1, 'rgba(4,4,14,0)');
+      g.fillStyle = sh; g.beginPath(); g.arc(0, 0, Rr, 0, TAU); g.fill();
+      // the dividers
+      g.save(); g.strokeStyle = 'rgba(232,238,255,0.6)'; g.lineWidth = Math.max(1, Rr * 0.009);
+      g.beginPath();
+      for (let i = 0; i < FVB.SEG.length; i++) {
+        const a = top + FVB.at[i] * unitA;
+        g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); g.lineTo(Math.cos(a) * Rr, Math.sin(a) * Rr);
+      }
+      g.stroke(); g.restore();
+      // each slice's rim lit in its own colour
+      FVB.SEG.forEach(([v, n], i) => {
+        const a0 = top + FVB.at[i] * unitA, a1 = a0 + n * unitA;
+        neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, Rr * 0.92, a0 + 0.02, a1 - 0.02); }, FVB.COL[v], { lw: Math.max(1.6, Rr * 0.022), blur: Math.max(5, Rr * 0.05), core: null, inner: false });
+      });
+      // the numbers, reading outward along each slice
+      FVB.SEG.forEach(([v, n], i) => {
+        const am = top + (FVB.at[i] + n / 2) * unitA;
+        const sz = Math.min(Rr * 0.125, Rr * 0.66 * n * unitA * 0.82);
+        g.save(); g.rotate(am); g.translate(Rr * 0.66, 0);
+        setFont(g, sz, 900); g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.shadowColor = FVB.COL[v]; g.shadowBlur = Math.max(4, sz * 0.7);
+        g.fillStyle = v >= 300 ? '#fff6cf' : '#f2f5ff';
+        g.fillText(String(v), 0, 0);
+        g.shadowBlur = 0; g.fillText(String(v), 0, 0);
+        g.restore();
+      });
+      // the hub ring and the rim: two colours
+      neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, r0, 0, TAU); }, '#ffd166', { lw: Math.max(1.4, Rr * 0.016), blur: 8, core: null, inner: false });
+      neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, Rr, 0, TAU); }, '#ff4fd8', { lw: Math.max(1.8, Rr * 0.022), blur: 12, core: null, inner: false });
+    });
+  },
+
+  fvbWheel(c, x, y, R, F, t, sp) {
+    const face = this.fvbFace(R), won = F.ph === 'won', spin = F.ph === 'spin';
+    hglow(c, '#ff4fd8', x, y, R * 1.75, 0.15 + 0.05 * Math.sin(t * 1.7) + sp * 0.12);
+    // the frame: two rings, baked
+    const rb = R + Math.max(9, R * 0.085);
+    const rim = hsprite('fvbrim|' + Math.round(R), (rb + 14) * 2, (rb + 14) * 2, g => {
+      g.fillStyle = 'rgba(6,5,18,0.9)'; g.beginPath(); g.arc(0, 0, rb + 6, 0, TAU); g.arc(0, 0, R - 1, 0, TAU, true); g.fill();
+      neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, rb + 6, 0, TAU); }, '#ff4fd8', { lw: 2, blur: 10, core: null, inner: false });
+      neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, rb - 6, 0, TAU); }, '#ffd166', { lw: 1.2, blur: 6, core: null, inner: false });
+    });
+    hstamp(c, rim, x, y);
+    // the face turns
+    c.save(); c.translate(x, y); c.rotate(F.th);
+    c.drawImage(face.cv, -face.w / 2, -face.h / 2, face.w, face.h);
+    if (won) {
+      // the slice it landed on lights up
+      const unitA = TAU / FVB.UNITS, i = F.res.i, a0 = -Math.PI / 2 + FVB.at[i] * unitA, a1 = a0 + FVB.SEG[i][1] * unitA;
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = 0.3 + 0.22 * Math.sin((t - F.tw) * 9);
+      c.fillStyle = FVB.COL[F.res.v];
+      c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, R, a0, a1); c.closePath(); c.fill();
+    }
+    c.restore();
+    // a ring of bulbs: they chase (faster while it spins) and all flash when it lands
+    const NB = 24, step = Math.floor(t * (spin ? 16 : 4.5));
+    const flash = won && Math.floor((t - F.tw) * 7) % 2 === 0;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < NB; k++) {
+      const a = -Math.PI / 2 + (k + 0.5) / NB * TAU;
+      const lit = won ? flash : (k + step) % 3 === 0;
+      const col = k % 2 ? '#ffd166' : '#ff4fd8', s = Math.max(4.5, R * 0.045) * (lit ? 1.7 : 0.9);
+      c.globalAlpha = lit ? 0.95 : 0.32;
+      c.drawImage(glowSprite(col), x + Math.cos(a) * rb - s, y + Math.sin(a) * rb - s, s * 2, s * 2);
+    }
+    c.restore();
+    // the hub: a dashed gold ring turning against the wheel, and the voidbux gem
+    c.save(); c.translate(x, y); c.rotate(-t * 0.7 - F.th * 0.25);
+    c.strokeStyle = '#ffd166'; c.globalAlpha = 0.75; c.lineWidth = Math.max(1, R * 0.012);
+    c.setLineDash([R * 0.05, R * 0.035]); c.beginPath(); c.arc(0, 0, R * 0.19, 0, TAU); c.stroke(); c.setLineDash([]);
+    c.restore();
+    this.vbuxGem(c, x, y, Math.max(6, R * 0.1), t);
+    // the pointer: it kicks back as each divider passes it
+    const pw = R * 0.085, ph = R * 0.17;
+    const ptr = hsprite('fvbptr|' + Math.round(R), pw * 4, ph * 3, g => {
+      g.translate(0, -ph * 0.3);
+      neon(g, x2 => { x2.beginPath(); x2.moveTo(-pw, 0); x2.lineTo(pw, 0); x2.lineTo(0, ph); x2.closePath(); }, '#ffd166', { lw: 2, blur: 10, core: 'rgba(44,26,2,0.96)' });
+      neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, pw * 0.5, 0, TAU); }, '#ff4fd8', { lw: 1.4, blur: 6, core: 'rgba(30,4,30,0.96)', inner: false });
+    });
+    // the pin sits at the sprite's (0, -0.3 ph); the tip reaches into the face
+    c.save(); c.translate(x, y - R - ph * 0.42); c.rotate(-F.flap * 0.6);
+    c.drawImage(ptr.cv, -ptr.w / 2, -ptr.h / 2 + ph * 0.3, ptr.w, ptr.h);
+    c.restore();
+  },
+
+  /* the 300: gold rays turning out from behind the wheel, two counter-turning sets */
+  fvbRays(c, x, y, R, F, t) {
+    const tw = t - F.tw, a = Math.min(1, tw * 2.5);
+    c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+    for (let s2 = 0; s2 < 2; s2++) {
+      const a0 = (s2 ? -t * 0.35 : t * 0.5) + s2 * 0.2, n = s2 ? 12 : 8, L = R * (s2 ? 1.5 : 1.8 + 0.12 * Math.sin(t * 4));
+      c.globalAlpha = a * (s2 ? 0.35 : 0.55); c.strokeStyle = s2 ? '#ff4fd8' : '#ffd166'; c.lineWidth = s2 ? 2 : 3.5;
+      c.beginPath();
+      for (let k = 0; k < n; k++) { const b = a0 + k * TAU / n; c.moveTo(x + Math.cos(b) * R * 0.95, y + Math.sin(b) * R * 0.95); c.lineTo(x + Math.cos(b) * L, y + Math.sin(b) * L); }
+      c.stroke();
+    }
+    c.restore();
+    hglow(c, '#ffd166', x, y, R * 2, a * (0.22 + 0.08 * Math.sin(t * 5)));
+  },
+
+  /* where it landed: rings and sparks */
+  fvbBurst(c, x, y, R, F, t) {
+    const tw = t - F.tw, v = F.res.v, col = FVB.COL[v];
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 3; k++) {
+      const u = (tw - k * 0.13) / 0.9;
+      if (u <= 0 || u >= 1) continue;
+      c.globalAlpha = (1 - u) * 0.8; c.strokeStyle = k === 1 ? '#ffffff' : col; c.lineWidth = Math.max(1.5, R * 0.03) * (1 - u);
+      c.beginPath(); c.arc(x, y, R * (0.25 + 1.3 * (1 - Math.pow(1 - u, 2))), 0, TAU); c.stroke();
+    }
+    if (tw < 1.5) {
+      const Rn = mulberry32(0x51f + F.res.u * 977 + (F.res.v | 0));
+      for (let k = 0; k < 34; k++) {
+        const a = Rn() * TAU, spd = R * (1.1 + Rn() * 1.7), life = 0.7 + Rn() * 0.7, sz = R * (0.03 + Rn() * 0.03);
+        if (tw > life) continue;
+        const d = R * 0.22 + spd * tw * (1 - tw / (life * 2)), s = sz * (1 - tw / life) + 1;
+        c.globalAlpha = 1 - tw / life;
+        c.drawImage(glowSprite(k % 3 ? col : '#ffffff'), x + Math.cos(a) * d - s * 2, y + Math.sin(a) * d - s * 2, s * 4, s * 4);
+      }
+    }
+    c.restore();
+  }
+});
+
 /* ========================================================================
    SKIN LEVELS, on screen  --  the wardrobe's LEVELS page (Valorant's skin
    page): the skin flying at whichever level you are looking at, the five
