@@ -605,6 +605,7 @@ const Input = {
   text: '', textOn: false, textMax: 20, wheel: 0,
   touch: { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, dx: 0, dy: 0 },
   dashTouch: false, dashTouchTap: false, anyKey: false, usedPointer: false, pointerT: 0,
+  dashQ: false,   // a dash press waiting for the next fixed step (a drawn frame may run none)
 
   init(canvas) {
     const norm = e => {
@@ -652,7 +653,7 @@ const Input = {
           this.touch.active = true; this.touch.id = t.identifier;
           this.touch.ox = p.x; this.touch.oy = p.y; this.touch.x = p.x; this.touch.y = p.y;
         }
-        this.mx = p.x; this.my = p.y; this.mdown = true; this.mclick = true;
+        this.mx = p.x; this.my = p.y; this.mdown = true; this.mclick = true; this.touchUsed = true;
       }
     }, { passive: false });
     canvas.addEventListener('touchmove', e => {
@@ -9513,7 +9514,9 @@ class Player {
     let ax = mv.x, ay = mv.y;
 
     // dash
-    const wantDash = !(G.coop && UI.mpMenu) && !(Thicket.rootLock > 0) && (Input.hit('space') || Input.gpPressed[0] || Input.gpPressed[1] || Input.dashTouchTap);
+    // the latched press, or one this very frame (a step driven straight from G.update reads it too)
+    const wantDash = !(G.coop && UI.mpMenu) && !(Thicket.rootLock > 0) && (Input.dashQ || Input.hit('space') || Input.gpPressed[0] || Input.gpPressed[1] || Input.dashTouchTap);
+    Input.dashQ = false;
     if (wantDash && this.dashCd <= 0 && !this.dead) {
       let dx = ax, dy = ay;
       if (!dx && !dy) { dx = Math.cos(this.face); dy = Math.sin(this.face); }
@@ -24349,6 +24352,7 @@ const Game = {
     this.arenaR = 1500; this.arenaTarget = 0;
     this.revives = D.revives || 0;
     this.continues = 0; this.contT = 0; this.chestTix = 0; this.endlessTix = 0; this.cgAd = null; this.cgOffered = false;
+    this.tut = Tut.want && !this.coop ? Tut.begin() : null; Tut.want = false;
     this.enemyCap = (this.quality === 0 && Settings.effects && !this.coop) ? Math.min(D.cap, 200) : D.cap;
     this.eliteTimes = ELITE_TIMES.map(t => Math.round(t * D.eliteMul)).filter(t => !D.shortRun || t < (D.bossT || BOSS_T));
     Particles.clear(); Pops.clear();
@@ -26080,7 +26084,7 @@ const Game = {
     if (this.hitstop > 0) { if (this.coop) this.hitstop = 0; else { this.hitstop -= dt; return; } }
     this.frame++;
     this._qi = 0;          // the query lists of the last step go back to the pool
-    this.time += dt;
+    if (!(this.tut && this.tut.hold)) this.time += dt;      // the run's clock starts when the tutorial lets go
     if (this.coop) Coop.pre(dt);
     const D = this.D;
     if (this.player && this.runStats) {
@@ -26157,6 +26161,7 @@ const Game = {
       }
     }
 
+    Tut.tick(dt);
     // spawn director
     if (this.coop) {
       // THE UNDERVAULT: the host runs the depth; everyone else is shown it
@@ -26171,7 +26176,7 @@ const Game = {
         this.spawnBoss(this.planet.coreBoss || 'sower');
         if (this._lastBoss) { this._lastBoss.isFinale = true; this.sowerStart(this._lastBoss); }
       }
-    } else if (!this.over) {
+    } else if (!this.over && !(this.tut && this.tut.hold)) {
       this.spawnAcc += this.spawnRate() * (this.boss ? 0.42 : 1) * dt;
       let guard = 0;
       while (this.spawnAcc >= 1 && guard++ < 24) { this.spawnAcc -= 1; this.spawnOne(); }
@@ -32527,19 +32532,22 @@ const Hub = {
   }
 };
 
-/* CrazyGames: "games should land new users in gameplay immediately; a maximum of
-   1 click". On their site a brand-new save's START goes straight into the first
-   world's run (no lobby, no dossier); the lobby opens as normal after it. */
+/* A brand-new save's START goes straight into the first world's run, which is
+   the TUTORIAL (no lobby, no dossier); the lobby opens after it. Every build.
+   (CrazyGames: "games should land new users in gameplay immediately".) */
 const FirstRun = {
   want() {
-    const d = Save.data;
-    return CG.site() && !d.cgFirst && (d.runs | 0) === 0 && !Object.keys(Conquest.d().conquered).length;
+    const d = Save.data, r = d.tut;
+    if ((d.runs | 0) !== 0 || Object.keys(Conquest.d().conquered).length) return false;
+    // a new save, or one that left in the middle of the tutorial (closed the tab): START picks it up again
+    return !d.cgFirst || !!(r && r.on && !r.done && !r.skip);
   },
   go() {
     if (!this.want()) return false;
     Save.data.cgFirst = 1; Save.data.hubMode = 'conquest'; Save.save();
     const W = Hub.world();
     applySky(null);
+    Tut.want = true;
     Descent.start(W.pl.id, W.gal.diff);
     return true;
   }
@@ -32957,10 +32965,11 @@ const UI = {
       text(c, left > 0 ? nextN + ' IN ' + fmtTime(left) : '', VW / 2, ty + 17 * hs, { size: 11 * hs, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 });
     }
     if (G.revives > 0) {
-      c.save(); c.translate(pad + hw + 24 * hs, pad + bh * 0.9 + 34 * hs);
+      const rvx = narrow ? pad + hw + 43 * hs + 14 : pad + hw + 24 * hs, rvy = narrow ? pad + bh * 0.9 : pad + bh * 0.9 + 34 * hs;
+      c.save(); c.translate(rvx, rvy);
       drawIcon(c, 'vitality', 20 * hs);
       c.restore();
-      text(c, '\u00d7' + G.revives, pad + hw + 38 * hs, pad + bh * 0.9 + 38 * hs, { size: 12 * hs, weight: 900, color: PAL.xp });
+      text(c, '\u00d7' + G.revives, rvx + 14 * hs, rvy + 4 * hs, { size: 12 * hs, weight: 900, color: PAL.xp });
     }
 
     // ---- boss bar
@@ -33135,7 +33144,7 @@ const UI = {
     }
 
     // ---- first-run hint
-    if (G.time < 8 && G.state === 'playing') {
+    if (G.time < 8 && G.state === 'playing' && !G.tut) {
       const a = sat((8 - G.time) / 1.5) * sat(G.time / 0.5);
       const msg = narrow ? 'DRAG to move   ·   TAP right side to dash' : 'WASD / ARROWS to move    ·    SPACE to dash    ·    your weapons fire themselves';
       const hsz = Math.max(12.5, 15 * hs), hy = VH - 92 * hs - hsz * 0.35;
@@ -35716,17 +35725,50 @@ const UI = {
       ['MASTERY', 'Clearing a difficulty unlocks a skin you cannot buy.'],
       ['PAUSE', 'P, or Start on a pad.   Mute with M.   Reroll boons with R.']
     ];
-    // the rows close up to fit a short window, and the type with them
-    const l0 = hs ? 58 : 80, lh = clamp((h - l0 - (hs ? 64 : 82)) / (lines.length - 1), 13, 25), ls = clamp(lh * 0.56, 9.5, 13);
-    let ly = y + l0;
-    for (const [k, v] of lines) {
-      if (k) text(c, k, x + 34, ly, { size: ls, weight: 900, color: PAL.gold });
-      text(c, fitText(c, v, w - 152 - 20, ls, 600), x + 152 * (ls / 13 * 0.4 + 0.6), ly, { size: ls, weight: 600, color: PAL.text, alpha: 0.9 });
-      ly += lh;
+    const tip = 'Tip: standing still is death. Kite in wide circles and let your weapons work.';
+    // HOW TO PLAY on a narrow panel (a phone held upright): each entry wraps under its own
+    // name instead of being cut off, in the largest type that fits; too small even for
+    // that, the one-line rows below
+    let wr = null;
+    if (w < 560) {
+      const rows = [];
+      for (const [k, v] of lines) { if (k || !rows.length) rows.push([k, v]); else rows[rows.length - 1][1] += ' ' + v; }
+      const kx = x + 16, vx = kx + 84, vw = x + w - 14 - vx, top = y + (hs ? 54 : 70), room = (y + h - (hs ? 114 : 128)) - top;
+      const count = (str, fs) => {
+        setFont(c, fs, 600);
+        let n = 1, line = '';
+        for (const wd of str.split(' ')) { const t2 = line ? line + ' ' + wd : wd; if (c.measureText(t2).width > vw && line) { n++; line = wd; } else line = t2; }
+        return n;
+      };
+      for (let fs = 11.5; fs >= 9.5 && !wr; fs -= 0.5) {
+        const lhh = Math.round(fs * 1.3), gap = Math.round(fs * 0.4);
+        let tot = 0;
+        for (const r of rows) tot += count(r[1], fs) * lhh + gap;
+        if (tot - gap - lhh <= room) wr = { fs: fs, lhh: lhh, gap: gap, rows: rows, kx: kx, vx: vx, vw: vw, top: top };
+      }
     }
-    text(c, 'Tip: standing still is death. Kite in wide circles and let your weapons work.',
-      VW / 2, y + h - (hs ? 50 : 62), { size: hs ? 11 : 12.5, weight: 600, align: 'center', color: '#8affd8', alpha: 0.9 });
-    this.menu(c, [{ label: 'BACK', color: PAL.player, act: () => { G.state = 'hub'; UI.lastState = ''; } }], VW / 2, y + h - (hs ? 22 : 30), 40, { size: hs ? 16 : 18, w: 200, id: 'how' });
+    if (wr) {
+      let yy = wr.top;
+      for (const [k, v] of wr.rows) {
+        text(c, k, wr.kx, yy, { size: wr.fs, weight: 900, color: PAL.gold });
+        yy = wrapText(c, v, wr.vx, yy, wr.vw, wr.lhh, { size: wr.fs, weight: 600, color: PAL.text, alpha: 0.9 }) + wr.lhh + wr.gap;
+      }
+      wrapText(c, tip, VW / 2, y + h - (hs ? 98 : 112), w - 36, 14, { size: 11, weight: 600, align: 'center', color: '#8affd8', alpha: 0.9 });
+    } else {
+      // the rows close up to fit a short window, and the type with them (and stop clear of the tip)
+      const l0 = hs ? 58 : 80, lh = clamp((h - l0 - (hs ? 112 : 130)) / (lines.length - 1), 12, 25), ls = clamp(lh * 0.56, 9.5, 13);
+      let ly = y + l0;
+      for (const [k, v] of lines) {
+        if (k) text(c, k, x + 34, ly, { size: ls, weight: 900, color: PAL.gold });
+        text(c, fitText(c, v, w - 152 - 20, ls, 600), x + 152 * (ls / 13 * 0.4 + 0.6), ly, { size: ls, weight: 600, color: PAL.text, alpha: 0.9 });
+        ly += lh;
+      }
+      text(c, fitText(c, tip, w - 36, hs ? 11 : 12.5, 600), VW / 2, y + h - (hs ? 84 : 100), { size: hs ? 11 : 12.5, weight: 600, align: 'center', color: '#8affd8', alpha: 0.9 });
+    }
+    this.menu(c, [
+      { label: 'PLAY THE TUTORIAL', color: '#8dff6b', act: () => { Tut.replay(); } },
+      { label: 'BACK', color: PAL.player, act: () => { G.state = 'hub'; UI.lastState = ''; } }
+    ], VW / 2, y + h - (hs ? 56 : 68), hs ? 32 : 38, { size: hs ? 15 : 17, w: Math.min(300, w - 28), id: 'how' });
   },
 
   records(c) {
@@ -35779,38 +35821,46 @@ const UI = {
     this.dim(c, 0.74);
     if (G.coop) Coop.drawPickStrip(c);
     const n = G.cards.length;
-    const cw = Math.max(96, Math.min(232, (VW - 44) / n - 14)), ch = Math.min(336, Math.max(250, VH * 0.56));
-    const gap = Math.min(18, cw * 0.09);
-    const total = n * cw + (n - 1) * gap;
+    let cw = Math.max(96, Math.min(232, (VW - 44) / n - 14)), ch = Math.min(336, Math.max(250, VH * 0.56));
+    let gap = Math.min(18, cw * 0.09);
+    // four cards on a phone held upright do not fit in a row: two rows of two
+    const grid = n === 4 && n * cw + (n - 1) * gap > VW - 16 && VH > VW * 1.3;
+    if (grid) { cw = Math.min(232, (VW - 34) / 2 - 6); gap = 12; ch = Math.min(310, Math.max(250, (VH - 250) / 2 - 6)); }
+    const total = grid ? 2 * cw + gap : n * cw + (n - 1) * gap;
     const x0 = VW / 2 - total / 2;
-    const y = VH / 2 - ch / 2 + 12;
+    const y = grid ? VH / 2 - (2 * ch + gap) / 2 + 12 : VH / 2 - ch / 2 + 12;
+    const cX = i => x0 + (grid ? i % 2 : i) * (cw + gap), cY = i => y + (grid ? Math.floor(i / 2) * (ch + gap) : 0);
 
     const hz = clamp(cw / 232, 0.62, 1);
-    tracked(c, G.hollow ? 'BROOD CLEARED' : (G.chestQueue > 0 ? 'RELIC CACHE' : 'LEVEL ' + G.level), VW / 2, y - 42, {
-      size: 30 * hz, weight: 900, align: 'center', color: G.chestQueue > 0 ? PAL.gold : PAL.xp,
-      glow: G.chestQueue > 0 ? PAL.gold : PAL.xp, blur: 20, track: 7 * hz
-    });
-    text(c, G.hollow ? 'choose a prize \u2014 it arrives at full power' : 'choose a boon', VW / 2, y - 20, { size: 12.5 * hz, weight: 600, align: 'center', color: PAL.dim });
+    this._lvY = y;
+    if (!Tut.boonNow()) {
+      tracked(c, G.hollow ? 'BROOD CLEARED' : (G.chestQueue > 0 ? 'RELIC CACHE' : 'LEVEL ' + G.level), VW / 2, y - 42, {
+        size: 30 * hz, weight: 900, align: 'center', color: G.chestQueue > 0 ? PAL.gold : PAL.xp,
+        glow: G.chestQueue > 0 ? PAL.gold : PAL.xp, blur: 20, track: 7 * hz
+      });
+      text(c, G.hollow ? 'choose a prize \u2014 it arrives at full power' : 'choose a boon', VW / 2, y - 20, { size: 12.5 * hz, weight: 600, align: 'center', color: PAL.dim });
+    }
 
     // hover
     let hover = -1;
     for (let i = 0; i < n; i++) {
-      const cx = x0 + i * (cw + gap);
-      if (Input.mx > cx && Input.mx < cx + cw && Input.my > y && Input.my < y + ch) hover = i;
+      const cx = cX(i), cy = cY(i);
+      if (Input.mx > cx && Input.mx < cx + cw && Input.my > cy && Input.my < cy + ch) hover = i;
     }
     if (hover >= 0 && hover !== this.hoverIdx && Input.mmoved) { G.cardSel = hover; Sound.ui(false); }
     this.hoverIdx = hover;
     if (Input.hit('ArrowRight', 'd') || Input.gpPressed[15]) { G.cardSel = (G.cardSel + 1) % n; Sound.ui(false); }
     if (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14]) { G.cardSel = (G.cardSel + n - 1) % n; Sound.ui(false); }
     for (let i = 0; i < n; i++) if (Input.hit(String(i + 1))) { G.cardSel = i; }
+    if (grid && (Input.hit('ArrowDown', 's', 'ArrowUp', 'w') || Input.gpPressed[12] || Input.gpPressed[13])) { G.cardSel = (G.cardSel + 2) % 4; Sound.ui(false); }
 
     for (let i = 0; i < n; i++) {
       const card = G.cards[i];
       const on = i === G.cardSel;
-      const cx = x0 + i * (cw + gap);
+      const cx = cX(i);
       const lift = on ? 10 : 0;
       c.save();
-      c.translate(cx + cw / 2, y + ch / 2 - lift);
+      c.translate(cx + cw / 2, cY(i) + ch / 2 - lift);
       if (on) c.scale(1.045, 1.045);
       c.translate(-cw / 2, -ch / 2);
       // body
@@ -35876,7 +35926,7 @@ const UI = {
     }
 
     // reroll
-    const rerollY = Math.min(VH - 16, y + ch + 32);
+    const rerollY = Math.min(VH - 16, y + (grid ? 2 * ch + gap : ch) + 32);
     const canReroll = G.rerolls > 0;
     tracked(c, canReroll ? 'R  REROLL  (' + G.rerolls + ')' : 'NO REROLLS', VW / 2, rerollY, {
       size: 14, weight: 800, align: 'center', color: canReroll ? PAL.gold : PAL.dim, alpha: canReroll ? 1 : 0.5, track: 2
@@ -36225,9 +36275,12 @@ const UI = {
     this.panel(c, x, y, w, h, 'rgba(255,209,102,0.26)');
     const headH = narrow ? 128 : (short ? 84 : 100);
     const footH = narrow ? 92 : (short ? 40 : 50);
-    const qVis = Math.min(short && !narrow ? 4 : 8, QUEST_SHAPE.length), qCards = qVis, qStack = narrow, qCompact = narrow || short;
-    const qCols = narrow ? 1 : 4, qRows = Math.ceil(qCards / qCols);
+    const qStack = narrow, qCompact = narrow || short;
     const qCh = qCompact ? 28 : 52, qStride = qCh + (qCompact ? 5 : 8);
+    let qVis = Math.min(short && !narrow ? 4 : 8, QUEST_SHAPE.length);
+    if (narrow) qVis = clamp(Math.floor((h - headH - footH - 26 - 24 - (showP ? 200 : 132) - 38) / qStride), 2, qVis);
+    const qCards = qVis;
+    const qCols = narrow ? 1 : 4, qRows = Math.ceil(qCards / qCols);
     const qH = live ? 38 + qRows * qStride : 56;
     const gut = narrow ? 0 : 96;
     const vx0 = x + gut + 14, vx1 = x + w - 16, vw = vx1 - vx0;
@@ -36235,7 +36288,7 @@ const UI = {
     const room = h - headH - qH - footH - infoH - 24;
     const railH = narrow ? 30 : 34, capH = 22;       // capH: room for the CLAIM chip under a lane
     const lanes = showP ? 2 : 1;
-    const cs = clamp((room - railH - capH * lanes - (narrow ? 34 : 6)) / lanes, short && !narrow ? 38 : 54, narrow ? 128 : 118);
+    const cs = clamp((room - railH - capH * lanes - (narrow ? 34 : 6)) / lanes, short && !narrow ? 38 : (narrow ? 46 : 54), narrow ? 128 : 118);
     const colW = cs + (narrow ? 12 : 16);
     // whatever height is left over is shared out: a little above the track,
     // more between it and the quests, so nothing huddles at the top
@@ -36557,8 +36610,10 @@ const UI = {
       const nDone = Q.list.filter(q => q.done).length;
       tracked(c, 'DAILY QUESTS', x + 22, qTop + 10, { size: 11, weight: 900, color: S.col2, track: 2.6 });
       const qw0 = tracked(c, 'DAILY QUESTS', 0, 0, { size: 11, weight: 900, track: 2.6, measureOnly: true });
-      text(c, 'new in ' + Math.floor(ms / 3600000) + 'h ' + Math.floor(ms % 3600000 / 60000) + 'm' + (narrow ? '' : '  ·  ' + NQ + ' TODAY') + (Q.rer > 0 && !narrow ? '  ·  ' + Q.rer + (Q.rer === 1 ? ' REROLL' : ' REROLLS') : ''), x + 22 + qw0 + 12, qTop + 10,
-        { size: 10, weight: 700, color: PAL.dim });
+      { const hm = Math.floor(ms / 3600000) + 'h ' + Math.floor(ms % 3600000 / 60000) + 'm', nx = x + 22 + qw0 + 12, nr = narrow ? x + w - 160 - nx : 1e4;
+        let ns = 'new in ' + hm + (narrow ? '' : '  ·  ' + NQ + ' TODAY') + (Q.rer > 0 && !narrow ? '  ·  ' + Q.rer + (Q.rer === 1 ? ' REROLL' : ' REROLLS') : '');
+        setFont(c, 10, 700); if (c.measureText(ns).width > nr) ns = hm;
+        if (nr > 24) text(c, fitText(c, ns, nr, 10, 700), nx, qTop + 10, { size: 10, weight: 700, color: PAL.dim }); }
       this.questChest(c, S, Q, nDone, QUEST_CHEST_AT, x + w - 22, qTop + 2, narrow, t);
       const cardsY = qTop + 29;
       let hoverQ = -1;
@@ -37214,6 +37269,26 @@ function hstamp(c, e, x, y, alpha) {
   } else c.drawImage(e.cv, x - e.w / 2, y - e.h / 2, e.w, e.h);
 }
 /* the lobby screens grow with a big window: 1 at 1280x720, up to 1.6 (never on a phone) */
+const Device = {
+  force: undefined,          // tests: true / false
+  _m: null,
+  mobile() {
+    if (this.force !== undefined) return !!this.force;
+    if (this._m === null) {
+      let m = false;
+      try {
+        const ua = navigator.userAgent || '', uad = navigator.userAgentData;
+        if (/Electron/.test(ua)) m = false;
+        else if (uad && uad.mobile === true) m = true;
+        else if (/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini|IEMobile/i.test(ua)) m = true;
+        else if (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1) m = true;     // an iPad asking for the desktop site
+        else if (window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) m = true;
+      } catch (e) { }
+      this._m = m;
+    }
+    return this._m;
+  }
+};
 function uiScale() { return VW < 700 || VW < VH * 0.9 ? 1 : clamp(Math.min(VW / 1280, VH / 720), 1, 1.6); }
 /* soft light under something, additive */
 function hglow(c, col, x, y, r, a) {
@@ -37311,95 +37386,401 @@ Object.assign(UI, {
 
   /* ------------------------------------------------------------ layout */
   hubLayout() {
-    const key = VW + 'x' + VH + (Cloud.on() ? 'c' : '') + (Hollow.on() ? 'h' : '') + (FreeVb.on() ? 'v' : '');
+    const mob = Device.mobile();
+    const key = VW + 'x' + VH + (Cloud.on() ? 'c' : '') + (Hollow.on() ? 'h' : '') + (FreeVb.on() ? 'v' : '') + (mob ? 'm' : '');
     if (this._hubL && this._hubL.key === key) return this._hubL;
-    const port = VW < 700 || VW < VH * 0.9;
-    const m = port ? 12 : clamp(Math.min(VW, VH) * 0.028, 12, 24);
+    // three shapes. UPRIGHT: a phone held upright, or any narrow window. SIDEWAYS: a
+    // phone on its side -- short (a phone's browser bars leave 280-430 of height) or too
+    // narrow for the desktop's rows. The DESKTOP: everything else. A phone or tablet
+    // gets the MENU button in the first two; a computer in a small window (an itch or
+    // CrazyGames frame on a laptop) keeps every tile on screen, re-gridded to fit.
+    const port = VW < 480 || VW < VH * 0.9;
+    if (port || VH < 500 || VW < 760) { this._hubL = this.hubPhone(key, port, mob); return this._hubL; }
+    const m = clamp(Math.min(VW, VH) * 0.028, 12, 24);
     // on a big window the lobby's controls grow with it (1 at 1280x720, up to 1.6)
     const u = uiScale();
-    const L = { key: key, port: port, m: m, u: u, it: Object.create(null), order: [] };
+    const L = { key: key, port: false, land: false, phone: false, m: m, u: u, it: Object.create(null), order: [] };
     const R = (id, x, y, w, h, extra) => { const r = Object.assign({ id: id, x: x, y: y, w: w, h: h, cx: x + w / 2, cy: y + h / 2 }, extra || {}); L.it[id] = r; L.order.push(id); return r; };
-    const right = (Hollow.on() ? ['event'] : []).concat(FreeVb.on() ? ['freevb'] : []).concat(['daily', 'achievements', 'records']).concat(Cloud.on() ? ['boards'] : []).concat(['how']);
-    const left = ['shop', 'gifts', 'skins', 'pets', 'relics'];
+    const right = this.hubRight(), left = this.hubLeft();
     // top bar
-    const topH = port ? 50 : clamp(VH * 0.085, 48, 64 * u);
-    const chipH = port ? 30 : clamp(topH * 0.58, 30, 38 * u);
+    const topH = clamp(VH * 0.085, 48, 64 * u);
+    const chipH = clamp(topH * 0.58, 30, 38 * u);
     const cy = m + (topH - chipH) / 2;
-    const pw = port ? Math.min(150, VW * 0.4) : clamp(VW * 0.21, 210, 290 * u);
+    const pw = clamp(VW * 0.21, 210, 290 * u);
     R('pilot', m, m, pw, topH);
     let xr = VW - m;
     R('gear', xr - chipH, cy, chipH, chipH); xr -= chipH + 8 * u;
-    const vbW = port ? 86 : clamp(VW * 0.1, 112, 140 * u), shW = port ? 92 : clamp(VW * 0.11, 122, 156 * u);
+    const vbW = clamp(VW * 0.1, 112, 140 * u), shW = clamp(VW * 0.11, 122, 156 * u);
     R('vbux', xr - vbW, cy, vbW, chipH); xr -= vbW + 8 * u;
     R('shards', xr - shW, cy, shW, chipH);
     const topBot = m + topH;
-    if (!port) {
-      const playH = clamp(VH * 0.13, 60, 92 * u), playW = clamp(VW * 0.17, 160, 250 * u);
-      const play = R('play', VW - m - playW, VH - m - playH, playW, playH);
-      const modeH = Math.round(playH * 0.86), modeW = clamp(VW * 0.22, 200, 320 * u);
-      const mode = R('mode', play.x - 12 * u - modeW, VH - m - modeH, modeW, modeH);
-      // the weapon you start with, beside the mode: the loadout reads left to right into PLAY
-      const wpnW = Math.max(124, Math.min(clamp(VW * 0.19, 170, 270 * u), mode.x - 12 * u - m - 16 - 190));
-      const weapon = R('weapon', mode.x - 12 * u - wpnW, VH - m - modeH, wpnW, modeH);
-      const passH = Math.round(playH * 0.78), passW = clamp(VW * 0.26, 220, 360 * u);
-      const pass = R('pass', m, VH - m - passH, Math.min(passW, weapon.x - m - 16), passH);
-      // the two columns: as big as the height allows, two abreast on a short window
-      const colTop = topBot + clamp(VH * 0.04, 10, 30);
-      const fit = (n, bot) => {
-        let cols = 1, T = (bot - colTop) / n - 26 * u;
-        if (T < 50) { cols = 2; T = (bot - colTop) / Math.ceil(n / 2) - 26 * u; }
-        return { cols: cols, T: Math.min(84 * u, T) };
-      };
-      const fl = fit(left.length, pass.y - 12), fr = fit(right.length, mode.y - 12);
-      const T = Math.max(34, Math.min(fl.T, fr.T));
-      const place = (ids, cols, xEdge, dir) => {
-        const rows = Math.ceil(ids.length / cols);
-        for (let i = 0; i < ids.length; i++) {
-          const col = i % cols, row = Math.floor(i / cols);
-          const x = dir > 0 ? xEdge + col * (T + 12 * u) : xEdge - T - col * (T + 12 * u);
-          R(ids[i], x, colTop + row * (T + 26 * u), T, T, { tile: true, room: cols > 1 ? T + 12 * u + 2 : 0 });
-        }
-        return rows;
-      };
-      place(left, fl.cols, m, 1);
-      place(right, fr.cols, VW - m, -1);
-      L.T = T;
-      // the stage between them
-      const sTop = topBot + 4, sBot = Math.min(mode.y, pass.y) - 8;
-      const R0 = Math.min((sBot - sTop) * 0.3, VW * 0.15);
-      L.planet = { x: VW / 2, y: sTop + R0 + (sBot - sTop) * 0.05, r: R0 };
-      L.pr = clamp(R0 * 0.27, 20, 44 * u);
-      L.ped = { x: VW / 2, y: L.planet.y + R0 * 0.9 + L.pr * 1.9, rx: clamp(R0 * 0.62, 48, 120 * u) };
-    } else {
-      const playH = clamp(VH * 0.075, 52, 66);
-      const play = R('play', m, VH - m - playH, VW - m * 2, playH);
-      const halfW = (VW - m * 2 - 10) / 2;
-      const mode = R('mode', m, play.y - 10 - 60, halfW, 60);
-      R('weapon', m + halfW + 10, play.y - 10 - 60, halfW, 60);
-      const pass = R('pass', m, mode.y - 10 - 52, VW - m * 2, 52);
-      const per = 5, ids = left.concat(right);
-      const T = Math.min(58, (VW - m * 2 - (per - 1) * 12) / per);
-      const gx = Math.min(22, (VW - m * 2 - per * T) / (per - 1));
-      const rows = Math.ceil(ids.length / per);
-      const gTop = pass.y - 12 - rows * (T + 24) + 4;
+    const playH = clamp(VH * 0.13, 60, 92 * u), playW = clamp(VW * 0.17, 160, 250 * u);
+    const play = R('play', VW - m - playW, VH - m - playH, playW, playH);
+    const modeH = Math.round(playH * 0.86), modeW = clamp(VW * 0.22, 200, 320 * u);
+    const mode = R('mode', play.x - 12 * u - modeW, VH - m - modeH, modeW, modeH);
+    // the weapon you start with, beside the mode: the loadout reads left to right into PLAY
+    const wpnW = Math.max(124, Math.min(clamp(VW * 0.19, 170, 270 * u), mode.x - 12 * u - m - 16 - 190));
+    const weapon = R('weapon', mode.x - 12 * u - wpnW, VH - m - modeH, wpnW, modeH);
+    const passH = Math.round(playH * 0.78), passW = clamp(VW * 0.26, 220, 360 * u);
+    const pass = R('pass', m, VH - m - passH, Math.min(passW, weapon.x - m - 16), passH);
+    // the two columns: as big as the height allows, two abreast on a short window
+    const colTop = topBot + clamp(VH * 0.04, 10, 30);
+    const fit = (n, bot) => {
+      let cols = 1, T = (bot - colTop) / n - 26 * u;
+      if (T < 50) { cols = 2; T = (bot - colTop) / Math.ceil(n / 2) - 26 * u; }
+      return { cols: cols, T: Math.min(84 * u, T) };
+    };
+    const fl = fit(left.length, pass.y - 12), fr = fit(right.length, mode.y - 12);
+    const T = Math.max(34, Math.min(fl.T, fr.T));
+    const place = (ids, cols, xEdge, dir) => {
+      const rows = Math.ceil(ids.length / cols);
       for (let i = 0; i < ids.length; i++) {
-        const row = Math.floor(i / per), col = i % per;
-        const n = Math.min(per, ids.length - row * per);
-        const x0 = VW / 2 - (n * T + (n - 1) * gx) / 2;
-        R(ids[i], x0 + col * (T + gx), gTop + row * (T + 24), T, T, { tile: true, room: T + gx - 4 });
+        const col = i % cols, row = Math.floor(i / cols);
+        const x = dir > 0 ? xEdge + col * (T + 12 * u) : xEdge - T - col * (T + 12 * u);
+        R(ids[i], x, colTop + row * (T + 26 * u), T, T, { tile: true, room: cols > 1 ? T + 12 * u + 2 : 0 });
       }
-      L.T = T;
-      const sTop = topBot + 4, sBot = gTop - 10;
-      const R0 = Math.min(VW * 0.3, (sBot - sTop) * 0.3);
-      L.planet = { x: VW / 2, y: sTop + R0 + (sBot - sTop) * 0.05, r: R0 };
-      L.pr = clamp(R0 * 0.27, 18, 36);
-      L.ped = { x: VW / 2, y: L.planet.y + R0 * 0.9 + L.pr * 1.9, rx: clamp(R0 * 0.6, 44, 110) };
-    }
+      return rows;
+    };
+    place(left, fl.cols, m, 1);
+    place(right, fr.cols, VW - m, -1);
+    L.T = T;
+    // the stage between them
+    const sTop = topBot + 4, sBot = Math.min(mode.y, pass.y) - 8;
+    const R0 = Math.min((sBot - sTop) * 0.3, VW * 0.15);
+    L.planet = { x: VW / 2, y: sTop + R0 + (sBot - sTop) * 0.05, r: R0 };
+    L.pr = clamp(R0 * 0.27, 20, 44 * u);
+    L.ped = { x: VW / 2, y: L.planet.y + R0 * 0.9 + L.pr * 1.9, rx: clamp(R0 * 0.62, 48, 120 * u) };
     R('stage', L.ped.x - L.pr * 2.6, L.ped.y - L.pr * 3.4, L.pr * 5.2, L.pr * 4.2);
     // the dark wash that keeps the edges readable over the sky
     L.wash = null;
     this._hubL = L;
     return L;
+  },
+  hubLeft() { return ['shop', 'gifts', 'skins', 'pets', 'relics']; },
+  hubRight() { return (Hollow.on() ? ['event'] : []).concat(FreeVb.on() ? ['freevb'] : []).concat(['daily', 'achievements', 'records']).concat(Cloud.on() ? ['boards'] : []).concat(['how']); },
+
+  /* the lobby on a small window. On a phone or tablet (menu) the tiles live behind one
+     MENU button (a pop-up of big icons, hubMenuDraw), so the lobby itself is the pilot
+     bar, the stage and the controls: upright, PASS / MODE + WEAPON / MENU + PLAY down the
+     bottom; sideways, PASS · WEAPON · MODE · PLAY along the bottom with MENU over the
+     pass. On a computer (no menu) every tile stays on screen: five or six abreast under
+     the stage upright, a grid down each side sideways. Every size from 320x460 upright
+     to 480x260 sideways; the stage -- planet, pedestal, ship, name plate -- is fitted
+     into what is left, so nothing sits on anything else. */
+  hubPhone(key, port, menu) {
+    const m = port ? clamp(VW * 0.032, 8, 14) : clamp(VH * 0.032, 8, 14);
+    const L = { key: key, port: port, land: !port, phone: true, menu: !!menu, m: m, u: 1, it: Object.create(null), order: [] };
+    const R = (id, x, y, w, h, extra) => { const r = Object.assign({ id: id, x: x, y: y, w: w, h: h, cx: x + w / 2, cy: y + h / 2 }, extra || {}); L.it[id] = r; L.order.push(id); return r; };
+    const left = this.hubLeft(), right = this.hubRight();
+    if (menu) L.menuIds = left.concat(right);
+    // ---- the top bar: the currencies keep their room, the pilot badge takes what is left
+    const topH = port ? clamp(VH * 0.062, 40, 50) : clamp(VH * 0.13, 36, 48);
+    const chipH = Math.round(clamp(topH * 0.64, 26, 32));
+    const cy = m + (topH - chipH) / 2, cg = port ? clamp(VW * 0.016, 5, 8) : 8;
+    const vbW = port ? clamp(VW * 0.22, 70, 92) : clamp(VW * 0.11, 80, 104);
+    const shW = port ? clamp(VW * 0.235, 74, 100) : clamp(VW * 0.12, 86, 112);
+    const gx0 = VW - m - chipH, vx0 = gx0 - cg - vbW, sx0 = vx0 - cg - shW;
+    R('pilot', m, m, Math.min(port ? 170 : clamp(VW * 0.26, 150, 240), sx0 - 8 - m), topH);
+    R('gear', gx0, cy, chipH, chipH);
+    R('vbux', vx0, cy, vbW, chipH);
+    R('shards', sx0, cy, shW, chipH);
+    const topBot = m + topH;
+    L.topBot = topBot;
+    let st;                                   // the stage's box
+    if (port && !menu) {
+      // ---- upright, every tile: PLAY along the bottom, MODE + WEAPON over it, the pass
+      //      over them, the tiles over the pass (five abreast, or six when that saves a row)
+      const sc = clamp((VH - 540) / 300, 0, 1), lp = (a, b) => a + (b - a) * sc;
+      const playH = lp(48, 62), rowH = lp(48, 60), passH = lp(42, 52), g = lp(7, 10);
+      const play = R('play', m + 3, VH - m - playH, VW - m * 2 - 6, playH);   // in a little: the focus ticks stay on screen
+      const halfW = (VW - m * 2 - g) / 2;
+      const mode = R('mode', m, play.y - g - rowH, halfW, rowH);
+      R('weapon', m + halfW + g, mode.y, halfW, rowH);
+      const pass = R('pass', m, mode.y - g - passH, VW - m * 2, passH);
+      const ids = left.concat(right), n = ids.length, gp = lp(9, 12);
+      const grid = (per, Tmax) => {
+        const T = Math.min(Tmax, (VW - m * 2 - (per - 1) * 9) / per);
+        const gx = Math.min(22, (VW - m * 2 - per * T) / (per - 1));
+        const lab = clamp(T * 0.36, 17, 23), rows = Math.ceil(n / per);
+        const h = rows * (T + lab) + (rows - 1) * 3;
+        return { per: per, T: T, gx: gx, lab: lab, rows: rows, h: h, band: pass.y - gp - h - 6 - (topBot + 4) };
+      };
+      const want = Math.max(150, VH * 0.3);
+      let gd = grid(5, lp(52, 58));
+      // six abreast when that saves a row the stage needs, or leaves no tile alone on a row
+      if (gd.band < want || n % 5 === 1) { const g6 = grid(6, lp(48, 54)); if (g6.rows < gd.rows) gd = g6; }
+      // still short of room: smaller tiles, never under 44
+      for (let Tm = gd.T - 2; gd.band < want && Tm >= 44; Tm -= 2) gd = grid(gd.per, Tm);
+      const gTop = pass.y - gp - gd.h;
+      for (let i = 0; i < n; i++) {
+        const row = Math.floor(i / gd.per), col = i % gd.per;
+        const k = Math.min(gd.per, n - row * gd.per);
+        const x0 = VW / 2 - (k * gd.T + (k - 1) * gd.gx) / 2;
+        R(ids[i], x0 + col * (gd.T + gd.gx), gTop + row * (gd.T + gd.lab + 3), gd.T, gd.T,
+          { tile: true, room: gd.T + gd.gx - 7, lab: gd.lab, ly: clamp(gd.lab - 7, 11, 15) });
+      }
+      L.T = gd.T;
+      st = { top: topBot + 4, bot: gTop - 6, hw: VW / 2 - m, maxR: VW * 0.3, kr: 0.6 };
+    } else if (port) {
+      // ---- upright: MENU + PLAY along the bottom, MODE + WEAPON over them, the pass over those
+      const sc = clamp((VH - 540) / 300, 0, 1), lp = (a, b) => a + (b - a) * sc;
+      const playH = lp(50, 62), rowH = lp(48, 60), passH = lp(42, 52), g = lp(7, 10);
+      const mw = Math.round(playH * 1.2);
+      R('menu', m, VH - m - playH, mw, playH);
+      const play = R('play', m + mw + g + 3, VH - m - playH, VW - m * 2 - mw - g - 6, playH);   // in a little: the focus ticks stay on screen
+      const halfW = (VW - m * 2 - g) / 2;
+      const mode = R('mode', m, play.y - g - rowH, halfW, rowH);
+      R('weapon', m + halfW + g, mode.y, halfW, rowH);
+      const pass = R('pass', m, mode.y - g - passH, VW - m * 2, passH);
+      L.T = mw;
+      st = { top: topBot + 4, bot: pass.y - lp(10, 18), hw: VW / 2 - m, maxR: VW * 0.36, kr: 0.6 };
+    } else {
+      // ---- sideways: one row along the bottom, PASS · WEAPON · MODE · PLAY
+      const playH = clamp(VH * 0.175, 48, 66), modeH = Math.round(playH * 0.88), passH = Math.round(playH * 0.82);
+      const g = clamp(VW * 0.011, 7, 12);
+      // PLAY first; the rest of the row shared out, the pass taking a little more
+      const playW = clamp(VW * 0.19, 112, 176), rest = VW - m * 2 - g * 3 - playW;
+      const passW = Math.min(300, rest * 0.36), wpnW = Math.min(200, rest * 0.3), modeW = Math.min(230, rest * 0.34);
+      const play = R('play', VW - m - playW, VH - m - playH, playW, playH);
+      const mode = R('mode', play.x - g - modeW, VH - m - modeH, modeW, modeH);
+      const weapon = R('weapon', mode.x - g - wpnW, VH - m - modeH, wpnW, modeH);
+      const pass = R('pass', m, VH - m - passH, passW, passH);
+      if (menu) {
+        // ---- MENU: a tile over the pass, under the left thumb
+        const T = Math.round(clamp(Math.min(VH * 0.19, pass.y - 10 - topBot - 8), 44, 66));
+        R('menu', m, pass.y - 10 - T, T, T);
+        L.T = T;
+        st = { top: topBot + 2, bot: Math.min(weapon.y, mode.y) - 6, hw: VW / 2 - m - T - 12, maxR: Math.min(VW * 0.15, VH * 0.3), kr: 0.62 };
+      } else {
+        // ---- every tile: a grid down each side, as big as the room allows
+        const top = topBot + clamp(VH * 0.03, 6, 12);
+        const Tcap = clamp(VH * 0.15, 42, 64), lab = clamp(VH * 0.052, 15, 20), rg = 3;
+        const side = VW * (VW < 700 ? 0.28 : 0.26);
+        const gxOf = T => clamp(T * 0.28, 10, 16);
+        const best = (n, bot) => {
+          let pick = null;
+          for (let cols = 1; cols <= 4; cols++) {
+            const rows = Math.ceil(n / cols);
+            const Th = (bot - top - rows * lab - (rows - 1) * rg) / rows;
+            const Tw = (side - (cols - 1) * 12) / cols;
+            const T = Math.min(Th, Tw, Tcap);
+            if (!pick || T > pick.T + 0.5) pick = { cols: cols, T: T };
+          }
+          return pick;
+        };
+        const lBot = pass.y - 6, rBot = play.y - 10;
+        const T = Math.max(30, Math.min(best(left.length, lBot).T, best(right.length, rBot).T)), gx = gxOf(T);
+        // at the shared size, the fewest columns that fit (the same both sides, so they mirror)
+        const colsFor = (n, bot) => {
+          for (let cols = 1; cols < 4; cols++) { const rows = Math.ceil(n / cols); if (rows * (T + lab) + (rows - 1) * rg <= bot - top + 0.5) return cols; }
+          return 4;
+        };
+        const cols = Math.max(colsFor(left.length, lBot), colsFor(right.length, rBot));
+        const place = (ids, xEdge, dir) => {
+          for (let i = 0; i < ids.length; i++) {
+            const col = i % cols, row = Math.floor(i / cols);
+            const x = dir > 0 ? xEdge + col * (T + gx) : xEdge - T - col * (T + gx);
+            R(ids[i], x, top + row * (T + lab + rg), T, T, { tile: true, room: cols > 1 ? T + gx - 8 : T + 2 * m - 6, lab: lab, ly: clamp(lab - 5, 11, 15) });
+          }
+        };
+        place(left, m, 1);
+        place(right, VW - m, -1);
+        L.T = T;
+        const sw = cols * T + (cols - 1) * gx;
+        st = { top: topBot + 2, bot: Math.min(weapon.y, mode.y) - 6, hw: VW / 2 - m - sw - 10, maxR: Math.min(VW * 0.15, VH * 0.3), kr: 0.62 };
+      }
+    }
+    this.hubFitStage(L, st);
+    L.wash = null;
+    return L;
+  },
+  /* planet, pedestal, ship and name plate, as large as the box allows. The plate's
+     second line (the pet and its perk) goes first when the box is short. */
+  hubFitStage(L, S) {
+    const H = S.bot - S.top;
+    const dims = (R0, two) => {
+      const pr = clamp(R0 * 0.27, 13, L.port ? 36 : 44), rx = clamp(R0 * S.kr, 34, L.port ? 110 : 120);
+      return { pr: pr, rx: rx, h: R0 * 1.9 + pr * 1.9 + rx * 0.3 + 18 + (two ? 20 : 5), w: Math.max(R0, pr * 3.2, rx * 1.25) };
+    };
+    const solve = two => {
+      let lo = 16, hi = Math.max(16, Math.min(S.maxR, S.hw));
+      for (let k = 0; k < 24; k++) { const mid = (lo + hi) / 2, d = dims(mid, two); if (d.h <= H && d.w <= S.hw) lo = mid; else hi = mid; }
+      return lo;
+    };
+    const r2 = solve(true), r1 = solve(false);
+    const two = r2 >= 46 || r2 >= r1 * 0.9;
+    const R0 = two ? r2 : r1, d = dims(R0, two);
+    const slack = Math.max(0, H - d.h);
+    L.planet = { x: VW / 2, y: S.top + R0 + slack * (L.port ? 0.4 : 0.45), r: R0 };
+    L.pr = d.pr;
+    L.ped = { x: VW / 2, y: L.planet.y + R0 * 0.9 + d.pr * 1.9, rx: d.rx };
+    L.plate2 = two; L.stageHW = S.hw;
+    const r = L.pr;
+    const sr = { id: 'stage', x: L.ped.x - r * 2.6, y: L.ped.y - r * 3.4, w: r * 5.2, h: r * 4.2 };
+    sr.cx = sr.x + sr.w / 2; sr.cy = sr.y + sr.h / 2;
+    L.it.stage = sr; L.order.push('stage');
+  },
+
+  /* ------------------------------------------------------------ the phone MENU
+     One button for every tile (SHOP, REWARDS, SKINS ... HELP). It pops up a panel of
+     big icons from where it sits; a tap on one opens it, a tap outside, the close
+     button, BACK or ESC put it away. The button carries a "!" while anything in it
+     has something waiting, and shows a three-by-three of the colours it holds. */
+  hubMenuOpen() {
+    this.hubMenu = { t0: G.uiT, sel: 0, hov: -1 };
+    this.lockT = Math.max(this.lockT, 0.14);
+  },
+  hubMenuClose(snd) {
+    if (!this.hubMenu) return;
+    this.hubMenu = null; this.hubSel = 'menu';
+    if (snd) Sound.ui(false);
+  },
+  hubMenuBadge(L) {
+    for (const id of L.menuIds || []) if (this.hubBadge(id)) return true;
+    return false;
+  },
+  /* the MENU button: glass, a grid of the tiles' own colours with a wave of light
+     running across it corner to corner, the word under it */
+  hubMenuBtn(c, r, on, t) {
+    const L = this.hubLayout(), col = '#9ef7ff';
+    const lift = on ? 2 : 0, x = r.x, y = r.y - lift, w = r.w, h = r.h, s = Math.min(w, h);
+    if (on) hglow(c, col, x + w / 2, y + h / 2, Math.max(w, h) * 0.95, 0.24 + 0.06 * Math.sin(t * 3));
+    glass(c, x, y, w, h, Math.max(9, s * 0.2), col, on);
+    const ids = L.menuIds || [], q = Math.max(4, Math.round(s * 0.11)), sp = q * 1.62;
+    const gx = x + w / 2, gy = y + h * 0.43;
+    const open = !!this.hubMenu, spd = on || open ? 4.2 : 2.4;
+    // the cells: a baked neon square per colour, stamped; the wave lifts each one in turn
+    for (let i = 0; i < 9; i++) {
+      const row = Math.floor(i / 3), cl = i % 3, D = this.HUB_TILES[ids[i % Math.max(1, ids.length)]] || { col: col };
+      const k = Math.max(0, Math.sin(t * spd - (row + cl) * 0.75));
+      const cx = gx + (cl - 1) * sp, cy = gy + (row - 1) * sp - k * q * 0.18;
+      const cell = hsprite('mcell|' + q + '|' + D.col, q * 3, q * 3, g => {
+        neon(g, x2 => roundRect(x2, -q / 2, -q / 2, q, q, Math.max(1.5, q * 0.28)), D.col, { lw: Math.max(1.1, q * 0.16), blur: Math.max(4, q * 0.9), core: 'rgba(6,8,22,0.92)' });
+      }, 2);
+      if (k > 0.05) hglow(c, D.col, cx, cy, q * 1.5, k * 0.55);
+      hstamp(c, cell, cx, cy, 0.62 + 0.38 * k);
+    }
+    // a thin ring turning the other way round the grid while the panel is up
+    if (open || on) {
+      c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = '#ff7ae6'; c.lineWidth = 1.2; c.globalAlpha = 0.55;
+      const rr = sp * 1.75, a = -t * 1.6;
+      for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(gx, gy, rr, a + i * TAU / 3, a + i * TAU / 3 + 0.9); c.stroke(); }
+      c.restore();
+    }
+    tracked(c, 'MENU', x + w / 2, y + h - Math.max(5, h * 0.1), { size: clamp(s * 0.17, 8.5, 11), weight: 900, align: 'center', color: on || open ? '#ffffff' : col, glow: on || open ? col : null, blur: 10, track: 2 });
+    if (on) focusTicks(c, x, y, w, h, col, t);
+    if (this.hubMenuBadge(L)) bubble(c, x + w - 4, y + 4, true);
+  },
+  /* the panel's geometry: as many columns as make the icons biggest (three or four
+     upright, two or three rows sideways), never more than 80 a side */
+  hubMenuLayout(L) {
+    if (L.mn) return L.mn;
+    const ids = L.menuIds, n = ids.length, m = L.m, pad = 16, head = 46, gap = 12, rg = 6;
+    const lab = 21, top = L.port ? L.topBot + 4 : m, bot = VH - m;
+    const tries = L.port ? [3, 4] : [Math.ceil(n / 2), Math.ceil(n / 3), 4];
+    let best = null;
+    for (const cols of tries) {
+      const rows = Math.ceil(n / cols);
+      const Tw = (VW - m * 2 - pad * 2 - (cols - 1) * gap) / cols;
+      const Th = (bot - top - head - pad - rows * lab - (rows - 1) * rg) / rows;
+      const T = Math.min(Tw, Th, L.port ? 92 : 80);
+      if (!best || T > best.T + 0.5) best = { cols: cols, rows: rows, T: T };
+    }
+    const { cols, rows } = best, T = Math.floor(best.T);
+    const w = cols * T + (cols - 1) * gap + pad * 2, h = head + rows * (T + lab) + (rows - 1) * rg + pad;
+    const x = Math.round(VW / 2 - w / 2);
+    const mb = L.it.menu;
+    // upright it rises out of the button; sideways it sits in the middle
+    let y = L.port ? mb.y - 10 - h : (VH - h) / 2;
+    if (y < top) y = clamp((VH - h) / 2, m, VH - m - h);
+    y = Math.round(y);
+    const tiles = [];
+    for (let i = 0; i < n; i++) {
+      const row = Math.floor(i / cols), col = i % cols, k = Math.min(cols, n - row * cols);
+      const x0 = VW / 2 - (k * T + (k - 1) * gap) / 2;
+      const tx = x0 + col * (T + gap), ty = y + head + row * (T + lab + rg);
+      tiles.push({ id: ids[i], x: tx, y: ty, w: T, h: T, cx: tx + T / 2, cy: ty + T / 2, tile: true, room: T + gap - 6, lab: lab, ly: 15 });
+    }
+    L.mn = { x: x, y: y, w: w, h: h, T: T, cols: cols, tiles: tiles, close: { x: x + w - 12 - 30, y: y + 9, w: 30, h: 30 }, ox: mb.cx, oy: mb.cy };
+    return L.mn;
+  },
+  hubMenuDraw(c, L, t) {
+    const M = this.hubMenu, P = this.hubMenuLayout(L), N = P.tiles.length;
+    const u = clamp((t - M.t0) / 0.2, 0, 1), e = 1 - Math.pow(1 - u, 3);
+    // ---------------------------------------------------- input
+    let hov = -1;
+    for (let i = 0; i < N; i++) { const r = P.tiles[i]; if (Input.mx >= r.x && Input.mx <= r.x + r.w && Input.my >= r.y && Input.my <= r.y + r.h + r.lab - 4) hov = i; }
+    if (hov >= 0 && hov !== M.hov && Input.mmoved) { M.sel = hov; Sound.ui(false); }
+    M.hov = hov;
+    const cb = P.close, onClose = Input.mx >= cb.x - 4 && Input.mx <= cb.x + cb.w + 4 && Input.my >= cb.y - 4 && Input.my <= cb.y + cb.h + 4;
+    if (this.lockT <= 0) {
+      const mv = (dx, dy) => {
+        const a = P.tiles[M.sel]; let bi = -1, bs = 1e9;
+        for (let i = 0; i < N; i++) {
+          if (i === M.sel) continue;
+          const b = P.tiles[i], vx = b.cx - a.cx, vy = b.cy - a.cy, along = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
+          if (along <= 4) continue;
+          const sc = along + perp * 2.2; if (sc < bs) { bs = sc; bi = i; }
+        }
+        if (bi >= 0) { M.sel = bi; Sound.ui(false); }
+      };
+      if (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14]) mv(-1, 0);
+      if (Input.hit('ArrowRight', 'd') || Input.gpPressed[15]) mv(1, 0);
+      if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) mv(0, -1);
+      if (Input.hit('ArrowDown', 's') || Input.gpPressed[13]) mv(0, 1);
+    }
+    // ---------------------------------------------------- the panel
+    this.dim(c, 0.66 * e);
+    c.save();
+    c.globalAlpha = e;
+    const sc = 0.84 + 0.16 * e, ox = P.ox + (P.x + P.w / 2 - P.ox) * e, oy = P.oy + (P.y + P.h / 2 - P.oy) * e;
+    c.translate(ox, oy); c.scale(sc, sc); c.translate(-(P.x + P.w / 2), -(P.y + P.h / 2));
+    hglow(c, '#9ef7ff', P.x + P.w / 2, P.y + P.h / 2, Math.max(P.w, P.h) * 0.7, 0.12);
+    glass(c, P.x, P.y, P.w, P.h, 18, '#9ef7ff', false);
+    // the header: the grid glyph's colours along a thin rule, the word, the close button
+    tracked(c, 'MENU', P.x + 18, P.y + 30, { size: 16, weight: 900, color: '#dff9ff', glow: '#9ef7ff', blur: 14, track: 5 });
+    {
+      const rx0 = P.x + 18, rx1 = cb.x - 12, ry = P.y + 40, ids = L.menuIds, seg = (rx1 - rx0) / ids.length;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < ids.length; i++) {
+        const k = 0.35 + 0.65 * Math.max(0, Math.sin(t * 2.6 - i * 0.5));
+        c.globalAlpha = 0.25 + 0.5 * k; c.fillStyle = this.HUB_TILES[ids[i]].col;
+        c.fillRect(rx0 + i * seg + 1, ry, seg - 2, 2);
+      }
+      c.restore();
+    }
+    {
+      const cx = cb.x + cb.w / 2, cy = cb.y + cb.h / 2, on = onClose && this.lockT <= 0;
+      glass(c, cb.x, cb.y, cb.w, cb.h, cb.h / 2, '#ff7ae6', on);
+      c.save(); c.translate(cx, cy); c.rotate(on ? Math.sin(t * 8) * 0.12 : 0);
+      c.strokeStyle = on ? '#ffffff' : '#ffb3ec'; c.lineWidth = 2.2; c.lineCap = 'round';
+      c.shadowColor = '#ff7ae6'; c.shadowBlur = on ? 10 : 5;
+      const k = cb.w * 0.18;
+      c.beginPath(); c.moveTo(-k, -k); c.lineTo(k, k); c.moveTo(k, -k); c.lineTo(-k, k); c.stroke();
+      c.restore();
+    }
+    // the icons, popping in one after another
+    for (let i = 0; i < N; i++) {
+      const r = P.tiles[i];
+      const ui = clamp((t - M.t0 - 0.04 - i * 0.02) / 0.24, 0, 1);
+      if (ui <= 0) continue;
+      const s2 = 1 + 2.2 * Math.pow(ui - 1, 3) + 1.2 * Math.pow(ui - 1, 2);   // a little overshoot
+      c.save(); c.translate(r.cx, r.cy); c.scale(s2, s2); c.translate(-r.cx, -r.cy);
+      this.hubTile(c, r, i === M.sel, t);
+      c.restore();
+    }
+    c.restore();
+    // ---------------------------------------------------- acting
+    if (this.lockT > 0) return;
+    const choose = i => { const id = P.tiles[i].id; this.hubMenu = null; Sound.ui(true); this.hubAct(id); this._hubKeep = 'menu'; };
+    if (Input.mclick) {
+      if (onClose) { this.hubMenuClose(true); return; }
+      if (hov >= 0) { M.sel = hov; choose(hov); return; }
+      const inP = Input.mx >= P.x && Input.mx <= P.x + P.w && Input.my >= P.y && Input.my <= P.y + P.h;
+      if (!inP) { this.hubMenuClose(true); return; }
+    }
+    if (Input.hit('Enter', 'space') || Input.gpPressed[0]) { choose(M.sel); return; }
+    if (Input.hit('Escape', 'Backspace') || Input.gpPressed[1]) this.hubMenuClose(true);
   },
 
   hubAct(id) {
@@ -37408,6 +37789,7 @@ Object.assign(UI, {
     const go = st => { G.state = st; UI.lastState = ''; };
     switch (id) {
       case 'play': Hub.play(); break;
+      case 'menu': this.hubMenuOpen(); break;
       case 'mode': go('modes'); break;
       case 'weapon': this.openArmory('hub'); break;
       case 'pass': this.openPass('hub'); break;
@@ -37452,7 +37834,8 @@ Object.assign(UI, {
       // behind a panel opened from the lobby: the controls, still, no planet
       this.hubWash(c, L);
       for (const id of L.order) { const r = L.it[id]; if (r.tile) this.hubTile(c, r, false, t); }
-      this.pilotPanel(c, L.it.pilot, false, t);
+      if (L.it.menu) this.hubMenuBtn(c, L.it.menu, false, t);
+    this.pilotPanel(c, L.it.pilot, false, t);
       this.curChip(c, L.it.shards, 'shards', false, t);
       this.curChip(c, L.it.vbux, 'vbux', false, t);
       this.gearBtn(c, L.it.gear, false, t);
@@ -37462,17 +37845,18 @@ Object.assign(UI, {
       this.playBtn(c, L.it.play, false, t);
       return;
     }
-    if (this.lastState !== 'hub') { this.begin('hub'); this.hubSel = this._hubKeep || 'play'; this._hubKeep = null; this._hubHov = null; VbuxStore.refresh(false); Payout.arrive('hub'); this.giftAuto(); }
+    if (this.lastState !== 'hub') { this.begin('hub'); this.hubMenu = null; this.hubSel = this._hubKeep || 'play'; this._hubKeep = null; this._hubHov = null; VbuxStore.refresh(false); Payout.arrive('hub'); this.giftAuto(); }
     // ---------------------------------------------------- input
     let hov = null;
-    for (const id of L.order) {
+    const MN = L.menu ? this.hubMenu : (this.hubMenu = null);
+    if (!MN) for (const id of L.order) {
       const r = L.it[id];
-      if (Input.mx >= r.x && Input.mx <= r.x + r.w && Input.my >= r.y && Input.my <= r.y + r.h + (r.tile ? 18 : 0)) hov = id;
+      if (Input.mx >= r.x && Input.mx <= r.x + r.w && Input.my >= r.y && Input.my <= r.y + r.h + (r.tile ? (r.lab || 18) : 0)) hov = id;
     }
     if (hov && hov !== this._hubHov && Input.mmoved) { this.hubSel = hov; Sound.ui(false); }
     this._hubHov = hov;
-    if (!L.it[this.hubSel]) this.hubSel = 'play';
-    if (this.lockT <= 0) {
+    if (!L.it[this.hubSel]) this.hubSel = L.it.menu && (L.menuIds || []).indexOf(this.hubSel) >= 0 ? 'menu' : 'play';
+    if (this.lockT <= 0 && !MN) {
       if (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14]) this.hubMove(L, -1, 0);
       if (Input.hit('ArrowRight', 'd') || Input.gpPressed[15]) this.hubMove(L, 1, 0);
       if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) this.hubMove(L, 0, -1);
@@ -37491,11 +37875,12 @@ Object.assign(UI, {
     this.hubStage(c, L, t, pl);
 
     // ---------------------------------------------------- the controls
-    const sel = this.hubSel;
+    const sel = MN ? '' : this.hubSel;
     for (const id of L.order) {
       const r = L.it[id];
       if (r.tile) this.hubTile(c, r, id === sel, t);
     }
+    if (L.it.menu) this.hubMenuBtn(c, L.it.menu, sel === 'menu', t);
     this.pilotPanel(c, L.it.pilot, sel === 'pilot', t);
     this.curChip(c, L.it.shards, 'shards', sel === 'shards', t);
     this.curChip(c, L.it.vbux, 'vbux', sel === 'vbux', t);
@@ -37506,12 +37891,15 @@ Object.assign(UI, {
     this.playBtn(c, L.it.play, sel === 'play', t);
     if (sel === 'stage') { const r = L.it.stage; focusTicks(c, r.x, r.y, r.w, r.h, currentSkin().col, t); }
 
+    // the first visit after the tutorial: a short tour, before anything else
+    if (this.tourRun(c, L, t)) return;
     // a payout in the air: it owns the screen until it lands or you tap it away
     if (Payout.q) {
       Payout.draw(c, k => this.payTarget(L, k));
       if (this.lockT <= 0 && (Input.mclick || Input.hit('Enter', 'space', 'Escape') || Input.gpPressed[0] || Input.gpPressed[1])) { Payout.finish(); Sound.ui(false); }
       return;
     }
+    if (MN) { this.hubMenuDraw(c, L, t); return; }
     if (this.lockT > 0) return;
     if (Input.mclick && hov) { this.hubSel = hov; Sound.ui(true); this.hubAct(hov); return; }
     if (Input.hit('Enter', 'space') || Input.gpPressed[0]) { Sound.ui(true); this.hubAct(this.hubSel); }
@@ -37654,7 +38042,7 @@ Object.assign(UI, {
     const ny = E.y + E.rx * sq + 18 * hu;
     tracked(c, sk.name, E.x, ny, { size: clamp(pr * 0.4, 11, 16 * hu), weight: 900, align: 'center', color: col, glow: col, blur: 12, track: 4 * hu });
     { const l2 = (sk.lv < SKIN_LV_MAX ? 'LEVEL ' + sk.lv + '  \u00b7  ' : '') + (pet && pet.form !== 'none' ? 'with ' + pet.name + '  \u00b7  ' + perkText(pet) : '');
-      if (l2) text(c, fitText(c, l2, Math.max(180, E.rx * 3), 10.5 * hu, 700), E.x, ny + 16 * hu, { size: 10.5 * hu, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 }); }
+      if (l2 && L.plate2 !== false) text(c, fitText(c, l2, Math.min(Math.max(180, E.rx * 3), (L.stageHW || 1e4) * 2), 10.5 * hu, 700), E.x, ny + 16 * hu, { size: 10.5 * hu, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 }); }
   },
   /* a pet at any size: drawn into its own tile (see petTile -- never spread
      'lighter' shadow strokes over the shared canvas) and stamped */
@@ -37711,9 +38099,9 @@ Object.assign(UI, {
     let lab = D.label, ls = clamp(s * 0.16, 9, 11.5 * hu);
     let lw = tracked(c, lab, 0, 0, { size: ls, weight: 900, track: 1.6, measureOnly: true });
     const room = r.room || s + 22 * hu;
-    if (D.short && lw * 0.8 > room) { lab = D.short; lw = tracked(c, lab, 0, 0, { size: ls, weight: 900, track: 1.6, measureOnly: true }); }
+    if (D.short && (this.hubLayout().phone ? lw > room : lw * 0.8 > room)) { lab = D.short; lw = tracked(c, lab, 0, 0, { size: ls, weight: 900, track: 1.6, measureOnly: true }); }
     if (lw > room) ls *= room / lw;
-    tracked(c, lab, x + s / 2, y + s + 15 * hu, { size: ls, weight: 900, align: 'center', color: on ? D.col : '#cdd4f0', glow: on ? D.col : null, blur: 10, track: 1.6 * Math.min(1, room / lw) });
+    tracked(c, lab, x + s / 2, y + s + (r.ly || 15 * hu), { size: ls, weight: 900, align: 'center', color: on ? D.col : '#cdd4f0', glow: on ? D.col : null, blur: 10, track: 1.6 * Math.min(1, room / lw) });
     if (on) focusTicks(c, x, y, s, s, D.col, t);
     const n = this.hubBadge(r.id);
     if (n) bubble(c, x + s - 4, y + 4, n);
@@ -37887,8 +38275,13 @@ Object.assign(UI, {
     let ns = clamp(r.h * 0.28, 12, 17 * hu);
     const nw = tracked(c, nm, 0, 0, { size: ns, weight: 900, track: 2, measureOnly: true });
     if (nw > room) ns *= room / nw;
-    tracked(c, nm, tx, r.y + r.h * 0.44, { size: ns, weight: 900, color: on ? '#ffffff' : '#dfe7ff', glow: on ? rk.col : null, blur: 10, track: 2 });
-    text(c, rk.name + ' · LEVEL ' + L, tx, r.y + r.h * 0.44 + 15 * hu, { size: clamp(r.h * 0.18, 9, 11 * hu), weight: 800, color: rk.col, alpha: 0.9 });
+    if (room >= 34) {
+      tracked(c, nm, tx, r.y + r.h * 0.44, { size: ns, weight: 900, color: on ? '#ffffff' : '#dfe7ff', glow: on ? rk.col : null, blur: 10, track: 2 });
+      let rs = clamp(r.h * 0.18, 9, 11 * hu), rl = rk.name + ' · LEVEL ' + L;
+      setFont(c, rs, 800);
+      if (c.measureText(rl).width > room) { rl = rk.name + ' · LV ' + L; const w2 = c.measureText(rl).width; if (w2 > room) rs *= room / w2; }
+      text(c, rl, tx, r.y + r.h * 0.44 + 15 * hu, { size: rs, weight: 800, color: rk.col, alpha: 0.9 });
+    }
     // a thin bar under it
     const bw = Math.min(room, 150 * hu), by = r.y + r.h * 0.44 + 22 * hu;
     if (r.h > 44 && room > 60) {
@@ -37945,11 +38338,16 @@ Object.assign(UI, {
     if (S) this.passSigil(c, sx, sy, sr, S, t);
     const tx = r.x + r.h + 4, room = r.x + r.w - tx - 14;
     const hu = this.hubLayout().u;
-    tracked(c, 'BLOOM PASS', tx, r.y + r.h * 0.36, { size: clamp(r.h * 0.22, 11, 15 * hu), weight: 900, color: on ? '#ffffff' : col, glow: on ? col : null, blur: 10, track: 3 });
+    let bs = clamp(r.h * 0.22, 11, 15 * hu);
+    { const bw0 = tracked(c, 'BLOOM PASS', 0, 0, { size: bs, weight: 900, track: 3, measureOnly: true }), br = room - (S && Pass.pending(S) ? 12 : 0); if (bw0 > br) bs *= br / bw0; }
+    tracked(c, 'BLOOM PASS', tx, r.y + r.h * 0.36, { size: bs, weight: 900, color: on ? '#ffffff' : col, glow: on ? col : null, blur: 10, track: 3 });
     if (live) {
       const pg = Pass.progress(S, Payout.held.pass);
       const tier = pg.max ? 'MAX' : String(pg.tier);
-      text(c, 'SEASON ' + S.n + ' · ' + S.name, tx, r.y + r.h * 0.36 + 14 * hu, { size: clamp(r.h * 0.16, 9, 10.5 * hu), weight: 800, color: PAL.dim });
+      { let ss = clamp(r.h * 0.16, 9, 10.5 * hu), sl = 'SEASON ' + S.n + ' · ' + S.name; const sr = room - 30 * hu;
+        setFont(c, ss, 800); const sw = c.measureText(sl).width;
+        if (sw > sr) { sl = S.name; const nw = c.measureText(sl).width; if (nw > sr) { ss = Math.max(8, ss * sr / nw); sl = fitText(c, sl, sr, ss, 800); } }
+        text(c, sl, tx, r.y + r.h * 0.36 + 14 * hu, { size: ss, weight: 800, color: PAL.dim }); }
       // tier, and the bar to the next one
       const by = r.y + r.h * 0.74, bw = room - 30 * hu, bt = Math.round(6 * hu);
       c.save(); c.fillStyle = 'rgba(160,170,220,0.15)'; roundRect(c, tx, by - bt / 2, bw, bt, bt / 2); c.fill();
@@ -37958,7 +38356,7 @@ Object.assign(UI, {
       c.restore();
       tracked(c, tier, r.x + r.w - 14 * hu, by + 5 * hu, { size: clamp(r.h * 0.26, 12, 17 * hu), weight: 900, align: 'right', color: '#ffffff', glow: col, blur: 8, track: 0.5, mono: true });
     } else {
-      text(c, S ? 'season ' + S.n + ' is over — the next one is coming' : 'the first season is coming', tx, r.y + r.h * 0.36 + 16 * hu, { size: 10.5 * hu, weight: 700, color: PAL.dim });
+      text(c, fitText(c, S ? 'season ' + S.n + ' is over — the next one is coming' : 'the first season is coming', room, 10.5 * hu, 700), tx, r.y + r.h * 0.36 + 16 * hu, { size: 10.5 * hu, weight: 700, color: PAL.dim });
     }
     const n = S ? Pass.pending(S) : 0;
     if (n) bubble(c, r.x + r.w - 6, r.y + 4, n);
@@ -38481,7 +38879,8 @@ Object.assign(UI, {
       const bs = 11.5, iw = D.w - pad * 2;
       y = wrapText(c, W.blurb, D.x + pad, y, iw, bs * 1.38, { size: bs, weight: 600, color: 'rgba(214,222,246,0.95)' });
       const by = D.y + D.h - pad - btnH;
-      const dm = this.armRecipeDims(iw, 1);
+      let rw = iw, dm = this.armRecipeDims(rw, 1);
+      while (rw > 150 && by - 12 - 14 - dm.h - 2 < y + 10) { rw -= 16; dm = this.armRecipeDims(rw, 1); }
       const evY = by - 12;
       const recY = evY - 14 - dm.h, hdrY = recY - 2;
       // the upgrades, two to a row, if there is room between
@@ -38499,7 +38898,7 @@ Object.assign(UI, {
       }
       tracked(c, 'EVOLUTION', D.x + pad, hdrY, { size: 8.5, weight: 900, color: PAL.dim, track: 2 });
       const evB = W.evo.blurb;
-      this.armRecipe(c, id, D.x + pad, recY + 6, iw, t, 1);
+      this.armRecipe(c, id, D.x + D.w / 2 - rw / 2, recY + 6, rw, t, 1);
       setFont(c, 10.5, 600);
       const ebw = c.measureText(evB).width;
       text(c, evB, D.x + D.w / 2, evY, { size: Math.round(10.5 * Math.min(1, iw / ebw) * 2) / 2, weight: 600, align: 'center', color: W.evo.color, alpha: 0.9 });
@@ -39352,9 +39751,11 @@ Object.assign(UI, {
   /* ------------------------------------------------------------ layout */
   shopLayout() {
     const secs = this.shopSections();
-    const port = VW < 700 || VW < VH * 0.9;
-    const m = port ? 12 : 22, u = uiScale();
-    const top = port ? 104 : 118 * u, bot = VH - (port ? 64 : 58 * u);
+    // upright: two columns that scroll down. Anything else: the strip that scrolls
+    // sideways -- on a short window (a phone on its side) with a one-row header
+    const port = VW < 480 || VW < VH * 0.9, short = !port && VH < 500;
+    const m = port ? 12 : (short ? 14 : 22), u = uiScale();
+    const top = port ? 104 : (short ? 52 : 118 * u), bot = VH - (port ? 64 : (short ? 28 : 58 * u));
     const cards = [];
     let total = 0;
     if (!port) {
@@ -39366,7 +39767,7 @@ Object.assign(UI, {
         S.x1 = x - gap; x += sgap - gap;
       }
       total = x - sgap;
-      return { port: port, secs: secs, cards: cards, total: total, view: VW - m * 2, m: m, top: top, bot: bot, u: u };
+      return { port: port, short: short, secs: secs, cards: cards, total: total, view: VW - m * 2, m: m, top: top, bot: bot, u: u };
     }
     const cols = 2, gap = 10, cw = (VW - m * 2 - gap) / cols, ch = clamp(cw * 1.3, 190, 250);
     let y = 0;
@@ -39393,18 +39794,18 @@ Object.assign(UI, {
     this.dim(c, 0.86);
     // header
     const u = L.u;
-    const chH = L.port ? 28 : 34 * u;
-    const vbR = { x: VW - L.m - (L.port ? 92 : 136 * u), y: L.port ? 52 : 26 * u, w: L.port ? 92 : 136 * u, h: chH };
+    const chH = L.port ? 28 : (L.short ? 30 : 34 * u), hy = L.port ? 52 : (L.short ? 10 : 26 * u);
+    const vbR = { x: VW - L.m - (L.port ? 92 : 136 * u), y: hy, w: L.port ? 92 : 136 * u, h: chH };
     const shR = { x: vbR.x - 8 * u - (L.port ? 98 : 150 * u), y: vbR.y, w: L.port ? 98 : 150 * u, h: chH };
     // the title stays clear of the purses: on a narrow window it moves left
     let stx = VW / 2;
     if (!L.port) { const stw = tracked(c, 'SHOP', 0, 0, { size: 28 * u, weight: 900, track: 9 * u, measureOnly: true }); stx = Math.min(stx, Math.max(L.m + 96 * u + 16 + stw / 2, shR.x - 18 - stw / 2)); }
-    tracked(c, 'SHOP', stx, L.port ? 34 : 48 * u, { size: L.port ? 22 : 28 * u, weight: 900, align: 'center', color: '#ff4fd8', glow: '#ff4fd8', blur: 18, track: 9 * u });
-    if (!L.port) text(c, 'exclusive skins, daily deals and the season pass', VW / 2, 70 * u, { size: 12 * u, weight: 700, align: 'center', color: PAL.dim });
+    tracked(c, 'SHOP', stx, L.port ? 34 : (L.short ? hy + chH / 2 + 9 : 48 * u), { size: L.port ? 22 : (L.short ? 25 : 28 * u), weight: 900, align: 'center', color: '#ff4fd8', glow: '#ff4fd8', blur: 18, track: 9 * u });
+    if (!L.port && !L.short) text(c, 'exclusive skins, daily deals and the season pass', VW / 2, 70 * u, { size: 12 * u, weight: 700, align: 'center', color: PAL.dim });
     this.curChip(c, shR, 'shards', false, t);
     this.curChip(c, vbR, 'vbux', false, t);
     this._shopT = { shards: shR, vbux: vbR };
-    const back = { x: L.m, y: L.port ? 52 : 26 * u, w: L.port ? 76 : 96 * u, h: chH };
+    const back = { x: L.m, y: hy, w: L.port ? 76 : 96 * u, h: chH };
     const backOn = Input.mx > back.x && Input.mx < back.x + back.w && Input.my > back.y && Input.my < back.y + back.h;
     glass(c, back.x, back.y, back.w, back.h, back.h / 2, '#9ef7ff', backOn);
     tracked(c, '‹ BACK', back.x + back.w / 2, back.y + back.h / 2 + 4.5 * u, { size: 12.5 * u, weight: 900, align: 'center', color: backOn ? '#ffffff' : '#9ef7ff', track: 2 });
@@ -39466,7 +39867,8 @@ Object.assign(UI, {
       tracked(c, S.title, lx, ly, { size: 11.5 * u, weight: 900, color: S.col, glow: S.col, blur: 8, track: 3 });
       if (S.note) {
         const tw = tracked(c, S.title, 0, 0, { size: 11.5 * u, weight: 900, track: 3, measureOnly: true });
-        text(c, S.note, lx + tw + 12 * u, ly, { size: 10 * u, weight: 800, color: PAL.dim, alpha: 0.9 });
+        const nr = L.port ? VW - L.m * 2 - tw - 12 * u : (S.x1 - S.x0) + 24 * u - tw - 12 * u;
+        text(c, fitText(c, S.note, Math.max(40, nr), 10 * u, 800), lx + tw + 12 * u, ly, { size: 10 * u, weight: 800, color: PAL.dim, alpha: 0.9 });
       }
     }
     for (let i = 0; i < N; i++) {
@@ -39483,7 +39885,7 @@ Object.assign(UI, {
       else { const bw = L.view * L.view / L.total; c.fillRect(L.m + (L.view - bw) * this.shopScroll / maxS, L.bot + 10, bw, 3); }
       c.restore();
     }
-    text(c, L.port ? 'tap an offer · drag to scroll' : 'arrows or wheel to browse · ENTER to buy · ESC to go back', VW / 2, VH - 16 * u, { size: 11 * u, weight: 700, align: 'center', color: PAL.dim, alpha: 0.75 });
+    text(c, L.port || L.short ? 'tap an offer · drag to scroll' : 'arrows or wheel to browse · ENTER to buy · ESC to go back', VW / 2, VH - (L.short ? 8 : 16 * u), { size: L.short ? 10 : 11 * u, weight: 700, align: 'center', color: PAL.dim, alpha: 0.75 });
 
     if (modal) { this.shopPanel(c, L, t); return; }
     if (this.lockT > 0) return;
@@ -39528,9 +39930,11 @@ Object.assign(UI, {
     y -= lift;
     if (on) hglow(c, col, x + w / 2, y + h * 0.4, Math.max(w, h) * 0.7, 0.2);
     glass(c, x, y, w, h, 14, sec.col, on);
-    // the picture
-    const ax = x + w / 2, ay = y + h * 0.36, ar = Math.min(w, h * 0.7) * 0.3;
-    c.save(); c.beginPath(); roundRect(c, x + 2, y + 2, w - 4, h * 0.66, 12); c.clip();
+    // the picture (a short card -- a phone on its side -- keeps less of it)
+    const lo = h < 232, u0 = uiScale();
+    const ax = x + w / 2, ay = y + (lo ? Math.max(h * 0.3, 40) : h * 0.36), ar = lo ? Math.min(w * 0.3, h * 0.2) : Math.min(w, h * 0.7) * 0.3;
+    const bh = lo ? clamp(h * 0.13, 22, 28) : clamp(h * 0.1, 26, 34 * u0), by = y + h - bh - (lo ? 9 : 12 * u0);
+    c.save(); c.beginPath(); roundRect(c, x + 2, y + 2, w - 4, lo ? by - 34 - y : h * 0.66, 12); c.clip();
     // a floor of rings in the card's colour
     c.globalCompositeOperation = 'lighter'; c.strokeStyle = col; c.globalAlpha = 0.07; c.lineWidth = 1;
     for (let r = ar * 0.7; r < w; r += ar * 0.55) { c.beginPath(); c.arc(ax, ay, r, 0, TAU); c.stroke(); }
@@ -39538,7 +39942,7 @@ Object.assign(UI, {
     this.shopArt(c, cd, ax, ay, ar, on, t);
     c.restore();
     // the words
-    const ny = y + h * 0.72, u = uiScale();
+    const ny = lo ? by - 22 : y + h * 0.72, u = uiScale();
     let ns = clamp(w * 0.085, 12, 18 * u);
     const name = this.shopName(cd);
     const nw = tracked(c, name, 0, 0, { size: ns, weight: 900, track: 2, measureOnly: true });
@@ -39549,9 +39953,9 @@ Object.assign(UI, {
     setFont(c, ss, 800);
     const sw = c.measureText(sub).width;
     if (sw > w - 16) ss *= (w - 16) / sw;
-    text(c, sub, x + w / 2, ny + 16 * u, { size: ss, weight: 800, align: 'center', color: PAL.dim });
+    text(c, sub, x + w / 2, ny + (lo ? 13 : 16 * u), { size: ss, weight: 800, align: 'center', color: PAL.dim });
     // the price button
-    const bh = clamp(h * 0.1, 26, 34 * u), bw = w - 24 * u, bx = x + 12 * u, by = y + h - bh - 12 * u;
+    const bw = w - 24 * u, bx = x + 12 * u;
     this.priceBtn(c, bx, by, bw, bh, P, on, t);
     // ribbons
     if (cd.kind === 'deal' && P.state === 'buy' && cd.o.off > 0) this.ribbon(c, x + 10, y + 10, '-' + Math.round(cd.o.off * 100) + '%', '#ff2f5d');
@@ -40100,7 +40504,7 @@ Object.assign(UI, {
   leaveGifts() { this.giftCancel(); Payout.finish(); G.state = 'hub'; this.lastState = ''; Sound.ui(false); },
   /* the lobby opens the gifts by itself once a day, when a gift is waiting and nothing else is playing */
   giftAuto() {
-    if (Payout.q || !Gifts.can() || this._giftAuto === dailyKey()) return false;
+    if (Payout.q || !Gifts.can() || this._giftAuto === dailyKey() || this.tour || this.tourDue()) return false;
     this._giftAuto = dailyKey();
     this.openGifts('hub');
     return true;
@@ -41314,6 +41718,9 @@ function resize() {
   cvs.height = Math.round(VH * DPR);
   cvs.style.width = VW + 'px';
   cvs.style.height = VH + 'px';
+  // the sky and the bloom over the same box as the game canvas: their CSS says 100vh,
+  // and on a phone browser with its bars showing that is taller than the window
+  for (const id of ['cosmos', 'fx']) { const el = document.getElementById(id); if (el) { el.style.width = VW + 'px'; el.style.height = VH + 'px'; } }
   Cam.base = clamp(Math.min(VW / 1280, VH / 720), 0.7, 1.4);
   if (Game.state !== 'playing' && Game.state !== 'paused' && Game.state !== 'levelup' && Game.state !== 'continue') Cam.zoom = Cam.tzoom = Cam.base;
 }
@@ -41595,7 +42002,7 @@ function frame(now) {
   Sound.frame();
   Sound.tickMusic();
   G.uiT += dt; G.uiDt = dt;
-  Ach.update(dt);
+  if (!Tut.quiet()) Ach.update(dt);
 
   const st = G.state;
   RenderRes.sync(st);
@@ -41623,7 +42030,7 @@ function frame(now) {
   if (st === 'skins' && UI.skinDet && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.closeSkinLv();
   else if ((st === 'how' || st === 'records' || st === 'skins' || st === 'daily' || st === 'achievements' || st === 'pets' || st === 'modes') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'achievements' ? (UI.achFrom || 'hub') : 'hub'; UI.lastState = ''; Sound.ui(false); }
   if ((st === 'select' || st === 'conquest') && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = (st === 'select' && UI.selPick) || (st === 'conquest' && UI.conqPick) ? 'modes' : 'hub'; UI.selPick = false; UI.conqPick = false; UI.lastState = ''; Sound.ui(false); }
-  if ((st === 'hub' || st === 'pilot') && !Payout.q && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'hub' ? 'title' : 'hub'; UI.lastState = ''; Sound.ui(false); }
+  if ((st === 'hub' && !UI.hubMenu || st === 'pilot') && !Payout.q && !UI.tour && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) { G.state = st === 'hub' ? 'title' : 'hub'; UI.lastState = ''; Sound.ui(false); }
   if (st === 'shop' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.shopBack();
   if (st === 'roll' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rollBack();
   if (st === 'std' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.stdBack();
@@ -41643,8 +42050,13 @@ function frame(now) {
   else if (st === 'playing' && (Input.hit('p') || Input.hit('Escape') || Input.gpPressed[9])) { G.state = 'paused'; UI.lastState = ''; Sound.ui(false); }
   else if (st === 'paused' && (Input.hit('p') || Input.hit('Escape') || Input.gpPressed[9])) { G.state = 'playing'; Sound.ui(false); }
 
+  Tut.frame(st, dt);
+  // a dash press waits for the next step to read it; a frame that runs no step (a 120 Hz
+  // screen every other frame) used to clear it with the frame, and the dash never came
+  if (st === 'playing') { if (Input.hit('space') || Input.gpPressed[0] || Input.gpPressed[1] || Input.dashTouchTap) Input.dashQ = true; }
+  else Input.dashQ = false;
   if (st === 'playing') {
-    if (Descent.busy()) acc = 0; else acc += dt;
+    if (Descent.busy()) acc = 0; else acc += dt * Tut.slow;
     let steps = 0;
     while (acc >= STEP && steps < 5) { Interp.snap(); G.update(STEP); acc -= STEP; steps++; if (G.state !== 'playing') break; }
     if (acc > 0.5) acc = 0;
@@ -41710,23 +42122,23 @@ function frame(now) {
     else if (st === 'pilot') { UI.fit(c, 0, 540, () => UI.pilot(c)); }
     else if (st === 'gifts') { UI.fit(c, 0, 560, () => UI.gifts(c)); }
     else if (st === 'freevb') { UI.freevb(c); Payout.draw(c, k => UI.payTarget(UI.hubLayout(), k)); }
-    else if (st === 'how') { UI.hub(c, true); UI.how(c); }
+    else if (st === 'how') { UI.hub(c, true); UI.fit(c, 360, 440, () => UI.how(c)); }
     else if (st === 'select') { UI.hub(c, true); UI.fit(c, 0, 520, () => UI.select(c)); }
-    else if (st === 'skins') { UI.skins(c); }
+    else if (st === 'skins') { UI.fit(c, 0, 420, () => UI.skins(c)); }
     else if (st === 'achievements') { UI.achievements(c); }
-    else if (st === 'settings') { if (UI.settingsFrom === 'hub') UI.hub(c, true); else UI.title(c, true); UI.settings(c); }
+    else if (st === 'settings') { if (UI.settingsFrom === 'hub') UI.hub(c, true); else UI.title(c, true); UI.fit(c, 0, 420, () => UI.settings(c)); }
     else if (st === 'daily') { UI.fit(c, 0, 480, () => UI.daily(c)); }
     else if (st === 'conquest') { UI.conquest(c); }
     else if (st === 'planet') { UI.planetView(c); }
-    else if (st === 'relics') { UI.relics(c); }
-    else if (st === 'armory') { UI.armory(c); }
+    else if (st === 'relics') { UI.fit(c, 800, 440, () => UI.relics(c)); }
+    else if (st === 'armory') { UI.fit(c, 0, VW < 640 && VH > VW ? 680 : 480, () => UI.armory(c)); }
     else if (st === 'codes') { UI.codes(c); }
     else if (st === 'pets') { UI.pets(c); UI.backPill(c, () => { G.state = 'hub'; UI.lastState = ''; }); }
     else if (st === 'modes') { UI.modes(c); }
     else if (st === 'mp') { UI.mp(c); }
     else if (st === 'lobby') { UI.lobby(c); }
     else if (st === 'boards') { UI.boards(c); }
-    else if (st === 'pass') { UI.fit(c, 0, 500, () => UI.pass(c)); }
+    else if (st === 'pass') { UI.fit(c, 0, VW < 720 && VH > VW ? 640 : 500, () => UI.pass(c)); }
     else if (st === 'cloud') { if (UI.settingsFrom === 'hub') UI.hub(c, true); else UI.title(c, true); UI.cloud(c); }
     else { UI.hub(c, true); UI.fit(c, 0, 560, () => UI.records(c)); }
     if (UI.menuFade > 0) {
@@ -41759,6 +42171,7 @@ function frame(now) {
     else if (st === 'dead') UI.endScreen(c, false);
     else if (st === 'mpend') Coop.endScreen(c);
     else if (st === 'win') UI.endScreen(c, true);
+    if (G.tut || Tut.tip) Tut.draw(c, st);
   }
   if (G.sowerLine && G.sowerLine.t > 0) {
     G.sowerLine.t -= dt;
@@ -41769,7 +42182,7 @@ function frame(now) {
     text(c, L.text, VW / 2, VH * 0.63, { size: 15, weight: 700, align: 'center', italic: true,
       color: L.col, alpha: Math.max(0, a) * 0.92 });
   }
-  Ach.draw(c);
+  if (!Tut.quiet()) Ach.draw(c);
   Flash.draw(c);
 
   // subtle grain: a static layer now (Grain, below), not a fill every frame
@@ -45339,12 +45752,12 @@ Object.assign(UI, {
     if (fresh) this.sels.modes = Math.max(0, MC.findIndex(m => m.id === Hub.mode()));
     if (!(this.sels.modes < N)) this.sels.modes = 0;
     const t = G.uiT;
-    const narrow = VW < 760;
-    const hy = VH < 560 ? -14 : 0;
-    tracked(c, 'CHOOSE A WAY DOWN', VW / 2, 52 + hy, { size: Math.min(28, VW * 0.05), weight: 900, align: 'center', color: '#dfe7ff', glow: '#c9a3ff', blur: 18, track: 7 });
+    const narrow = VW < 760 && !(VH < 500 && VW > VH * 1.3), cmp = !narrow && VH < 500;
+    const hy = cmp ? -22 : (VH < 560 ? -14 : 0);
+    tracked(c, 'CHOOSE A WAY DOWN', VW / 2, 52 + hy, { size: cmp ? Math.min(24, VW * 0.04) : Math.min(28, VW * 0.05), weight: 900, align: 'center', color: '#dfe7ff', glow: '#c9a3ff', blur: 18, track: 7 });
     text(c, N === 3 ? 'three ways into the dark' : 'two ways into the dark', VW / 2, 74 + hy, { size: 12.5, weight: 700, align: 'center', color: PAL.dim });
 
-    const top = 96 + hy, bottom = VH - 56;
+    const top = cmp ? 64 : 96 + hy, bottom = VH - (cmp ? 30 : 56);
     let cards = [];
     if (!narrow) {
       const gap = Math.min(26, VW * 0.018);
@@ -45353,8 +45766,8 @@ Object.assign(UI, {
       const x0 = VW / 2 - (cw * N + gap * (N - 1)) / 2;
       const y0 = top + Math.max(0, (bottom - top - ch) / 2);
       // the picture gives up height until the words under it fit
-      const noEnter = ch < 300;
-      for (let i = 0; i < N; i++) cards.push({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch, pw: cw - 20, ph: clamp(ch - (noEnter ? 154 : 176), 56, ch * 0.52), noEnter: noEnter });
+      const noEnter = ch < 300 || cmp;
+      for (let i = 0; i < N; i++) cards.push({ x: x0 + i * (cw + gap), y: y0, w: cw, h: ch, pw: cw - 20, ph: cmp ? clamp(Math.max(ch * 0.4, ch - 160), 46, ch - 118) : clamp(ch - (noEnter ? 154 : 176), 56, ch * 0.52), noEnter: noEnter, cmp: cmp });
     } else {
       const gap = 10;
       const cw = Math.min(460, VW - 24);
@@ -45443,17 +45856,18 @@ Object.assign(UI, {
       }
       // words
       const tx = R.side ? px + pw + 18 : x + w / 2;
-      const ty = R.side ? y + Math.min(38, h * 0.32) : py + ph + 42;
+      const ty = R.side ? y + Math.min(38, h * 0.32) : py + ph + (R.cmp ? 24 : 42);
       const al = R.side ? 'left' : 'center';
       const colW = R.side ? x + w - 14 - tx : w - 28;
-      let nsz = R.side ? Math.min(22, w * 0.055) : Math.min(26, w * 0.075);
+      let nsz = R.side ? Math.min(22, w * 0.055) : (R.cmp ? Math.min(22, w * 0.085) : Math.min(26, w * 0.075));
       // a long name on a narrow card gets smaller, never cut off
       const nw = tracked(c, M.name, 0, 0, { size: nsz, weight: 900, track: nsz * 0.22, measureOnly: true });
       if (nw > colW) nsz = Math.max(12, nsz * colW / nw);
       tracked(c, M.name, tx, ty, { size: nsz, weight: 900, align: al, color: on ? M.col : '#cfd6f2', glow: on ? M.col : null, blur: 16, track: nsz * 0.22 });
-      let lsz = R.side ? 11.5 : Math.min(13.5, w * 0.038);
-      let ly = ty + (R.side ? 22 : 28);
+      let lsz = R.side ? 11.5 : (R.cmp ? clamp(w * 0.05, 9.5, 11.5) : Math.min(13.5, w * 0.038));
+      let ly = ty + (R.side ? 22 : (R.cmp ? 19 : 28));
       let lines = R.side ? [M.lines.join(' ')] : M.lines;
+      if (R.cmp) { setFont(c, lsz, 600); let lw = 0; for (const L of lines) lw = Math.max(lw, c.measureText(L).width); if (lw > w - 18) lsz = Math.max(8, lsz * (w - 18) / lw); }
       if (R.side) {
         // what fits between the name and the line along the bottom: all of it, smaller, or its first sentence
         const room = (y + h - 16 - 13) - ly, fits = (str, sz) => (wrapLines(c, str, w - pw - 40, { size: sz, weight: 600 }) - 1) * sz * 1.45 <= room;
@@ -45461,7 +45875,7 @@ Object.assign(UI, {
       }
       for (const L of lines) {
         if (R.side) ly = wrapText(c, L, tx, ly, w - pw - 40, lsz * 1.45, { size: lsz, weight: 600, color: PAL.text, alpha: 0.85 }) + lsz * 1.45;
-        else { text(c, L, tx, ly, { size: lsz, weight: 600, align: al, color: PAL.text, alpha: 0.85 }); ly += lsz * 1.5; }
+        else { if (R.cmp && ly > y + h - 28) break; text(c, L, tx, ly, { size: lsz, weight: 600, align: al, color: PAL.text, alpha: 0.85 }); ly += lsz * 1.5; }
       }
       // the line along the bottom: what you have done here
       let foot = '', fcol = PAL.dim;
@@ -45474,7 +45888,7 @@ Object.assign(UI, {
         foot = NET.status === 'online' ? 'SERVER ONLINE  ·  1–4 PLAYERS' : (NET.status === 'waking' ? 'WAKING THE SERVER…' : (cp && cp.runs ? 'BEST: DEPTH ' + ['0', 'I', 'II', 'III'][clamp(cp.best | 0, 0, 3)] + '  ·  1–4 PLAYERS' : 'CO-OP  ·  1–4 PLAYERS'));
         fcol = NET.status === 'online' ? '#8dff6b' : PAL.dim;
       }
-      const fy = R.side ? y + h - 16 : y + h - 22;
+      const fy = R.side ? y + h - 16 : y + h - (R.cmp ? 13 : 22);
       let fsz = R.side ? 10 : 11, ftr = 2;
       const fw = tracked(c, foot, 0, 0, { size: fsz, weight: 800, track: ftr, measureOnly: true });
       if (fw > colW) { const k = colW / fw; fsz = Math.max(7.5, fsz * k); ftr = Math.max(0.6, ftr * k); }
@@ -45484,8 +45898,8 @@ Object.assign(UI, {
         tracked(c, 'ENTER', x + w / 2, fy - 22, { size: 10, weight: 900, align: 'center', color: M.col, track: 4, alpha: pulse });
       }
     }
-    text(c, narrow ? 'tap a card  ·  BACK to return' : 'arrows or mouse to choose  ·  ENTER to pick it  ·  BACKSPACE to go back',
-      VW / 2, VH - 22, { size: 12, weight: 700, align: 'center', color: PAL.dim });
+    text(c, narrow || cmp ? 'tap a card  ·  BACK to return' : 'arrows or mouse to choose  ·  ENTER to pick it  ·  BACKSPACE to go back',
+      VW / 2, VH - (cmp ? 10 : 22), { size: cmp ? 10.5 : 12, weight: 700, align: 'center', color: PAL.dim });
 
     if (this.lockT > 0) return;
     const click = Input.mclick && hover >= 0;
@@ -46677,6 +47091,544 @@ Object.assign(UI, {
       }
     }
     c.restore();
+  }
+});
+
+/* ========================================================================
+   THE TUTORIAL  --  a brand-new player's first run teaches itself.
+
+   START drops a new player straight into the first world (every build). The
+   run's clock and its spawner wait while four steps are done, one at a time:
+     1 MOVE   fly into a light set down nearby
+     2 DASH   dash twice (nothing touches you mid-dash)
+     3 FIGHT  six drifters close in; the weapons fire by themselves
+     4 GROW   grab their green motes; the level-up opens
+     5 BOON   pick a card
+   Then the clock starts, 300 shards are paid (once per save) and the run is
+   an ordinary run. Later, the first time each happens, the game slows for a
+   moment with a tip: a weapon nearing LV 5 (evolutions), the first boss, and
+   THE BLOOM's approach. After the run the lobby gives a short tour. SKIP
+   TUTORIAL (on the card) ends all of it; HOW TO PLAY can replay it. A save
+   from before the tutorial never sees any of this.
+   ======================================================================== */
+const TUT = { PAY: 300, BEACON: 290, FOES: 6, SLOW: 0.2, TIP_SECS: 6.5,
+  COL: { move: '#9ef7ff', dash: '#ffd166', fight: '#ff7ae6', motes: '#8dff6b', boon: '#c9a3ff', go: '#8dff6b' } };
+const Tut = {
+  want: false,      // the next G.reset builds a tutorial run
+  tip: null,        // a slow-motion card: { id, t, col, col2, title, lines }
+  skipArm: 0,       // when SKIP was tapped once (a second tap skips)
+  slow: 1,          // the run's clock while a tip shows (eases to TUT.SLOW and back)
+  rec() {
+    const d = Save.data;
+    if (!d.tut || typeof d.tut !== 'object') d.tut = { on: 0, done: 0, skip: 0, paid: 0, tips: {}, tour: 0 };
+    if (!d.tut.tips || typeof d.tut.tips !== 'object') d.tut.tips = {};
+    return d.tut;
+  },
+  /* a save that began with the tutorial gets its tips; an older one never sees them */
+  tipsOn() { const r = Save.data.tut; return !!(r && r.on && !r.skip); },
+  /* the words a touch player needs instead of keys */
+  touchy() {
+    if (Input.touchUsed) return true;
+    if (Input.usedPointer || Input.anyKey) return false;
+    try { return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
+  },
+  /* the achievement pop-ups wait while the steps or the lobby tour have the screen */
+  quiet() { return !!UI.tour || !!(G.tut && G.tut.hold && (G.state === 'playing' || G.state === 'levelup')); },
+  /* the level-up the BOON step is about (its title gives way to PICK A BOON) */
+  boonNow() { return !!(G.tut && G.tut.hold && G.tut.step === 'boon' && G.state === 'levelup'); },
+  /* G.reset: the run being built is the tutorial */
+  begin() {
+    const r = this.rec();
+    r.on = 1; r.done = 0; r.skip = 0; r.tour = 0; r.tips = {};
+    Save.save();
+    this.tip = null; this.slow = 1; this.skipArm = 0;
+    return { step: 'move', hold: true, st: 0, t: 0, bx: 0, by: 0, placed: false, dash0: -1, spawned: false, foes: 0, ended: false, paid: 0 };
+  },
+  replay() {
+    this.want = true;
+    Sound.resume(); applySky(null);
+    Descent.start(null, 'easy');
+  },
+  /* the run's finale, by name and time: a world's own boss on a conquest world, THE BLOOM otherwise */
+  finale() {
+    const def = ENEMY[G.finaleId ? G.finaleId() : 'bloom'], bt = G.bossTime ? G.bossTime() : BOSS_T;
+    return { name: (def && def.name) || 'THE BLOOM', at: Math.floor(bt / 60) + ':' + String(Math.floor(bt % 60)).padStart(2, '0') };
+  },
+  next(T, step) {
+    T.step = step; T.st = 0;
+    Sound.achieve();
+  },
+  skip() {
+    const T = G.tut, r = this.rec();
+    r.skip = 1; r.done = 1; r.tour = 2;
+    Save.save();
+    if (T) { T.hold = false; T.step = 'off'; }
+    this.tip = null;
+    G.banner('TUTORIAL SKIPPED', PAL.dim);
+    Sound.ui(false);
+  },
+  finish(T) {
+    const r = this.rec();
+    T.hold = false; T.step = 'go'; T.st = 0;
+    r.done = 1;
+    if (!r.paid) {
+      r.paid = 1; T.paid = TUT.PAY;
+      Save.data.shards = (Save.data.shards | 0) + TUT.PAY;
+      Payout.owe(TUT.PAY);
+    }
+    Save.save();
+    G.banner(T.paid ? 'TUTORIAL DONE  ·  +' + TUT.PAY + ' SHARDS' : 'TUTORIAL DONE', TUT.COL.go);
+    Sound.fanfare(true);
+    const p = G.player;
+    if (p) { Particles.ring(p.x, p.y, 16, 520, { col: TUT.COL.go, life: 0.9, w: 9 }); Particles.ring(p.x, p.y, 10, 300, { col: '#ffffff', life: 0.6, w: 5 }); }
+  },
+
+  /* every fixed step of a run (G.update) */
+  tick(dt) {
+    const T = G.tut;
+    if (T && T.hold) this.stepTick(T, dt);
+    else if (T) T.st += dt;
+    if (!this.tip && this.tipsOn() && !(T && T.hold) && !G.coop && !G.hollow && !G.solo && !G.over && G.player) this.tipCheck();
+  },
+  stepTick(T, dt) {
+    const p = G.player;
+    if (!p) return;
+    T.t += dt; T.st += dt;
+    if (T.step === 'move' || T.step === 'dash') p.inv = Math.max(p.inv, 0.25);   // nothing out there yet; nothing can hurt
+    // the world's opening wave (and anything a world sends on its own) waits for the tutorial too
+    for (const e of G.enemies) if (!e.tutFoe && !e.dead && !e.boss) e.dead = true;
+    if (T.step === 'move') {
+      if (!T.placed) {
+        // a light up and to one side of the ship, on screen and clear of the card below
+        const z = Math.max(0.5, Cam.zoom || 1), side = rand() < 0.5 ? -1 : 1;
+        T.bx = p.x + side * Math.min(VW * 0.28, 300) / z;
+        T.by = p.y - Math.min(VH * 0.22, 170) / z;
+        const m = Math.hypot(T.bx, T.by), lim = G.arenaR - 140;
+        if (m > lim) { T.bx = T.bx / m * lim; T.by = T.by / m * lim; }
+        T.placed = true;
+      }
+      if (dist2(p.x, p.y, T.bx, T.by) < 56 * 56) {
+        Particles.ring(T.bx, T.by, 20, 260, { col: TUT.COL.move, life: 0.8, w: 8 });
+        Particles.ring(T.bx, T.by, 10, 150, { col: '#ffd166', life: 0.6, w: 5 });
+        Flash.hit(TUT.COL.move, 0.12);
+        this.next(T, 'dash');
+      }
+    } else if (T.step === 'dash') {
+      const n = G.runStats ? G.runStats.dashes | 0 : 0;
+      if (T.dash0 < 0) T.dash0 = n;
+      T.dashes = n - T.dash0;
+      if (T.dashes >= 2 && T.st > 0.4) this.next(T, 'fight');
+    } else if (T.step === 'fight') {
+      if (!T.spawned) {
+        T.spawned = true;
+        const def = ENEMY.drifter, a0 = rnd(TAU);
+        for (let i = 0; i < TUT.FOES; i++) {
+          const a = a0 + i / TUT.FOES * TAU, d = rnd(380, 430);
+          let x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
+          const m = Math.hypot(x, y), lim = G.arenaR - 60;
+          if (m > lim) { x = x / m * lim; y = y / m * lim; }
+          const e = new Enemy(def, x, y, 0.8, G.dmgScale * 0.5);
+          e.tutFoe = 1; e.spawnT = 0.6 + i * 0.08;
+          G.enemies.push(e);
+        }
+      }
+      let n = 0; for (const e of G.enemies) if (e.tutFoe && !e.dead) n++;
+      T.foes = n;
+      if (n === 0 && T.st > 0.8) this.next(T, 'motes');
+    } else if (T.step === 'motes') {
+      let n = 0; for (const pk of G.pickups) if (pk && pk.type === 'mote' && !pk.dead) n++;
+      T.motes = n;
+      // every mote taken (or a while on) and still no level: the first one comes now
+      if ((n === 0 && T.st > 0.6) || T.st > 9) {
+        if (G.state === 'playing' && !(G.pendingLevels > 0)) G.addXp((G.xpNeed - G.xp) / Math.max(0.01, G.stats.xpMul) + 0.01);
+      }
+    }
+  },
+  tipCheck() {
+    const tips = this.rec().tips;
+    let id = null;
+    if (!tips.evo && G.weapons.some(w => w.level >= 4 && !w.evolved)) id = 'evo';
+    else if (!tips.boss && G.boss && !G.boss.dead && !G.boss.isFinale && G.boss.spawnT <= 0.2) id = 'boss';
+    else if (!tips.bloom && !G.endless && !G.D.daily && G.bossTime && G.time >= G.bossTime() - 16 && G.time < G.bossTime()) id = 'bloom';
+    if (!id) return;
+    tips[id] = 1; Save.save();
+    const T = {
+      evo: { col: '#ffd166', col2: '#ff7ae6', title: 'EVOLUTION',
+        lines: ['A weapon at LV 5, with its paired passive at LV 3,', 'evolves into something far stronger. Each card names its pair.'] },
+      boss: { col: '#ff5a6e', col2: '#ffb347', title: 'A BOSS',
+        lines: ['Bosses come on a timer: the clock up top counts down to the next.', 'Keep moving, and dash through what it throws at you.'] },
+      bloom: { col: '#ff7ae6', col2: '#9ef7ff', title: 'THE BLOOM',
+        lines: ['The finale arrives at 10:30.', 'Kill it to win the run. Everything you have built is for this.'] }
+    }[id];
+    if (id === 'bloom') {
+      const F = this.finale();
+      T.title = F.name;
+      T.lines = ['The finale arrives at ' + F.at + '.', 'Kill it to win the run. Everything you have built is for this.'];
+    }
+    this.tip = Object.assign({ id: id, t: 0 }, T);
+    Sound.achieve();
+  },
+
+  /* every frame, any state: the clock scale, the end of a level-up, the end of the run */
+  frame(st, dt) {
+    const T = G.tut;
+    // a tip slows the run, then lets go
+    const want = this.tip && st === 'playing' ? TUT.SLOW : 1;
+    this.slow += (want - this.slow) * Math.min(1, dt * 7);
+    if (Math.abs(this.slow - want) < 0.01) this.slow = want;
+    if (this.tip) {
+      if (st === 'playing') this.tip.t += dt;
+      if (this.tip.t > TUT.TIP_SECS || (st !== 'playing' && st !== 'paused' && st !== 'levelup' && st !== 'settings')) this.tip = null;
+      else if (st === 'playing' && this.tip.t > 0.5 && (Input.hit('Enter') || Input.mclick)) { this.tip = null; Sound.ui(false); }
+    }
+    if (!T) return;
+    // the level-up opened: whatever step this was, the next is the pick
+    if (T.hold && st === 'levelup' && T.step !== 'boon') { T.step = 'boon'; T.st = 0; }
+    if (T.hold && st === 'playing' && T.step === 'boon') this.finish(T);
+    // the run is over: the lobby owes a tour
+    if (!T.ended && (st === 'dead' || st === 'win')) {
+      T.ended = true;
+      const r = this.rec();
+      if (!r.skip && r.tour !== 2) { r.tour = 1; Save.save(); }
+    }
+  },
+
+  /* ---------------------------------------------------------------- drawing */
+  w2s(x, y) { return { x: VW / 2 + Cam.shakeX + (x - Cam.x) * Cam.zoom, y: VH / 2 + Cam.shakeY + (y - Cam.y) * Cam.zoom }; },
+  draw(c, st) {
+    const T = G.tut, t = G.uiT;
+    if (T && T.hold && st === 'playing') {
+      if (T.step === 'move' && T.placed) this.beacon(c, T, t);
+      if (T.step === 'motes') this.moteMark(c, t);
+      this.stepCard(c, T, t);
+    }
+    if (T && T.hold && T.step === 'boon' && st === 'levelup') this.boonBar(c, t);
+    if (T && T.step === 'go' && T.st < 4.5 && st === 'playing' && !this.tip) this.goCard(c, T, t);
+    if (this.tip && (st === 'playing' || st === 'paused')) this.tipCard(c, this.tip, t);
+  },
+  /* the light to fly into: a column of glow, two rings turning against each other, a beat at the core */
+  beacon(c, T, t) {
+    const P = this.w2s(T.bx, T.by), z = Cam.zoom, R = 46 * z, A = TUT.COL.move;
+    const p = G.player, Q = this.w2s(p.x, p.y);
+    hglow(c, A, P.x, P.y, R * 2.6, 0.28 + 0.1 * Math.sin(t * 3));
+    const e = hsprite('tutbeac|' + Math.round(R), R * 3, R * 3, g => {
+      neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, R * 0.62, 0, TAU); }, A, { lw: 2.2, blur: 12, core: 'rgba(4,12,22,0.55)' });
+      neon(g, x2 => { x2.beginPath(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; x2.moveTo(Math.cos(a) * R * 0.18, Math.sin(a) * R * 0.18); x2.lineTo(Math.cos(a) * R * 0.42, Math.sin(a) * R * 0.42); } }, '#ffffff', { lw: 1.6, blur: 6, core: null, inner: false });
+    });
+    c.save(); c.translate(P.x, P.y); c.rotate(t * 0.8); c.drawImage(e.cv, -e.w / 2, -e.h / 2, e.w, e.h); c.restore();
+    c.save(); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+    c.translate(P.x, P.y);
+    c.rotate(-t * 1.3); c.strokeStyle = '#ffd166'; c.lineWidth = 2; c.globalAlpha = 0.85;
+    c.setLineDash([R * 0.34, R * 0.22]); c.beginPath(); c.arc(0, 0, R, 0, TAU); c.stroke();
+    c.rotate(t * 2.1); c.strokeStyle = A; c.lineWidth = 1.4; c.globalAlpha = 0.6;
+    c.setLineDash([R * 0.12, R * 0.18]); c.beginPath(); c.arc(0, 0, R * 1.32, 0, TAU); c.stroke();
+    c.setLineDash([]);
+    c.restore();
+    const beat = 0.5 + 0.5 * Math.sin(t * 6);
+    hglow(c, '#ffffff', P.x, P.y, R * (0.25 + 0.15 * beat), 0.7);
+    // an arrow from the ship toward it, when it is not right there
+    const dx = P.x - Q.x, dy = P.y - Q.y, d = Math.hypot(dx, dy);
+    if (d > R * 2.2) {
+      const a = Math.atan2(dy, dx), r0 = 54 * z + Math.sin(t * 5) * 5;
+      const ar = hsprite('tutarr', 34, 34, g => neon(g, x2 => { x2.beginPath(); x2.moveTo(-6, -9); x2.lineTo(7, 0); x2.lineTo(-6, 9); }, A, { lw: 3, blur: 10, core: null, inner: true }));
+      c.save(); c.translate(Q.x + Math.cos(a) * r0, Q.y + Math.sin(a) * r0); c.rotate(a); c.drawImage(ar.cv, -ar.w / 2, -ar.h / 2, ar.w, ar.h); c.restore();
+    }
+  },
+  /* a chevron bobbing over the nearest mote */
+  moteMark(c, t) {
+    const p = G.player;
+    let best = null, bd = 1e12;
+    for (const pk of G.pickups) {
+      if (!pk || pk.type !== 'mote' || pk.dead) continue;
+      const d = dist2(p.x, p.y, pk.x, pk.y);
+      if (d < bd) { bd = d; best = pk; }
+    }
+    if (!best) return;
+    const P = this.w2s(best.x, best.y), y = P.y - 26 - Math.abs(Math.sin(t * 5)) * 9;
+    const ch = hsprite('tutchev', 30, 26, g => neon(g, x2 => { x2.beginPath(); x2.moveTo(-8, -5); x2.lineTo(0, 4); x2.lineTo(8, -5); }, TUT.COL.motes, { lw: 3, blur: 9, core: null }));
+    hstamp(c, ch, P.x, y);
+  },
+  /* a keycap: dark core, rim in the step's colour, lit while held */
+  key(c, x, y, w, h, label, lit, col) {
+    const k = hsprite('tutkey|' + w + '|' + h + '|' + label + '|' + col + '|' + (lit ? 1 : 0), w + 18, h + 18, g => {
+      g.save();
+      if (lit) { g.shadowColor = col; g.shadowBlur = 14; }
+      g.fillStyle = lit ? col : 'rgba(6,8,20,0.92)';
+      roundRect(g, -w / 2, -h / 2, w, h, 5); g.fill();
+      g.restore();
+      g.strokeStyle = lit ? '#ffffff' : col; g.lineWidth = 1.4;
+      roundRect(g, -w / 2 + 0.7, -h / 2 + 0.7, w - 1.4, h - 1.4, 5); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(-w / 2 + 4, h / 2 - 4); g.lineTo(w / 2 - 4, h / 2 - 4); g.stroke();
+      setFont(g, label.length > 1 ? 9.5 : 12, 900); g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = lit ? '#05060f' : '#eef3ff'; g.fillText(label, 0, 0.5);
+    });
+    hstamp(c, k, x, y);
+  },
+  /* the card the steps live on: bottom centre, clear of the middle where bullets are read */
+  cardBox(c, w, h, y, col, col2, t) {
+    const x = VW / 2 - w / 2;
+    hglow(c, col, VW / 2, y + h / 2, Math.max(w, h) * 0.62, 0.12);
+    glass(c, x, y, w, h, 14, col, true);
+    // a sheen runs the top edge, in the second colour
+    const u = (t * 0.32) % 1, gx = x + 14 + u * (w - 28);
+    c.save(); c.globalCompositeOperation = 'lighter';
+    const gg = c.createLinearGradient(gx - 70, 0, gx + 70, 0);
+    gg.addColorStop(0, 'rgba(0,0,0,0)'); gg.addColorStop(0.5, col2); gg.addColorStop(1, 'rgba(0,0,0,0)');
+    c.strokeStyle = gg; c.lineWidth = 1.6; c.globalAlpha = 0.85;
+    c.beginPath(); c.moveTo(x + 14, y + 0.8); c.lineTo(x + w - 14, y + 0.8); c.stroke();
+    c.restore();
+    return x;
+  },
+  stepCard(c, T, t) {
+    const touch = this.touchy(), narrow = VW < 560;
+    const ORDER = ['move', 'dash', 'fight', 'motes', 'boon'], si = Math.max(0, ORDER.indexOf(T.step));
+    const col = TUT.COL[T.step] || '#9ef7ff', col2 = '#ffd166';
+    const w = Math.min(560, VW - 20), h = narrow ? 100 : 92;
+    const y = VH - h - Math.max(44, VH * 0.075);
+    const x = this.cardBox(c, w, h, y, col, col2, t);
+    // TUTORIAL and the pips; SKIP top right (top left on touch: the right of the screen is where a thumb dashes)
+    const sw = 64, sh = 22, sx = touch ? x + 10 : x + w - sw - 10, sy = y + 6;
+    const hx = touch ? sx + sw + 12 : x + 16;
+    tracked(c, 'TUTORIAL', hx, y + 19, { size: 9.5, weight: 900, color: PAL.dim, track: 2.4 });
+    for (let k = 0; k < ORDER.length; k++) {
+      const px = hx + 80 + k * 13, on = k <= si;
+      c.save(); c.translate(px, y + 15.5); c.rotate(Math.PI / 4);
+      c.fillStyle = k < si ? col : (on ? '#ffffff' : 'rgba(255,255,255,0.14)');
+      if (k === si) { c.shadowColor = col; c.shadowBlur = 8; }
+      c.fillRect(-3, -3, 6, 6); c.restore();
+    }
+    // one tap arms it (SURE?), a second within three seconds skips: a stray tap never throws the tutorial away
+    const armed = this.skipArm > 0 && t - this.skipArm < 3;
+    if (!armed) this.skipArm = 0;
+    const hov = Input.mx >= sx - 4 && Input.mx <= sx + sw + 4 && Input.my >= sy - 4 && Input.my <= sy + sh + 4;
+    c.save();
+    if (armed) { c.fillStyle = 'rgba(255,90,110,0.16)'; roundRect(c, sx, sy, sw, sh, sh / 2); c.fill(); }
+    c.strokeStyle = armed ? '#ff5a6e' : (hov ? '#ffffff' : 'rgba(170,180,220,0.45)'); c.lineWidth = armed ? 1.4 : 1;
+    if (armed) { c.shadowColor = '#ff5a6e'; c.shadowBlur = 8 + 4 * Math.sin(t * 9); }
+    roundRect(c, sx, sy, sw, sh, sh / 2); c.stroke(); c.restore();
+    tracked(c, armed ? 'SURE? ›' : 'SKIP ›', sx + sw / 2, sy + 15, { size: 9.5, weight: 900, align: 'center', color: armed ? '#ff8a9a' : (hov ? '#ffffff' : PAL.dim), track: 1.6 });
+    if (Input.mclick && hov) {
+      if (armed) { this.skipArm = 0; this.skip(); return; }
+      this.skipArm = t; Sound.ui(false);
+    }
+    // the step
+    const S = {
+      move: { title: 'MOVE', keys: touch ? null : ['W', 'A', 'S', 'D'], text: touch ? 'drag anywhere to fly  ·  reach the light' : 'or the arrow keys  ·  fly into the light' },
+      dash: { title: 'DASH', keys: touch ? null : ['SPACE'], text: (touch ? 'tap the lower right, twice' : 'twice') + '  ·  nothing can touch you mid-dash', prog: [T.dashes | 0, 2],
+        cnt: G.player && G.player.dashCd > 0 && (T.dashes | 0) < 2 ? 'RECHARGING' : '' },
+      fight: { title: 'FIGHT', keys: null, text: 'your weapons fire by themselves  ·  stay close, keep moving', cnt: T.foes ? T.foes + ' LEFT' : '' },
+      motes: { title: 'GROW', keys: null, text: 'fly over the green motes  ·  they level you up' }
+    }[T.step] || { title: '', text: '' };
+    const ty = y + (narrow ? 44 : 46);
+    tracked(c, S.title, x + 16, ty, { size: 22, weight: 900, color: col, glow: col, blur: 12, track: 5 });
+    const tw = tracked(c, S.title, 0, 0, { size: 22, weight: 900, track: 5, measureOnly: true });
+    if (S.prog) {
+      for (let k = 0; k < S.prog[1]; k++) {
+        const on = k < S.prog[0];
+        c.save(); c.globalCompositeOperation = on ? 'lighter' : 'source-over';
+        c.fillStyle = on ? col : 'rgba(255,255,255,0.16)'; if (on) { c.shadowColor = col; c.shadowBlur = 10; }
+        c.beginPath(); c.arc(x + 30 + tw + k * 16, ty - 7, 4.5, 0, TAU); c.fill(); c.restore();
+        // the dash recharging: a ring fills round the next pip
+        if (T.step === 'dash' && k === S.prog[0] && G.player && G.player.dashCd > 0) {
+          const f = sat(1 - G.player.dashCd / (2.3 * (G.dashCdMul || 1)));
+          c.save(); c.strokeStyle = col; c.lineWidth = 1.6; c.shadowColor = col; c.shadowBlur = 6;
+          c.beginPath(); c.arc(x + 30 + tw + k * 16, ty - 7, 7.5, -Math.PI / 2, -Math.PI / 2 + f * TAU); c.stroke(); c.restore();
+        }
+      }
+    }
+    if (S.cnt) tracked(c, S.cnt, x + w - 16, ty, { size: 11, weight: 900, align: 'right', color: col, track: 2, alpha: T.step === 'dash' ? 0.55 + 0.45 * Math.sin(t * 7) : 1 });
+    if (T.step === 'dash' && touch) this.tapMark(c, t, x, y, w, col);
+    // keys, then the words
+    let lx = x + 16;
+    const ly = y + h - (narrow ? 30 : 24);
+    if (S.keys) {
+      for (const k of S.keys) {
+        const kw = k.length > 1 ? 64 : 24, lit = k === 'SPACE' ? Input.down('space') : Input.down(k.toLowerCase());
+        this.key(c, lx + kw / 2, ly - 4, kw, 22, k, lit, col);
+        lx += kw + 5;
+      }
+      lx += 6;
+    }
+    const room = x + w - 16 - lx;
+    if (narrow && S.keys) text(c, fitText(c, S.text, w - 32, 12, 700), x + 16, ly + 22, { size: 12, weight: 700, color: PAL.text, alpha: 0.92 });
+    else {
+      // too long for one line (a phone): the two halves either side of the dot go on two lines
+      setFont(c, 12.5, 700);
+      const parts = S.text.split('  ·  ');
+      if (c.measureText(S.text).width > room && parts.length === 2) {
+        text(c, fitText(c, parts[0], room, 12.5, 700), lx, ly - 7, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.92 });
+        text(c, fitText(c, parts[1], room, 12, 700), lx, ly + 10, { size: 12, weight: 700, color: PAL.dim, alpha: 0.95 });
+      } else text(c, fitText(c, S.text, room, 12.5, 700), lx, ly, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.92 });
+    }
+  },
+  /* on touch, the DASH step shows where a thumb taps: the lower right of the screen */
+  tapMark(c, t, cx, cy, cw, col) {
+    const zx = VW * 0.62, zy = VH * 0.55;
+    let mx, my;
+    if (VW - (cx + cw) >= 96) { mx = (cx + cw + VW) / 2; my = (Math.max(zy, cy - 20) + VH) / 2; }
+    else { mx = (zx + VW) / 2; my = (zy + cy) / 2 - 8; }
+    for (let k = 0; k < 2; k++) {
+      const u = (t * 0.9 + k * 0.5) % 1;
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = (1 - u) * 0.85;
+      c.strokeStyle = k ? '#ffffff' : col; c.lineWidth = 2.2 - u * 1.4;
+      c.beginPath(); c.arc(mx, my, 15 + u * 32, 0, TAU); c.stroke(); c.restore();
+    }
+    const s = hsprite('tuttap|' + col, 64, 64, g => neon(g, x2 => { x2.beginPath(); x2.arc(0, 0, 13, 0, TAU); }, col, { lw: 2.4, blur: 12, core: 'rgba(22,14,2,0.88)' }));
+    hstamp(c, s, mx, my);
+    hglow(c, '#ffffff', mx, my, 6 + 2 * Math.sin(t * 6), 0.85);
+    tracked(c, 'TAP HERE', mx, my + 36, { size: 10, weight: 900, align: 'center', color: col, glow: col, blur: 8, track: 2.4 });
+  },
+  /* on the level-up: what to do with the cards */
+  /* in place of the level-up's title, right over the cards */
+  boonBar(c, t) {
+    const touch = this.touchy(), col = TUT.COL.boon, narrow = VW < 560;
+    const w = Math.min(narrow ? 380 : 520, VW - 20), h = narrow ? 54 : 46;
+    // the level-up is drawn scaled to fit a short screen (UI.fit, 520 tall): its card row, on screen
+    const y = Math.max(6, (UI._lvY || 70) * Math.min(1, VH / 520) - h - 18);
+    const x = this.cardBox(c, w, h, y, col, '#ffd166', t);
+    const keys = G.cards.map((cd, i) => String(i + 1)).join(' · ');
+    const msg = touch ? 'tap a card  ·  REROLL for new ones' : keys + ' or click a card  ·  R rerolls';
+    if (narrow) {
+      tracked(c, 'PICK A BOON', VW / 2, y + 23, { size: 15, weight: 900, align: 'center', color: col, glow: col, blur: 10, track: 3.5 });
+      text(c, fitText(c, msg, w - 28, 12, 700), VW / 2, y + 42, { size: 12, weight: 700, align: 'center', color: PAL.text, alpha: 0.92 });
+    } else {
+      tracked(c, 'PICK A BOON', x + 16, y + 29, { size: 15, weight: 900, color: col, glow: col, blur: 10, track: 3.5 });
+      const mw = tracked(c, 'PICK A BOON', 0, 0, { size: 15, weight: 900, track: 3.5, measureOnly: true });
+      text(c, fitText(c, msg, w - mw - 48, 12, 700), x + w - 16, y + 28, { size: 12, weight: 700, align: 'right', color: PAL.text, alpha: 0.92 });
+    }
+  },
+  goCard(c, T, t) {
+    const a = sat(T.st / 0.3) * sat((4.5 - T.st) / 0.6);
+    if (a <= 0) return;
+    c.save(); c.globalAlpha *= a;
+    const col = TUT.COL.go, w = Math.min(520, VW - 20), h = 70, y = VH - h - Math.max(44, VH * 0.075);
+    const x = this.cardBox(c, w, h, y, col, '#ffd166', t);
+    tracked(c, "YOU'RE READY", x + 16, y + 30, { size: 19, weight: 900, color: col, glow: col, blur: 12, track: 4 });
+    text(c, fitText(c, 'survive to ' + this.finale().at + ' and kill ' + this.finale().name + (T.paid ? '  ·  +' + T.paid + ' shards' : ''), w - 32, 12.5, 700), x + 16, y + 54, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.92 });
+    c.restore();
+  },
+  /* a tip: the run slows; the card says one thing; Enter, a tap, or six seconds lets it go */
+  tipCard(c, tp, t) {
+    const a = sat(tp.t / 0.25) * sat((TUT.TIP_SECS - tp.t) / 0.5);
+    if (a <= 0) return;
+    const touch = this.touchy(), narrow = VW < 560;
+    c.save(); c.globalAlpha *= a;
+    const w = Math.min(580, VW - 20), h = narrow ? 120 : 98, y = VH - h - Math.max(44, VH * 0.075);
+    const x = this.cardBox(c, w, h, y, tp.col, tp.col2, t);
+    // the glyph: a star for an evolution, a crown for a boss, a bloom for THE BLOOM -- turning, two colours
+    const gx = x + 36, gy = y + h / 2 - 4, R = 17;
+    const g = hsprite('tutglyph|' + tp.id, R * 3, R * 3, gg => {
+      if (tp.id === 'evo') neon(gg, x2 => pathStar(x2, 4, R, R * 0.36), tp.col, { lw: 2, blur: 10, core: 'rgba(30,20,4,0.9)' });
+      else if (tp.id === 'boss') neon(gg, x2 => { x2.beginPath(); x2.moveTo(-R, R * 0.55); x2.lineTo(-R, -R * 0.35); x2.lineTo(-R * 0.45, R * 0.05); x2.lineTo(0, -R * 0.75); x2.lineTo(R * 0.45, R * 0.05); x2.lineTo(R, -R * 0.35); x2.lineTo(R, R * 0.55); x2.closePath(); }, tp.col, { lw: 2, blur: 10, core: 'rgba(30,4,8,0.9)' });
+      else neon(gg, x2 => { x2.beginPath(); for (let k = 0; k < 6; k++) { const a2 = k / 6 * TAU; x2.moveTo(0, 0); x2.quadraticCurveTo(Math.cos(a2 - 0.5) * R * 1.1, Math.sin(a2 - 0.5) * R * 1.1, Math.cos(a2) * R, Math.sin(a2) * R); } }, tp.col, { lw: 2, blur: 10, core: null });
+    });
+    c.save(); c.translate(gx, gy); c.rotate(t * 0.6); c.drawImage(g.cv, -g.w / 2, -g.h / 2, g.w, g.h); c.restore();
+    c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = tp.col2; c.globalAlpha *= 0.7; c.lineWidth = 1.2;
+    c.setLineDash([4, 4]); c.lineDashOffset = -t * 18; c.beginPath(); c.arc(gx, gy, R + 7, 0, TAU); c.stroke(); c.restore();
+    const tx = x + 70, tw = w - 70 - 14;
+    tracked(c, tp.title, tx, y + 28, { size: 17, weight: 900, color: tp.col, glow: tp.col, blur: 10, track: 4 });
+    let ly = y + 48;
+    if (narrow) wrapText(c, tp.lines.join(' '), tx, y + 47, tw, 15, { size: 12, weight: 700, color: PAL.text, alpha: 0.94 });
+    else for (const L of tp.lines) { text(c, fitText(c, L, tw, 12.5, 700), tx, ly, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.94 }); ly += 17; }
+    // how long it stays: a bar that runs down
+    const k = sat(1 - tp.t / TUT.TIP_SECS);
+    c.save(); c.fillStyle = tp.col; c.globalAlpha *= 0.65; c.fillRect(x + 14, y + h - 7, (w - 28) * k, 2); c.restore();
+    text(c, touch ? 'tap to carry on' : 'ENTER or click to carry on', x + w - 14, y + 20, { size: 10, weight: 800, align: 'right', color: PAL.dim });
+    c.restore();
+  }
+};
+
+/* ------------------------------------------------------------------------
+   THE LOBBY TOUR  --  once, after the tutorial run: a spotlight on PLAY,
+   REWARDS, SKINS, SHOP (and FREE VOIDBUX where there is one). A tap or ENTER
+   moves on; SKIP TOUR or ESC ends it. The daily gift waits until it is done.
+   ------------------------------------------------------------------------ */
+Object.assign(UI, {
+  tour: null,
+  tourDue() { const r = Save.data.tut; return !!(r && r.tour === 1); },
+  tourSteps(L) {
+    const S = [
+      { id: 'play', col: '#ffd166', title: 'PLAY', text: 'Your next run. CONQUEST takes the galaxy one world at a time: each world has its own boss, and a relic to win.' },
+      // a lobby that keeps its tiles behind one MENU button (a phone layout) gets that button instead of the tiles
+      { id: 'menu', col: '#9ef7ff', title: 'MENU', text: 'Everything else is in here: the SHOP, daily REWARDS, SKINS, PETS, RELICS and more.' },
+      { id: 'gifts', col: '#ff5c8a', title: 'REWARDS', text: 'A gift every day. Keep the streak going: day 7 opens the streak chest.' },
+      { id: 'skins', col: '#ffd166', title: 'SKINS', text: 'Spend shards on new ships, then level them up: a glow, a halo, a trail.' },
+      { id: 'shop', col: '#ff4fd8', title: 'SHOP', text: 'Daily deals, exclusive skins and shard packs. New deals every day.' },
+      { id: 'freevb', col: '#ff4fd8', title: 'FREE VOIDBUX', text: 'Watch a short video and spin the wheel for voidbux. Five spins a day.' }
+    ];
+    return S.filter(s => L.it[s.id]);
+  },
+  tourEnd() {
+    const r = Tut.rec(); r.tour = 2; Save.save();
+    this.tour = null; this.lockT = 0.3;
+    this.giftAuto();
+  },
+  /* the lobby calls this every frame; true while the tour owns the screen */
+  tourRun(c, L, t) {
+    if (!this.tour) {
+      if (!this.tourDue() || Payout.q || this.lockT > 0) return false;
+      this.tour = { i: 0, t0: t, at: t };
+      Sound.ui(true);
+    }
+    const T = this.tour, steps = this.tourSteps(L);
+    if (!steps.length || T.i >= steps.length) { this.tourEnd(); return false; }
+    const S = steps[T.i], r = L.it[S.id];
+    const pad = 8, lab = r.tile ? 20 : 0;
+    const rx = r.x - pad, ry = r.y - pad, rw = r.w + pad * 2, rh = r.h + pad * 2 + lab, rr = Math.min(18, rh / 3);
+    // everything else goes dark
+    c.save();
+    c.beginPath(); c.rect(0, 0, VW, VH);
+    c.moveTo(rx + rr, ry); c.arcTo(rx + rw, ry, rx + rw, ry + rh, rr); c.arcTo(rx + rw, ry + rh, rx, ry + rh, rr);
+    c.arcTo(rx, ry + rh, rx, ry, rr); c.arcTo(rx, ry, rx + rw, ry, rr); c.closePath();
+    c.fillStyle = 'rgba(2,3,10,0.78)'; c.fill('evenodd');
+    c.restore();
+    // the rim: a breathing glow in its colour, gold ants marching round it
+    const b = 0.5 + 0.5 * Math.sin((t - T.at) * 4);
+    c.save();
+    c.shadowColor = S.col; c.shadowBlur = 14 + 10 * b; c.strokeStyle = S.col; c.lineWidth = 2.2;
+    roundRect(c, rx, ry, rw, rh, rr); c.stroke();
+    c.restore();
+    c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = '#ffd166'; c.globalAlpha = 0.75; c.lineWidth = 1.2;
+    c.setLineDash([7, 6]); c.lineDashOffset = -(t - T.at) * 26;
+    roundRect(c, rx - 6, ry - 6, rw + 12, rh + 12, rr + 4); c.stroke();
+    c.restore();
+    // the card: beside the spotlight, wherever it fits
+    const cw = Math.min(330, VW - 24), ch = 128;
+    const cx0 = rx + rw / 2, cy0 = ry + rh / 2;
+    let cx, cy, dir;
+    if (rx + rw + 22 + cw <= VW - 12) { cx = rx + rw + 22; cy = clamp(cy0 - ch / 2, 12, VH - ch - 12); dir = 'l'; }
+    else if (rx - 22 - cw >= 12) { cx = rx - 22 - cw; cy = clamp(cy0 - ch / 2, 12, VH - ch - 12); dir = 'r'; }
+    else if (ry - 22 - ch >= 12) { cx = clamp(cx0 - cw / 2, 12, VW - cw - 12); cy = ry - 22 - ch; dir = 'd'; }
+    else { cx = clamp(cx0 - cw / 2, 12, VW - cw - 12); cy = Math.min(VH - ch - 12, ry + rh + 22); dir = 'u'; }
+    glass(c, cx, cy, cw, ch, 14, S.col, true);
+    // a chevron from the card to the spotlight, bobbing
+    const bob = Math.sin((t - T.at) * 5) * 4;
+    const ar = hsprite('tourarr|' + S.col, 30, 30, g => neon(g, x2 => { x2.beginPath(); x2.moveTo(-5, -8); x2.lineTo(6, 0); x2.lineTo(-5, 8); }, S.col, { lw: 3, blur: 9, core: null }));
+    const ang = { l: Math.PI, r: 0, d: Math.PI / 2, u: -Math.PI / 2 }[dir];
+    const ax = dir === 'l' ? cx - 11 - bob : (dir === 'r' ? cx + cw + 11 + bob : clamp(cx0, cx + 20, cx + cw - 20));
+    const ay = dir === 'd' ? cy + ch + 11 + bob : (dir === 'u' ? cy - 11 - bob : clamp(cy0, cy + 20, cy + ch - 20));
+    c.save(); c.translate(ax, ay); c.rotate(ang); c.drawImage(ar.cv, -ar.w / 2, -ar.h / 2, ar.w, ar.h); c.restore();
+    tracked(c, S.title, cx + 16, cy + 30, { size: 16, weight: 900, color: S.col, glow: S.col, blur: 10, track: 3.5 });
+    for (let k = 0; k < steps.length; k++) {
+      c.fillStyle = k === T.i ? S.col : (k < T.i ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.16)');
+      c.beginPath(); c.arc(cx + cw - 16 - (steps.length - 1 - k) * 12, cy + 25, 3.2, 0, TAU); c.fill();
+    }
+    wrapText(c, S.text, cx + 16, cy + 54, cw - 32, 16, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.94 });
+    const last = T.i === steps.length - 1;
+    tracked(c, last ? 'TAP TO FINISH' : 'TAP TO CONTINUE', cx + 16, cy + ch - 14, { size: 10, weight: 900, color: S.col, track: 2, alpha: 0.6 + 0.4 * b });
+    // SKIP TOUR
+    const sw = 84, sh = 22, sx = cx + cw - sw - 12, sy = cy + ch - 30;
+    const hov = Input.mx >= sx && Input.mx <= sx + sw && Input.my >= sy && Input.my <= sy + sh;
+    c.save(); c.strokeStyle = hov ? '#ffffff' : 'rgba(170,180,220,0.45)'; c.lineWidth = 1; roundRect(c, sx, sy, sw, sh, sh / 2); c.stroke(); c.restore();
+    tracked(c, 'SKIP TOUR', sx + sw / 2, sy + 15, { size: 9.5, weight: 900, align: 'center', color: hov ? '#ffffff' : PAL.dim, track: 1.6 });
+    if (t - T.at < 0.35) return true;
+    if (Input.hit('Escape') || Input.gpPressed[1] || (Input.mclick && hov)) { Sound.ui(false); this.tourEnd(); return true; }
+    if (Input.mclick || Input.hit('Enter', 'space') || Input.gpPressed[0]) {
+      T.i++; T.at = t; Sound.ui(true);
+      if (T.i >= steps.length) this.tourEnd();
+    }
+    return true;
   }
 });
 
