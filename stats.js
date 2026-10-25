@@ -391,6 +391,7 @@ function tracker() {
 
   function modeOf(G) {
     if (G.coop) return 'coop';
+    if (G.rush || (G.D && G.D.rush)) return 'bossrush';
     if (G.D && G.D.daily) return 'daily';
     if (G.planet) return 'conquest';
     if (G.endless) return 'endless';

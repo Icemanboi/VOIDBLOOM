@@ -58,7 +58,18 @@
   #grille.on{display:block;opacity:1}
   /* a phone's notch and rounded corners: every layer sits inside the safe area
      (0 everywhere there is none); the body's dark ground fills the strips */
-  #game,#cosmos,#fx,#grain,#grille{top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);
+  #tidevig{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .5s ease;mix-blend-mode:screen}
+  #tidevig.on{opacity:1}
+  #tidevig .tv,#tidevig .tp{position:absolute;inset:0;
+    background:radial-gradient(ellipse 72% 76% at 50% 50%, rgba(255,79,216,0) 58%, rgba(255,79,216,0.16) 80%, rgba(150,40,255,0.42) 94%, rgba(255,140,236,0.55) 100%)}
+  #tidevig .tv{opacity:0;transition:opacity 1.6s ease}
+  #tidevig .tp{opacity:0;transform-origin:50% 50%}
+  #tidevig .tp.go{animation:tvswell 1.1s ease-out}
+  #tidevig .tp.go.big{animation:tvswell2 1.8s ease-out}
+  @keyframes tvswell{0%{opacity:0;transform:scale(1.06)}20%{opacity:.75}100%{opacity:0;transform:scale(1)}}
+  @keyframes tvswell2{0%{opacity:0;transform:scale(1.12)}14%{opacity:1}55%{opacity:.6}100%{opacity:0;transform:scale(1)}}
+  @media (prefers-reduced-motion: reduce){ #tidevig .tp.go,#tidevig .tp.go.big{animation:none} }
+  #game,#cosmos,#fx,#grain,#grille,#tidevig{top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);
     bottom:env(safe-area-inset-bottom,0px);left:env(safe-area-inset-left,0px)}
   #cosmos,#fx{width:calc(100vw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));
     height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
@@ -115,6 +126,7 @@
 <canvas id="game"></canvas>
 <div id="grain"></div>
 <canvas id="fx"></canvas>
+<div id="tidevig"><div class="tv"></div><div class="tp"></div></div>
 <div id="grille">
   <div class="scan"></div>
   <svg class="noise" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" aria-hidden="true">
@@ -1428,6 +1440,39 @@ const TR_PATH = {
     c.moveTo(0, -r * 0.7); c.lineTo(0, r * 0.85);
   },
 };
+/* the shapes the October and secret trails throw */
+Object.assign(TR_PATH, {
+  /* a paw print: a pad and four toes, toes forward */
+  paw(c, r) {
+    c.beginPath(); c.ellipse(0, r * 0.32, r * 0.44, r * 0.36, 0, 0, TAU);
+    for (const [x, y, q] of [[-0.56, -0.18, 0.17], [-0.2, -0.56, 0.18], [0.2, -0.56, 0.18], [0.56, -0.18, 0.17]]) {
+      c.moveTo(x * r + q * r, y * r); c.arc(x * r, y * r, q * r, 0, TAU);
+    }
+  },
+  /* a small ghost: a dome, a ragged hem, two eyes */
+  ghost(c, r) {
+    c.beginPath(); c.moveTo(-r * 0.62, r * 0.72); c.lineTo(-r * 0.62, -r * 0.08); c.arc(0, -r * 0.08, r * 0.62, Math.PI, 0);
+    c.lineTo(r * 0.62, r * 0.72); c.lineTo(r * 0.31, r * 0.46); c.lineTo(0, r * 0.72); c.lineTo(-r * 0.31, r * 0.46); c.closePath();
+    c.moveTo(-r * 0.12, -r * 0.14); c.arc(-r * 0.22, -r * 0.14, r * 0.1, 0, TAU);
+    c.moveTo(r * 0.32, -r * 0.14); c.arc(r * 0.22, -r * 0.14, r * 0.1, 0, TAU);
+  },
+  /* a drop of wax: pointed at the top, round at the bottom */
+  drop(c, r) {
+    c.beginPath(); c.moveTo(0, -r);
+    c.bezierCurveTo(r * 0.35, -r * 0.4, r * 0.66, r * 0.05, r * 0.58, r * 0.4);
+    c.arc(0, r * 0.4, r * 0.58, 0, Math.PI);
+    c.bezierCurveTo(-r * 0.66, r * 0.05, -r * 0.35, -r * 0.4, 0, -r);
+  },
+  /* a very small spider: body, head, eight legs */
+  spider(c, r) {
+    c.beginPath(); c.arc(0, r * 0.18, r * 0.34, 0, TAU);
+    c.moveTo(r * 0.2, -r * 0.3); c.arc(0, -r * 0.3, r * 0.2, 0, TAU);
+    for (const sx of [-1, 1]) for (let i = 0; i < 4; i++) {
+      const y0 = -r * 0.3 + i * r * 0.18, a = -0.9 + i * 0.6;
+      c.moveTo(sx * r * 0.18, y0); c.lineTo(sx * r * 0.62, y0 + Math.sin(a) * r * 0.42 - r * 0.12); c.lineTo(sx * r * 0.92, y0 + Math.sin(a) * r * 0.7 + r * 0.2);
+    }
+  }
+});
 /* hollow ones get no dark fill: a bubble is a rim of light around nothing */
 const TR_HOLLOW = { ring: 1, glyph: 1, note: 1, cloud: 1 };
 
@@ -1640,6 +1685,49 @@ const TRAILS = {
            { k: 'shape', s: 'star4', cols: ['#c56bff', '#ffffff'], gap: 36, size: [3, 5], life: [0.3, 0.6], v: [10, 40], spread: 1.5, flick: 1, add: true }] },
 };
 
+/* the October four and the four secrets.
+     along  a shape points the way the ship was going (a paw print)
+     alt    px either side of the path, alternating left and right
+     lc     the colour of a link's thread */
+Object.assign(TRAILS, {
+  widow: { name: 'SILK',
+    core: { cols: ['#f3e6ff', '#b46bff', '#7a3cc4', '#3a1a6a'], r: 8 },
+    bits: [{ k: 'link', s: 'star4', cols: ['#f3e6ff', '#d8ccff'], lc: '#d8ccff', gap: 24, size: [2.2, 3.4], life: [1.0, 1.4], v: [4, 16], spread: 1.6, drag: 2.6 },
+           { k: 'shape', s: 'spider', cols: ['#b46bff', '#ff3d6e'], gap: 46, size: [4.5, 6], life: [0.8, 1.2], v: [20, 50], spread: 1.2, spin: [-2, 2], grav: 30, drag: 1.8 },
+           { k: 'dot', cols: ['#ff3d6e', '#f3e6ff'], gap: 12, size: [1.2, 2.2], life: [0.3, 0.6], v: [20, 60], spread: 1.4, flick: 0.8 }] },
+  wraith: { name: 'SOUL WISPS',
+    core: { cols: ['#eafff8', '#9effe0', '#4ac4a8', '#2a3c7a'], r: 10, v: [10, 40] },
+    bits: [{ k: 'shape', s: 'ghost', cols: ['#9effe0', '#c9a3ff', '#eafff8'], gap: 30, size: [6, 8.5], life: [0.9, 1.4], v: [20, 50], spread: 1.3, grav: -40, drag: 1.6, flick: 0.25, up: true },
+           { k: 'shape', s: 'flame', cols: ['#c9a3ff', '#9effe0'], gap: 15, size: [2.5, 4.5], life: [0.5, 0.9], v: [20, 60], spread: 1.2, grav: -60, flick: 0.6, add: true, up: true },
+           { k: 'dot', cols: ['#eafff8', '#9effe0'], gap: 9, size: [1.2, 2.4], life: [0.4, 0.8], v: [10, 50], spread: 1.5, flick: 0.8 }] },
+  ninelives: { name: 'PAW PRINTS',
+    core: { cols: ['#f4ecff', '#c9a3ff', '#8a5cd6', '#3a2470'], r: 8 },
+    bits: [{ k: 'shape', s: 'paw', cols: ['#c9a3ff', '#ffd166'], gap: 22, size: [4.6, 5.4], life: [1.1, 1.5], v: [0, 5], spread: 0.2, drag: 4, along: true, alt: 6, jit: 0.5, add: false },
+           { k: 'shape', s: 'star4', cols: ['#ffd166', '#ffffff'], gap: 30, size: [2.5, 4], life: [0.4, 0.7], v: [20, 60], spread: 1.4, flick: 0.9, add: true }] },
+  candlemass: { name: 'CANDLEWAX',
+    core: { cols: ['#fff6e8', '#ffb347', '#ff6a2c', '#5a1a0a'], r: 9, v: [10, 40] },
+    bits: [{ k: 'shape', s: 'drop', cols: ['#c9a3ff', '#f0e6d8'], gap: 22, size: [3.5, 5.5], life: [0.7, 1.1], v: [10, 40], spread: 1.0, grav: 90, drag: 1.5, up: true },
+           { k: 'shape', s: 'flame', cols: ['#ffb347', '#fff3c4'], gap: 16, size: [3, 5], life: [0.4, 0.7], v: [20, 60], spread: 1.0, grav: -70, flick: 0.6, add: true, up: true },
+           { k: 'dot', cols: ['#ffd166', '#ff9a3c'], gap: 8, size: [1.2, 2.4], life: [0.4, 0.8], v: [20, 80], spread: 1.4, grav: -80, flick: 0.7 }] },
+  stillpoint: { name: 'RIPPLES',
+    core: { cols: ['#ffffff', '#e8f4ff', '#9ef7ff', '#3a6cff'], r: 7 },
+    bits: [{ k: 'ring', cols: ['#9ef7ff', '#e8f4ff', '#ffd166'], gap: 28, size: [4, 6], end: 5, life: [0.9, 1.3], w: 1.4 },
+           { k: 'dot', cols: ['#ffffff', '#9ef7ff'], gap: 10, size: [1, 2], life: [0.5, 0.9], v: [5, 25], spread: 1.6, flick: 0.6 }] },
+  sandglass: { name: 'FALLING SAND',
+    core: { cols: ['#fff6d8', '#ffd166', '#e0a040', '#6a4a1a'], r: 8 },
+    bits: [{ k: 'dot', cols: ['#ffd166', '#ffe7a0', '#e0a040'], gap: 4, size: [1, 2], life: [0.6, 1.0], v: [10, 50], spread: 1.2, grav: 160, drag: 1.2 },
+           { k: 'shape', s: 'diamond', cols: ['#63d4ff', '#ffd166'], gap: 30, size: [2.5, 4], life: [0.5, 0.8], v: [20, 60], spread: 1.3, spin: [-4, 4], flick: 0.5, add: true }] },
+  afterglow: { name: 'ASH AND EMBER',
+    core: { cols: ['#fff0c4', '#ffb347', '#ff5a3c', '#3a0a06'], r: 10, v: [10, 40] },
+    bits: [{ k: 'shape', s: 'flake', cols: ['#9a929c', '#c8c0b8'], gap: 18, size: [3, 5], life: [0.8, 1.3], v: [10, 40], spread: 1.3, spin: [-3, 3], grav: -30, drag: 1.5, add: false },
+           { k: 'dot', cols: ['#ff5a3c', '#ffd166', '#fff0c4'], gap: 6, size: [1.2, 2.6], life: [0.4, 0.9], v: [20, 90], spread: 1.4, grav: -90, flick: 0.8 },
+           { k: 'shape', s: 'heart', cols: ['#ff5a3c'], gap: 60, size: [3, 4.5], life: [0.5, 0.8], v: [10, 30], spread: 1.2, flick: 0.5, add: true, up: true }] },
+  monolith: { name: 'SIGNAL',
+    core: { cols: ['#f0e6ff', '#c9a3ff', '#6a4ac4', '#140a30'], r: 8 },
+    bits: [{ k: 'shape', s: 'sq', cols: ['#c9a3ff', '#ffd166'], gap: 20, size: [3, 5], life: [0.6, 1.0], v: [10, 40], spread: 1.0, up: true, add: true, flick: 0.4 },
+           { k: 'spark', cols: ['#ffd166', '#f0e6ff'], gap: 26, life: [0.2, 0.4], v: [100, 200], spread: 0.6, w: 1.2 }] }
+});
+
 const Trails = {
   pool: [], seq: 0,
   make() { return { p: [], lx: null, ly: null, acc: [], idle: 0, t: 0, n: 0, link: null }; },
@@ -1731,12 +1819,13 @@ const Trails = {
     p.vx = Math.cos(ang) * v; p.vy = Math.sin(ang) * v;
     const j = trIn(L.jit, k === 0 ? 2 : 3) * sc;
     p.x = x + trR(-j, j); p.y = y + trR(-j, j);
+    if (L.alt) { const sd = (st.alt = !st.alt) ? 1 : -1; p.x -= Math.sin(back) * L.alt * sc * sd; p.y += Math.cos(back) * L.alt * sc * sd; }
     // sizes are written small in TRAILS and scaled here, so the whole set
     // can be made bolder or quieter in one place
     if (k === 0) { const r = (L.r || 9) * 1.4 * sc; p.s0 = r * trR(0.85, 1.15) * (idle ? 0.7 : 1); }
     else { const Z = L.size || [3, 5]; p.s0 = trR(Z[0], Z[1]) * sc * (k === 1 || k === 4 ? 1.4 : (k === 5 ? 1.25 : 1)); }
     p.end = trIn(L.end, k === 0 ? 0.6 : (k === 3 ? 4 : 0.45));
-    p.rot = L.up ? 0 : Math.random() * TAU;
+    p.rot = L.up ? 0 : (L.along ? back - Math.PI / 2 : Math.random() * TAU);
     const SP = L.spin; p.spin = SP ? trR(SP[0], SP[1]) : 0;
     p.drag = trIn(L.drag, 2.2); p.grav = (L.grav || 0) * sc;
     p.a = k === 0 ? Math.min(0.95, trIn(L.a, 0.62) * 1.25) : trIn(L.a, 1);
@@ -1744,7 +1833,7 @@ const Trails = {
     p.cols = null;
     if (k === 0 && !L.cycle) p.cols = L.cols;
     p.col = L.cycle ? L.cols[((st.n++ / (L.band || (k === 0 ? 4 : 1))) | 0) % L.cols.length] : trPick(L.cols);
-    p.shape = L.s || 'star4';
+    p.shape = L.s || 'star4'; p.lc = L.lc || null;
     p.add = L.add !== undefined ? L.add : k !== 1;
     p.vd = !!L.void;
     p.w = (L.w || 1.6) * sc; p.len = L.len || 1;
@@ -1878,7 +1967,7 @@ const Trails = {
         // the line between two stars of the constellation
         const q = p.prev;
         c.globalAlpha = Math.min(alphaOf(p), alphaOf(q)) * 0.55;
-        c.strokeStyle = '#9ef7ff'; c.lineWidth = 1.1 * (p.w / 1.6);
+        c.strokeStyle = p.lc || '#9ef7ff'; c.lineWidth = 1.1 * (p.w / 1.6);
         c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(p.x, p.y); c.stroke();
       }
     }
@@ -2328,8 +2417,8 @@ const DIFFS = {
   },
   endless: {
     id: 'endless', name: 'ENDLESS', tag: 'THE DESCENT', color: '#ff4fd8',
-    blurb: 'No bloom, no bell, no end. The tide rises every twenty seconds until it closes over you.',
-    detail: ['SCORE \u00d73.5, rising with the tide', 'no win condition', 'TIDE +1 every 20s, forever', 'each tide compounds every enemy stat', 'one boss at a time, two past tide 15, three past tide 30'],
+    blurb: 'No bloom, no bell, no end. The tide rises faster and faster, and every five tides brings something worse.',
+    detail: ['SCORE \u00d73.5, rising with the tide', 'no win condition', 'TIDE +1 every 20s, and faster as it rises', 'a new threat every five tides', 'one boss at a time, two past tide 15, three past tide 30'],
     hp: 0.95, dmg: 0.88, spd: 0.96, rate: 0.95, cap: 560, xp: 1.05,
     bossHp: 1.0, eliteHp: 1.0, bulletSpd: 1.0, bulletDmg: 0.95,
     rerolls: 2, cards: 3, revives: 0, hpBonus: 0, regenAdd: 0,
@@ -2355,14 +2444,16 @@ const DIFF_IDS = ['easy', 'medium', 'hard', 'impossible', 'hardcore', 'endless']
 
 /* Tide: the endless escalator. Every stack compounds. */
 const TIDE = {
-  hp: 0.088,        // compounding per stack
-  dmg: 0.046,       // linear per stack
+  hp: 0.10,         // compounding per stack (was 0.088: 21, steeper)
+  dmg: 0.05,        // linear per stack
   spd: 0.013,       // linear, capped
-  rate: 0.052,      // linear, capped
+  rate: 0.07,       // linear, capped at rateCap
+  rateCap: 4.5,
   bullet: 0.014,    // linear, capped
-  armorAt: 28,      // stacks before enemies gain void armour
-  burstAt: 44,      // stacks before enemies burst on death
-  gunAt: 30,        // stacks before the rank and file start carrying weapons
+  len0: 20, lenStep: 0.2, lenMin: 12,   // a tide every 20 s, a fifth of a second less each time, never under 12
+  armorAt: 20,      // stacks before enemies gain void armour
+  burstAt: 25,      // stacks before enemies burst on death
+  gunAt: 10,        // stacks before the rank and file start carrying weapons
   wardenEvery: 5,   // a warden every N stacks
   bossBase: 0.10,   // chance a boss pack shows up on a roll, at tide 0
   bossPer: 0.028,   // ...and how much each tide adds to that
@@ -2817,6 +2908,59 @@ const WEAPONS = {
     ],
     up: ['wider, faster', '+damage, wider', 'wider, faster', 'MAX: the tide comes in'],
     evo: { id: 'maelstrom', name: 'MAELSTROM', req: 'recoil', color: '#a3e0ff', blurb: 'The wall turns around and comes back through.' }
+  },
+  /* 22: one for each passive that had only one weapon (src: arms.js) */
+  fuse: {
+    id: 'fuse', name: 'FUSE', color: '#ffa53a',
+    blurb: 'Your path burns, and a spark runs it back to you and goes off.',
+    lv: [
+      { dmg: 17, tick: 0.26, dur: 1.8, w: 32, burn: 16, cd: 1.8, rad: 84 },
+      { dmg: 23, tick: 0.25, dur: 2.1, w: 37, burn: 22, cd: 1.7, rad: 92 },
+      { dmg: 30, tick: 0.24, dur: 2.4, w: 42, burn: 30, cd: 1.55, rad: 100 },
+      { dmg: 40, tick: 0.22, dur: 2.8, w: 49, burn: 41, cd: 1.4, rad: 110 },
+      { dmg: 53, tick: 0.20, dur: 3.3, w: 57, burn: 56, cd: 1.25, rad: 122 }
+    ],
+    up: ['longer, hotter', '+damage, wider', 'longer, quicker', 'MAX: a burning road'],
+    evo: { id: 'wildfire', name: 'WILDFIRE', req: 'ember', color: '#ff5136', blurb: 'Whatever burns leaves fire where it walks.' }
+  },
+  glean: {
+    id: 'glean', name: 'GLEAN', color: '#ffe45c',
+    blurb: 'Every mote you take is thrown back out as a dart.',
+    lv: [
+      { dmg: 22, cd: 0.90, count: 2, rate: 4, pierce: 1, spd: 640 },
+      { dmg: 28, cd: 0.84, count: 2, rate: 5, pierce: 1, spd: 660 },
+      { dmg: 36, cd: 0.78, count: 3, rate: 6, pierce: 2, spd: 690 },
+      { dmg: 46, cd: 0.72, count: 3, rate: 7, pierce: 2, spd: 720 },
+      { dmg: 58, cd: 0.66, count: 4, rate: 8, pierce: 2, spd: 760 }
+    ],
+    up: ['quicker gleaning', '+1 dart, pierces', 'quicker, +damage', 'MAX: +1 dart, a harvest'],
+    evo: { id: 'motherlode', name: 'MOTHERLODE', req: 'magnet', color: '#fff3b0', blurb: 'Darts split on impact, and every tenth mote throws a crown of eight.' }
+  },
+  flashpoint: {
+    id: 'flashpoint', name: 'FLASHPOINT', color: '#ff5cbe',
+    blurb: 'Lobs a charge that swells, and swells, and then goes.',
+    lv: [
+      { dmg: 74, cd: 2.70, count: 1, rad: 108, fuse: 1.5 },
+      { dmg: 98, cd: 2.50, count: 1, rad: 118, fuse: 1.5 },
+      { dmg: 130, cd: 2.30, count: 1, rad: 130, fuse: 1.45 },
+      { dmg: 172, cd: 2.10, count: 1, rad: 144, fuse: 1.4 },
+      { dmg: 230, cd: 1.90, count: 2, rad: 160, fuse: 1.35 }
+    ],
+    up: ['bigger, quicker', '+damage', 'bigger, shorter fuse', 'MAX: +1 charge, enormous'],
+    evo: { id: 'criticalmass', name: 'CRITICAL MASS', req: 'volatile', color: '#ffa8e6', blurb: 'Every blast throws four more charges, smaller and quicker.' }
+  },
+  snare: {
+    id: 'snare', name: 'SNARE', color: '#7d9cff',
+    blurb: 'A trap where you stand. What walks in is held fast, then crushed.',
+    lv: [
+      { dmg: 16, cd: 3.2, max: 2, rad: 70, hold: 4, dur: 2.2, crush: 64 },
+      { dmg: 21, cd: 3.0, max: 2, rad: 76, hold: 5, dur: 2.4, crush: 86 },
+      { dmg: 28, cd: 2.7, max: 3, rad: 84, hold: 6, dur: 2.7, crush: 114 },
+      { dmg: 37, cd: 2.4, max: 3, rad: 92, hold: 8, dur: 3.0, crush: 152 },
+      { dmg: 50, cd: 2.1, max: 4, rad: 102, hold: 10, dur: 3.4, crush: 205 }
+    ],
+    up: ['bigger, holds more', '+1 trap, +damage', 'bigger, longer grip', 'MAX: +1 trap, crushing'],
+    evo: { id: 'oubliette', name: 'OUBLIETTE', req: 'anchor', color: '#9fd8ff', blurb: 'What it crushes under a quarter of its life drops into the void.' }
   }
 
 };
@@ -6745,6 +6889,42 @@ function paintIcon(c, id, s) {
         neon(c, cc => { cc.beginPath(); cc.arc(-R * 0.6 + i * R * 0.6, 0, R * (0.34 - i * 0.08), 0, TAU); }, col, { lw: 1.7, blur: 10, core: null, inner: false });
       }
       break;
+    case 'fuse': {
+      // a burning road: an S of fire, three tongues off it, the spark at its head
+      neon(c, cc => { cc.beginPath(); cc.moveTo(-R * 1.25, R * 0.7); cc.bezierCurveTo(-R * 0.2, R * 1.1, -R * 0.4, -R * 0.2, R * 0.3, -R * 0.15); cc.quadraticCurveTo(R * 0.9, -R * 0.1, R * 1.05, -R * 0.75); }, col, { lw: 2.6, blur: 13, core: null, inner: false });
+      neon(c, cc => {
+        cc.beginPath();
+        for (const [x, y, h] of [[-R * 0.75, R * 0.62, 0.7], [-R * 0.12, R * 0.12, 0.85], [R * 0.55, -R * 0.2, 0.6]]) {
+          cc.moveTo(x - R * 0.16, y); cc.quadraticCurveTo(x - R * 0.04, y - R * h * 0.5, x + R * 0.05, y - R * h); cc.quadraticCurveTo(x + R * 0.06, y - R * h * 0.5, x + R * 0.16, y);
+        }
+      }, '#ff5a2a', { lw: 1.6, blur: 9, core: null, inner: false });
+      neon(c, cc => { cc.beginPath(); cc.arc(R * 1.05, -R * 0.75, R * 0.16, 0, TAU); }, '#fff4d6', { lw: 1.6, blur: 10, core: null, inner: false });
+      break;
+    }
+    case 'glean': {
+      // a mote at the root, three darts thrown out of it
+      neon(c, cc => pathPoly(cc, 4, R * 0.36, 0), PAL.xp, { lw: 1.8, blur: 10, core: 'rgba(20,60,36,0.6)' });
+      for (const a of [-0.95, -0.5, -0.05]) {
+        const x0 = Math.cos(a) * R * 0.55, y0 = Math.sin(a) * R * 0.55, x1 = Math.cos(a) * R * 1.35, y1 = Math.sin(a) * R * 1.35;
+        const nx = -Math.sin(a) * R * 0.13, ny = Math.cos(a) * R * 0.13, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+        neon(c, cc => { cc.beginPath(); cc.moveTo(x1, y1); cc.lineTo(mx + nx, my + ny); cc.lineTo(x0, y0); cc.lineTo(mx - nx, my - ny); cc.closePath(); }, col, { lw: 1.6, blur: 10, core: 'rgba(40,24,0,0.7)' });
+      }
+      break;
+    }
+    case 'flashpoint': {
+      // the charge: a star in a broken ring, and the reach of its blast
+      neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 1.2, 0, TAU); }, col, { lw: 1.1, blur: 7, core: null, inner: false });
+      neon(c, cc => { cc.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; cc.moveTo(Math.cos(a) * R * 0.75, Math.sin(a) * R * 0.75); cc.arc(0, 0, R * 0.75, a, a + 0.6); } }, col, { lw: 2.2, blur: 12, core: null, inner: false });
+      neon(c, cc => pathStar(cc, 4, R * 0.46, R * 0.16, 0), '#ffffff', { lw: 1.6, blur: 10, core: 'rgba(30,0,20,0.8)' });
+      break;
+    }
+    case 'snare': {
+      // jaws: a ring of teeth closing on the middle
+      neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 1.18, 0, TAU); }, col, { lw: 1.8, blur: 10, core: null, inner: false });
+      neon(c, cc => { cc.beginPath(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, a1 = a - 0.2, a2 = a + 0.2; cc.moveTo(Math.cos(a1) * R * 1.1, Math.sin(a1) * R * 1.1); cc.lineTo(Math.cos(a) * R * 0.55, Math.sin(a) * R * 0.55); cc.lineTo(Math.cos(a2) * R * 1.1, Math.sin(a2) * R * 1.1); } }, col, { lw: 2, blur: 12, core: 'rgba(8,10,30,0.7)' });
+      neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.18, 0, TAU); }, '#ffffff', { lw: 1.6, blur: 9, core: null, inner: false });
+      break;
+    }
     case 'undertow':
       for (let i = 0; i < 3; i++) {
         const y = (i - 1) * R * 0.62;
@@ -7223,9 +7403,42 @@ const EVENT_SKINS = [
     blurb: 'The hat stayed behind. The fire did not.' },
   { id: 'harvestmoon', name: 'HARVEST MOON', event: 'halloween', req: 'HALLOWEEN EVENT', short: 'HALLOWEEN',
     col: '#fff3a3', ring: '#ff5a3c', core: '#fffbe0', halo: 6, haloCol: '#ff5a3c', anim: true,
-    blurb: 'The boss moon, tamed. It still smiles like it knows.' }
+    blurb: 'The boss moon, tamed. It still smiles like it knows.' },
+  /* October, the second set: two more on the banner (a TOP and the MYTH), two for the harvest's hardest feats */
+  { id: 'widow', name: 'WIDOW', event: 'halloween', req: 'HALLOWEEN BANNER \u00b7 TOP', short: 'HALLOWEEN',
+    col: '#b46bff', ring: '#ff3d6e', core: '#f3e6ff', halo: 3, haloCol: '#ff3d6e', anim: true,
+    blurb: 'Eight legs, one red hourglass, and all the time in the world.' },
+  { id: 'wraith', name: 'WRAITH', event: 'halloween', req: 'HALLOWEEN BANNER \u00b7 MYTH', short: 'HALLOWEEN',
+    col: '#9effe0', ring: '#c9a3ff', core: '#eafff8', halo: 5, haloCol: '#9effe0', anim: true,
+    blurb: 'Nobody is under the hood. Something is holding the lantern anyway.' },
+  { id: 'ninelives', name: 'NINE LIVES', event: 'halloween', req: 'HOLLOW HARVEST \u00b7 WIN ALL THREE LEVELS', short: 'HALLOWEEN',
+    col: '#c9a3ff', ring: '#ffd166', core: '#f4ecff', anim: true,
+    blurb: 'It has spent a few. It is not telling you how many.' },
+  { id: 'candlemass', name: 'CANDLEMASS', event: 'halloween', req: 'HOLLOW HARVEST \u00b7 WIN ON HOLLOW, HIT 5 TIMES OR FEWER', short: 'HALLOWEEN',
+    col: '#f0e6d8', ring: '#ff9a3c', core: '#fff6e8', halo: 3, haloCol: '#ff9a3c', anim: true,
+    blurb: 'Three candles, lit for whoever did not make it out.' }
 ];
 for (const m of EVENT_SKINS) { m.price = -1; m.secret = true; SKINS.push(m); }
+/* ------------------------------------------------------------------------
+   SECRET SKINS  --  found, never bought or rolled: each is a feat nobody
+   tells you about. The wardrobe keeps a shelf of ??? for them, each with a
+   one-line riddle (cryptic), and shows nothing else until you find it.
+   ------------------------------------------------------------------------ */
+const SECRET_SKINS = [
+  { id: 'stillpoint', name: 'STILLPOINT', cryptic: 'A WHOLE MINUTE, AND NOT ONE STEP', req: 'A SECRET', short: 'SECRET',
+    col: '#e8f4ff', ring: '#9ef7ff', core: '#ffffff', halo: 4, haloCol: '#ffd166', anim: true,
+    blurb: 'Everything turns around it. It has never once turned.' },
+  { id: 'sandglass', name: 'SANDGLASS', cryptic: 'WIN WITHOUT EVER ONCE HURRYING', req: 'A SECRET', short: 'SECRET',
+    col: '#ffd166', ring: '#63d4ff', core: '#fff6d8', halo: 2, haloCol: '#ffd166', anim: true,
+    blurb: 'It never ran. It got there all the same.' },
+  { id: 'afterglow', name: 'AFTERGLOW', cryptic: 'WIN ON YOUR LAST EMBER', req: 'A SECRET', short: 'SECRET',
+    col: '#ff5a3c', ring: '#ffd166', core: '#fff0c4', halo: 3, haloCol: '#ff5a3c', anim: true,
+    blurb: 'The fire went out. This is what it left, and it is still warm.' },
+  { id: 'monolith', name: 'MONOLITH', cryptic: 'LATE IN A RUN, THREE MINUTES WITHOUT A SCRATCH', req: 'A SECRET', short: 'SECRET',
+    col: '#c9a3ff', ring: '#ffd166', core: '#f0e6ff', halo: 3, haloCol: '#ffd166', anim: true,
+    blurb: 'Nothing has touched it in a very long time. Nothing will.' }
+];
+for (const m of SECRET_SKINS) { m.price = -1; m.secret = true; SKINS.push(m); }
 /* ------------------------------------------------------------------------
    EXCLUSIVE SKINS  --  bought with VOIDBUX in the SHOP, and nowhere else.
    Each one is a new silhouette (a hypercube, a coiled dragon, a firebird)
@@ -7317,7 +7530,9 @@ const SKIN_WORTH = {
   unbroken: 5000, ascendant: 6000, pathless: 6000, untolled: 6000, deeproot: 6000, endurant: 8000,
   sunken: 9000, archivist: 15000, eventide: 15000, heartwood: 8000, nacre: 8000, barrow: 10000,
   dayzero: 6000, meteor: 5000, asterism: 6000, starfall: 6000, andromeda: 7000, supernova: 8000,
-  gourdlight: 5000, witchfire: 7000, harvestmoon: 9000
+  gourdlight: 5000, witchfire: 7000, harvestmoon: 9000,
+  widow: 9000, wraith: 12000, ninelives: 9000, candlemass: 10000,
+  stillpoint: 7000, sandglass: 7000, afterglow: 8000, monolith: 9000
 };
 function skinWorth(sk) {
   if (SKIN_WORTH[sk.id]) return SKIN_WORTH[sk.id];
@@ -7945,7 +8160,7 @@ const ROT_PLANETS = [
 
   { id:'midden', name:'THE MIDDEN', threat:2, col:'#b8e04a', mx:300, my:388,
     finale:'ravener', finaleNow:'ravener', relic:'overripe', relicName:'OVERRIPE',
-    relicDesc:'Motes are worth 60% more. Motes rot away 10s after they fall.',
+    relicDesc:'Motes are worth 60% more. They lie where they fall, and rot away after 10s.',
     loc:['Bloat','Gnat','Charnel'], flav:'Everything thrown away comes here to be eaten.',
     roster:{ bloat:3.0, gnat:2.6, charnel:1.8, shambler:0.6, carapace:0.4 },
     body:{ base:'#5a6a22', dark:'#141a06', light:'#e8ffb0', feat:'midden', moons:1 },
@@ -8402,6 +8617,374 @@ function skinCol(sk, t) {
   return 'hsl(' + h.toFixed(0) + ',100%,78%)';
 }
 
+/* ========================================================================
+   SKIN ART 24  --  four more for THE HOLLOW HARVEST (two on the banner, two
+   for its hardest feats) and four secrets. paintSkin hands these ids here.
+   Every body loops on a four-second clock (ph), like the others with anim.
+   ======================================================================== */
+const SKIN_ART = {
+  /* a hooded ghost with nobody under the hood: a ragged hem whose tails
+     drift, a lantern swinging from one sleeve, two eyes that blink */
+  wraith(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    hglow(c, col, 0, R * 0.15, R * 1.7, 0.2 + 0.05 * Math.sin(ph * 2));
+    const TIPS = [[0.74, 1.08], [0.42, 1.22], [0.08, 1.12], [-0.26, 1.24], [-0.6, 1.1]];
+    const cloak = x => {
+      x.beginPath();
+      x.moveTo(0, -R * 1.04);
+      x.bezierCurveTo(R * 0.44, -R * 1.02, R * 0.64, -R * 0.62, R * 0.6, -R * 0.18);
+      x.bezierCurveTo(R * 0.6, R * 0.16, R * 0.8, R * 0.44, R * 0.9, R * 0.7);
+      for (let i = 0; i < TIPS.length; i++) {
+        const sw = Math.sin(ph * 2 + i * 1.3), tx = TIPS[i][0] * R + sw * R * 0.06, ty = TIPS[i][1] * R + Math.sin(ph * 2 + i * 2.1) * R * 0.07;
+        x.lineTo(tx, ty);
+        const nx = i < TIPS.length - 1 ? (TIPS[i][0] + TIPS[i + 1][0]) / 2 : -0.9;
+        x.lineTo(nx * R + sw * R * 0.03, i < TIPS.length - 1 ? R * 0.8 : R * 0.7);
+      }
+      x.bezierCurveTo(-R * 0.8, R * 0.44, -R * 0.6, R * 0.16, -R * 0.6, -R * 0.18);
+      x.bezierCurveTo(-R * 0.64, -R * 0.62, -R * 0.44, -R * 1.02, 0, -R * 1.04);
+      x.closePath();
+    };
+    neon(c, cloak, col, { lw: 2.6, blur: 20, core: 'rgba(3,12,16,0.95)' });
+    // the light it gives off comes from below, where its feet are not
+    bodyLight(c, cloak, 0, R * 1.0, R * 0.05, R * 1.5, [[0, 'rgba(158,255,224,0.42)'], [0.45, 'rgba(70,170,160,0.14)'], [1, 'rgba(0,0,0,0)']]);
+    // two folds down the front
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.18, R * 0.12); x.quadraticCurveTo(-R * 0.3, R * 0.5, -R * 0.26, R * 0.96); x.moveTo(R * 0.2, R * 0.12); x.quadraticCurveTo(R * 0.34, R * 0.52, R * 0.36, R * 0.92); },
+      sk.ring, { lw: 1, blur: 6, core: null, inner: false });
+    // the hood: a pointed arch of nothing, rimmed in violet
+    const hood = x => { x.beginPath(); x.moveTo(0, -R * 0.8); x.bezierCurveTo(R * 0.3, -R * 0.76, R * 0.42, -R * 0.4, R * 0.33, -R * 0.06); x.quadraticCurveTo(0, R * 0.12, -R * 0.33, -R * 0.06); x.bezierCurveTo(-R * 0.42, -R * 0.4, -R * 0.3, -R * 0.76, 0, -R * 0.8); x.closePath(); };
+    neon(c, hood, sk.ring, { lw: 1.7, blur: 12, core: 'rgba(0,0,0,0.98)' });
+    hglow(c, col, 0, -R * 0.34, R * 0.55, 0.34 + 0.1 * Math.sin(ph * 3));
+    const bl = u > 0.86 && u < 0.92 ? 0.12 : 1;
+    for (const sx of [-1, 1]) {
+      c.save(); c.translate(sx * R * 0.14, -R * 0.36); c.rotate(sx * 0.32); c.scale(1, bl);
+      neon(c, x => { x.beginPath(); x.ellipse(0, 0, R * 0.1, R * 0.055, 0, 0, TAU); }, '#eafff8', { lw: 1.1, blur: 12, core: col, inner: false });
+      c.restore();
+    }
+    // the right sleeve, held out, ragged at the cuff
+    neon(c, x => { x.beginPath(); x.moveTo(R * 0.44, -R * 0.4); x.bezierCurveTo(R * 0.74, -R * 0.46, R * 0.98, -R * 0.24, R * 1.06, R * 0.04);
+      x.lineTo(R * 1.1, R * 0.24); x.lineTo(R * 1.0, R * 0.14); x.lineTo(R * 0.93, R * 0.28); x.lineTo(R * 0.85, R * 0.14); x.lineTo(R * 0.76, R * 0.22);
+      x.bezierCurveTo(R * 0.74, R * 0.06, R * 0.64, -R * 0.02, R * 0.52, -R * 0.02); x.closePath(); },
+      col, { lw: 2, blur: 14, core: 'rgba(3,12,16,0.96)' });
+    // the lantern, swinging on its chain from the cuff
+    const sa = Math.sin(ph) * 0.3, hx = R * 0.94, hy = R * 0.2;
+    const lx = hx + Math.sin(sa) * R * 0.42, ly = hy + Math.cos(sa) * R * 0.42;
+    neon(c, x => { x.beginPath(); x.moveTo(hx, hy); x.lineTo(lx, ly - R * 0.12); }, '#c8c0e0', { lw: 0.9, blur: 4, core: null, inner: false });
+    c.save(); c.translate(lx, ly); c.rotate(-sa * 0.6);
+    hglow(c, sk.ring, 0, 0, R * 0.7, 0.5 + 0.15 * Math.sin(ph * 5));
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.08, -R * 0.2); x.lineTo(R * 0.08, -R * 0.2); x.lineTo(R * 0.17, -R * 0.1); x.lineTo(R * 0.19, R * 0.18); x.lineTo(-R * 0.19, R * 0.18); x.lineTo(-R * 0.17, -R * 0.1); x.closePath(); }, sk.ring, { lw: 1.5, blur: 10, core: 'rgba(30,12,50,0.92)', inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.22, R * 0.18); x.lineTo(R * 0.22, R * 0.18); x.moveTo(0, -R * 0.2); x.lineTo(0, -R * 0.28); }, '#c8c0e0', { lw: 1.2, blur: 4, core: null, inner: false });
+    const fl = 1 + 0.18 * Math.sin(ph * 6);
+    neon(c, x => { const s = R * 0.11 * fl; x.beginPath(); x.moveTo(0, R * 0.08); x.bezierCurveTo(-s, R * 0.02, -s * 0.6, -s * 0.6, 0, -s * 1.3); x.bezierCurveTo(s * 0.6, -s * 0.6, s, R * 0.02, 0, R * 0.08); }, '#ffffff', { lw: 0.9, blur: 8, core: sk.ring, inner: false });
+    c.restore();
+  },
+
+  /* a spider in front of its web: the web turns slowly behind it, the legs
+     walk, the hourglass on its back beats */
+  widow(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    // the web: eight spokes and three sagging rings, faint, turning an eighth of a turn a loop
+    c.save(); c.rotate(ph / 8); c.globalAlpha *= 0.4;
+    neon(c, x => { x.beginPath(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; x.moveTo(0, 0); x.lineTo(Math.cos(a) * R * 1.32, Math.sin(a) * R * 1.32); } },
+      '#d8ccff', { lw: 0.8, blur: 4, core: null, inner: false });
+    for (const rr of [0.52, 0.86, 1.18]) {
+      neon(c, x => {
+        x.beginPath();
+        for (let i = 0; i <= 8; i++) {
+          const a = i / 8 * TAU, px = Math.cos(a) * R * rr, py = Math.sin(a) * R * rr;
+          if (!i) { x.moveTo(px, py); continue; }
+          const m = a - TAU / 16;
+          x.quadraticCurveTo(Math.cos(m) * R * rr * 0.84, Math.sin(m) * R * rr * 0.84, px, py);
+        }
+      }, rr > 1 ? sk.ring : '#d8ccff', { lw: 0.8, blur: 4, core: null, inner: false });
+    }
+    c.restore();
+    hglow(c, col, 0, 0, R * 1.3, 0.16);
+    // eight legs, two joints each, walking
+    const LEG = [-0.9, -0.32, 0.3, 0.88];
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < 4; i++) {
+        const w = Math.sin(ph * 2 + i * 1.7 + (sx > 0 ? 0 : Math.PI)) * 0.12;
+        const a = LEG[i] + w, hx = sx * R * 0.2, hy = -R * 0.42 + (i - 1.5) * R * 0.08;
+        const kx = hx + sx * Math.cos(a - 0.38) * R * 0.62, ky = hy + Math.sin(a - 0.38) * R * 0.62;
+        const fx = kx + sx * Math.cos(a + 0.58) * R * 0.6, fy = ky + Math.sin(a + 0.58) * R * 0.6;
+        neon(c, x => { x.beginPath(); x.moveTo(hx, hy); x.lineTo(kx, ky); x.lineTo(fx, fy); }, col, { lw: 2.2, blur: 9, core: null, inner: false });
+        neon(c, x => { x.beginPath(); x.arc(kx, ky, R * 0.035, 0, TAU); }, sk.ring, { lw: 0.8, blur: 5, core: sk.ring, inner: false });
+      }
+    }
+    // the abdomen, with its hourglass
+    const abd = x => { x.beginPath(); x.ellipse(0, R * 0.3, R * 0.46, R * 0.58, 0, 0, TAU); };
+    neon(c, abd, col, { lw: 2.6, blur: 18, core: 'rgba(14,4,24,0.96)' });
+    bodyLight(c, abd, -R * 0.14, R * 0.08, R * 0.02, R * 0.6, [[0, 'rgba(210,170,255,0.32)'], [1, 'rgba(0,0,0,0)']]);
+    const beat = 0.7 + 0.3 * Math.pow(Math.max(0, Math.sin(ph * 2)), 4);
+    c.save(); c.globalAlpha *= beat;
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.17, R * 0.06); x.lineTo(R * 0.17, R * 0.06); x.lineTo(0, R * 0.32); x.closePath(); x.moveTo(0, R * 0.32); x.lineTo(R * 0.17, R * 0.58); x.lineTo(-R * 0.17, R * 0.58); x.closePath(); },
+      sk.ring, { lw: 1.4, blur: 12, core: sk.ring, inner: false });
+    c.restore();
+    // the head, its eyes, its fangs
+    const head = x => { x.beginPath(); x.ellipse(0, -R * 0.42, R * 0.3, R * 0.25, 0, 0, TAU); };
+    neon(c, head, col, { lw: 2.2, blur: 14, core: 'rgba(14,4,24,0.96)' });
+    for (const [ex, ey, er] of [[-0.12, -0.5, 0.05], [0.12, -0.5, 0.05], [-0.22, -0.44, 0.032], [0.22, -0.44, 0.032], [-0.05, -0.58, 0.028], [0.05, -0.58, 0.028]]) {
+      neon(c, x => { x.beginPath(); x.arc(ex * R, ey * R, er * R, 0, TAU); }, sk.ring, { lw: 0.8, blur: 8, core: '#ffd0dc', inner: false });
+    }
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.07, -R * 0.65); x.quadraticCurveTo(-R * 0.1, -R * 0.73, -R * 0.03, -R * 0.76); x.moveTo(R * 0.07, -R * 0.65); x.quadraticCurveTo(R * 0.1, -R * 0.73, R * 0.03, -R * 0.76); },
+      '#f3e6ff', { lw: 1.2, blur: 6, core: null, inner: false });
+  },
+
+  /* a black cat's face: violet rim, gold eyes with slit pupils that blink,
+     a tail that swishes round behind it, and its nine lives orbiting */
+  ninelives(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    hglow(c, col, 0, 0, R * 1.5, 0.16);
+    // nine lives: small moons on a ring, a ninth of a turn a loop
+    c.save(); c.rotate(-ph / 9);
+    for (let i = 0; i < 9; i++) {
+      const a = i / 9 * TAU, px = Math.cos(a) * R * 1.2, py = Math.sin(a) * R * 1.2, lit = 0.55 + 0.45 * Math.sin(ph * 2 + i * 0.7);
+      c.save(); c.globalAlpha *= 0.4 + 0.6 * lit;
+      neon(c, x => { x.beginPath(); x.arc(px, py, R * 0.085, a + 0.6, a + 0.6 + Math.PI * 1.3); x.arc(px + Math.cos(a + 1.25) * R * 0.04, py + Math.sin(a + 1.25) * R * 0.04, R * 0.06, a + 0.6 + Math.PI * 1.3, a + 0.6, true); x.closePath(); }, sk.ring, { lw: 0.9, blur: 8, core: '#ffd166', inner: false });
+      c.restore();
+    }
+    c.restore();
+    // the tail: a thick curl, its rim in violet and its body dark
+    const sw = Math.sin(ph * 2) * R * 0.14;
+    const tail = x => { x.beginPath(); x.moveTo(R * 0.3, R * 0.56); x.bezierCurveTo(R * 0.9, R * 0.8, R * 1.04 + sw * 0.3, R * 0.3, R * 0.98 + sw * 0.7, -R * 0.12); x.bezierCurveTo(R * 0.94 + sw, -R * 0.42, R * 1.12 + sw, -R * 0.66, R * 1.3 + sw * 1.2, -R * 0.6); };
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+    neon(c, tail, col, { lw: 5.4, blur: 14, core: null, inner: false });
+    c.strokeStyle = 'rgba(10,6,22,1)'; c.lineWidth = 3; tail(c); c.stroke();
+    c.restore();
+    // the head and its ears
+    const head = x => {
+      x.beginPath(); x.moveTo(-R * 0.72, -R * 0.04);
+      x.lineTo(-R * 0.68, -R * 0.94); x.lineTo(-R * 0.26, -R * 0.62);
+      x.quadraticCurveTo(0, -R * 0.72, R * 0.26, -R * 0.62);
+      x.lineTo(R * 0.68, -R * 0.94); x.lineTo(R * 0.72, -R * 0.04);
+      x.bezierCurveTo(R * 0.72, R * 0.5, R * 0.36, R * 0.68, 0, R * 0.68);
+      x.bezierCurveTo(-R * 0.36, R * 0.68, -R * 0.72, R * 0.5, -R * 0.72, -R * 0.04);
+      x.closePath();
+    };
+    neon(c, head, col, { lw: 2.6, blur: 18, core: 'rgba(10,6,22,0.97)' });
+    bodyLight(c, head, -R * 0.2, -R * 0.4, R * 0.02, R * 0.8, [[0, 'rgba(201,163,255,0.22)'], [1, 'rgba(0,0,0,0)']]);
+    for (const sx of [-1, 1]) neon(c, x => { x.beginPath(); x.moveTo(sx * R * 0.6, -R * 0.78); x.lineTo(sx * R * 0.58, -R * 0.4); x.lineTo(sx * R * 0.36, -R * 0.56); x.closePath(); }, '#ff7ae6', { lw: 1, blur: 6, core: 'rgba(80,10,60,0.7)', inner: false });
+    // the eyes: almonds of gold, a slit each, a blink once a loop
+    const bl = u > 0.7 && u < 0.76 ? 0.1 : 1, pw = R * (0.035 + 0.02 * (0.5 + 0.5 * Math.sin(ph)));
+    for (const sx of [-1, 1]) {
+      c.save(); c.translate(sx * R * 0.3, -R * 0.06); c.rotate(-sx * 0.18); c.scale(1, bl);
+      hglow(c, sk.ring, 0, 0, R * 0.36, 0.5);
+      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.2, 0); x.quadraticCurveTo(0, -R * 0.2, R * 0.2, 0); x.quadraticCurveTo(0, R * 0.2, -R * 0.2, 0); x.closePath(); }, sk.ring, { lw: 1.4, blur: 12, core: '#ffd166', inner: false });
+      c.fillStyle = '#120a02'; c.beginPath(); c.ellipse(0, 0, pw, R * 0.13, 0, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(R * 0.07, -R * 0.05, R * 0.025, 0, TAU); c.fill();
+      c.restore();
+    }
+    // nose, mouth and whiskers (they twitch)
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.07, R * 0.2); x.lineTo(R * 0.07, R * 0.2); x.lineTo(0, R * 0.29); x.closePath(); }, '#ff7ae6', { lw: 1, blur: 6, core: '#ff7ae6', inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(0, R * 0.29); x.quadraticCurveTo(-R * 0.06, R * 0.38, -R * 0.14, R * 0.34); x.moveTo(0, R * 0.29); x.quadraticCurveTo(R * 0.06, R * 0.38, R * 0.14, R * 0.34); }, col, { lw: 0.9, blur: 4, core: null, inner: false });
+    const tw = Math.max(0, Math.sin(ph * 4)) * R * 0.04;
+    c.save(); c.globalAlpha *= 0.75;
+    neon(c, x => { x.beginPath(); for (const sx of [-1, 1]) for (const k of [-1, 0, 1]) { x.moveTo(sx * R * 0.22, R * (0.24 + k * 0.05)); x.lineTo(sx * R * 0.82, R * (0.18 + k * 0.12) - tw * k); } }, '#f4ecff', { lw: 0.8, blur: 4, core: null, inner: false });
+    c.restore();
+  },
+
+  /* a skull under three violet candles: the flames gutter, the sockets glow
+     with what the flames throw down into them, wax runs */
+  candlemass(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    hglow(c, sk.ring, 0, -R * 0.6, R * 1.4, 0.2 + 0.06 * Math.sin(ph * 3));
+    // the candles first, so the skull sits in front of their feet
+    const CAN = [[-0.42, 0.4, 0.2], [0, 0.56, 0.24], [0.42, 0.34, 0.2]];
+    for (let i = 0; i < 3; i++) {
+      const [cx0, ch, cw] = CAN[i], x0 = cx0 * R, top = -R * 0.56 - ch * R;
+      neon(c, x => { x.beginPath(); x.moveTo(x0 - cw * R / 2, -R * 0.5); x.lineTo(x0 - cw * R / 2, top + R * 0.04); x.quadraticCurveTo(x0, top - R * 0.03, x0 + cw * R / 2, top + R * 0.04); x.lineTo(x0 + cw * R / 2, -R * 0.5); },
+        '#c9a3ff', { lw: 1.5, blur: 9, core: 'rgba(30,14,50,0.95)', inner: false });
+      // a run of wax down one side
+      const dl = R * (0.1 + 0.08 * ((i + 1) % 2)) * (0.8 + 0.2 * Math.sin(ph + i));
+      neon(c, x => { x.beginPath(); x.moveTo(x0 + cw * R * 0.36, top + R * 0.04); x.lineTo(x0 + cw * R * 0.36, top + R * 0.04 + dl); }, '#e6d6ff', { lw: 1.6, blur: 5, core: null, inner: false });
+      // the wick and its flame
+      const fl = 1 + 0.16 * Math.sin(ph * 5 + i * 2.1) + 0.08 * Math.sin(ph * 9 + i), lean = Math.sin(ph * 3 + i * 1.4) * R * 0.04;
+      c.save(); c.translate(x0, top - R * 0.02);
+      hglow(c, sk.ring, 0, -R * 0.12, R * 0.36, 0.55);
+      neon(c, x => { const s = R * 0.11 * fl; x.beginPath(); x.moveTo(0, 0); x.bezierCurveTo(-s, -s * 0.4, -s * 0.6, -s * 1.3, lean, -s * 2.3); x.bezierCurveTo(s * 0.6, -s * 1.3, s, -s * 0.4, 0, 0); x.closePath(); },
+        sk.ring, { lw: 1.2, blur: 12, core: '#fff3c4', inner: false });
+      c.restore();
+    }
+    // the skull
+    const skull = x => {
+      x.beginPath();
+      x.arc(0, -R * 0.08, R * 0.66, Math.PI * 0.8, Math.PI * 0.2 + TAU, false);
+      x.lineTo(R * 0.38, R * 0.5);
+      x.quadraticCurveTo(R * 0.36, R * 0.76, 0, R * 0.78);
+      x.quadraticCurveTo(-R * 0.36, R * 0.76, -R * 0.38, R * 0.5);
+      x.closePath();
+    };
+    neon(c, skull, col, { lw: 2.6, blur: 18, core: 'rgba(24,16,10,0.96)' });
+    bodyLight(c, skull, -R * 0.2, -R * 0.4, R * 0.02, R * 0.85, [[0, 'rgba(240,230,216,0.26)'], [0.6, 'rgba(240,230,216,0.06)'], [1, 'rgba(0,0,0,0)']]);
+    // wax that ran off the middle candle and down the crown
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.14, -R * 0.66); x.quadraticCurveTo(-R * 0.08, -R * 0.62, -R * 0.02, -R * 0.66); x.quadraticCurveTo(R * 0.06, -R * 0.62, R * 0.12, -R * 0.66); x.moveTo(-R * 0.06, -R * 0.64); x.lineTo(-R * 0.06, -R * 0.48); x.moveTo(R * 0.07, -R * 0.64); x.lineTo(R * 0.07, -R * 0.54); },
+      '#c9a3ff', { lw: 1.8, blur: 7, core: null, inner: false });
+    // sockets, each with an ember that flickers
+    for (const sx of [-1, 1]) {
+      neon(c, x => { x.beginPath(); x.ellipse(sx * R * 0.25, -R * 0.06, R * 0.17, R * 0.15, sx * 0.25, 0, TAU); }, col, { lw: 1.4, blur: 6, core: 'rgba(0,0,0,0.98)', inner: false });
+      const e = 0.6 + 0.4 * Math.sin(ph * 4 + sx * 1.3);
+      hglow(c, sk.ring, sx * R * 0.25, -R * 0.04, R * 0.22, 0.6 * e);
+      neon(c, x => { x.beginPath(); x.arc(sx * R * 0.25, -R * 0.04, R * 0.045 * (0.8 + 0.4 * e), 0, TAU); }, sk.ring, { lw: 0.8, blur: 10, core: '#fff3c4', inner: false });
+    }
+    // the nose, the teeth, a crack
+    neon(c, x => { x.beginPath(); x.moveTo(0, R * 0.12); x.lineTo(R * 0.08, R * 0.3); x.lineTo(-R * 0.08, R * 0.3); x.closePath(); }, col, { lw: 1.1, blur: 5, core: 'rgba(0,0,0,0.95)', inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.3, R * 0.5); x.lineTo(R * 0.3, R * 0.5); for (let k = -2; k <= 2; k++) { x.moveTo(k * R * 0.12, R * 0.44); x.lineTo(k * R * 0.12, R * 0.66); } }, col, { lw: 1, blur: 4, core: null, inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(R * 0.34, -R * 0.62); x.lineTo(R * 0.24, -R * 0.44); x.lineTo(R * 0.33, -R * 0.36); x.lineTo(R * 0.22, -R * 0.24); }, sk.ring, { lw: 1, blur: 6, core: null, inner: false });
+  },
+
+  /* the still point: three rings turn round it through a direction you
+     cannot see, a gold bead running on each; the point never moves */
+  stillpoint(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    hglow(c, sk.ring, 0, 0, R * 1.6, 0.16);
+    neon(c, x => { x.beginPath(); x.arc(0, 0, R * 1.08, 0, TAU); }, col, { lw: 1.2, blur: 10, core: 'rgba(4,8,22,0.9)', inner: false });
+    bodyLight(c, x => { x.beginPath(); x.arc(0, 0, R * 1.06, 0, TAU); }, 0, 0, R * 0.1, R * 1.06, [[0, 'rgba(158,247,255,0.16)'], [0.7, 'rgba(60,110,200,0.06)'], [1, 'rgba(0,0,0,0)']]);
+    neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.42, 0, TAU); }, sk.ring, { lw: 1.4, blur: 12, core: 'rgba(4,10,24,0.96)', inner: false });
+    const RINGS = [[0.98, 0, 1, 0.3], [0.86, Math.PI / 3, 2, 1.7], [0.74, -Math.PI / 3, 1, 3.1]];
+    for (let k = 0; k < 3; k++) {
+      const [rr, th, n, off] = RINGS[k], q = Math.cos(ph * n + off), sq = Math.max(0.07, Math.abs(q));
+      neon(c, x => { x.beginPath(); x.ellipse(0, 0, R * rr, R * rr * sq, th, 0, TAU); }, k === 1 ? col : sk.ring, { lw: 1.7, blur: 12, core: null });
+      // the bead: round the ellipse at whole turns a loop, so it meets itself
+      const s = ph * (k + 1) + off, bx = Math.cos(s) * R * rr, by = Math.sin(s) * R * rr * sq;
+      const px = bx * Math.cos(th) - by * Math.sin(th), py = bx * Math.sin(th) + by * Math.cos(th);
+      hglow(c, '#ffd166', px, py, R * 0.3, 0.55);
+      neon(c, x => { x.beginPath(); x.arc(px, py, R * 0.07, 0, TAU); }, '#ffd166', { lw: 1, blur: 9, core: '#fff6d8', inner: false });
+    }
+    // the point itself: a white star that never turns, a cyan diamond in it
+    neon(c, x => pathStar(x, 4, R * 0.34, R * 0.07, 0), '#ffffff', { lw: 1.4, blur: 16, core: 'rgba(255,255,255,0.5)', inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(0, -R * 0.1); x.lineTo(R * 0.07, 0); x.lineTo(0, R * 0.1); x.lineTo(-R * 0.07, 0); x.closePath(); }, sk.ring, { lw: 1, blur: 8, core: '#ffffff', inner: false });
+  },
+
+  /* an hourglass in a gold frame: the sand runs through, and at the end of
+     the loop it turns over (half a turn: it looks the same, full again) */
+  sandglass(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU, run = 0.84;
+    const f = Math.min(1, u / run), turn = u > run ? (1 - Math.cos((u - run) / (1 - run) * Math.PI)) / 2 * Math.PI : 0;
+    hglow(c, col, 0, 0, R * 1.5, 0.16);
+    // two motes of sand, orbiting the glass
+    for (let i = 0; i < 2; i++) {
+      const a = ph + i * Math.PI, px = Math.cos(a) * R * 1.1, py = Math.sin(a) * R * 0.5;
+      neon(c, x => { x.beginPath(); x.moveTo(px, py - R * 0.08); x.lineTo(px + R * 0.05, py); x.lineTo(px, py + R * 0.08); x.lineTo(px - R * 0.05, py); x.closePath(); }, col, { lw: 0.9, blur: 8, core: '#fff6d8', inner: false });
+    }
+    c.save(); c.rotate(turn);
+    const H = R * 0.84, W = R * 0.44;
+    const bulbs = x => {
+      x.beginPath();
+      x.moveTo(-W, -H); x.bezierCurveTo(-W, -H * 0.4, -R * 0.06, -H * 0.2, -R * 0.06, 0); x.bezierCurveTo(-R * 0.06, H * 0.2, -W, H * 0.4, -W, H);
+      x.lineTo(W, H); x.bezierCurveTo(W, H * 0.4, R * 0.06, H * 0.2, R * 0.06, 0); x.bezierCurveTo(R * 0.06, -H * 0.2, W, -H * 0.4, W, -H);
+      x.closePath();
+    };
+    neon(c, bulbs, sk.ring, { lw: 1.6, blur: 12, core: 'rgba(4,14,26,0.94)' });
+    // the sand: what is left on top sits in the neck, what has run is a mound below
+    c.save(); bulbs(c); c.clip();
+    const sg = c.createLinearGradient(0, -H, 0, H); sg.addColorStop(0, '#ffe7a0'); sg.addColorStop(1, '#e0a040');
+    c.fillStyle = sg;
+    const top = Math.pow(1 - f, 0.75) * H * 0.92;
+    if (top > 0.5) { c.beginPath(); c.moveTo(-W, -top); c.quadraticCurveTo(0, -top + R * 0.1, W, -top); c.lineTo(W, 0); c.lineTo(-W, 0); c.closePath(); c.fill(); }
+    const bot = Math.pow(f, 0.8) * H * 0.95;
+    if (bot > 0.5) { c.beginPath(); c.moveTo(-W, H); c.lineTo(-W, H - bot * 0.55); c.quadraticCurveTo(0, H - bot * 1.45, W, H - bot * 0.55); c.lineTo(W, H); c.closePath(); c.fill(); }
+    if (f > 0.02 && f < 0.98) { c.strokeStyle = '#fff3c4'; c.lineWidth = Math.max(1, R * 0.05); c.globalAlpha = 0.75 + 0.25 * Math.sin(ph * 12); c.beginPath(); c.moveTo(0, -R * 0.02); c.lineTo(0, H - bot * 1.0); c.stroke(); }
+    c.restore();
+    // a gleam down the glass
+    c.save(); c.globalAlpha *= 0.5;
+    neon(c, x => { x.beginPath(); x.moveTo(-W * 0.62, -H * 0.86); x.quadraticCurveTo(-W * 0.66, -H * 0.5, -R * 0.14, -H * 0.18); }, '#ffffff', { lw: 1, blur: 4, core: null, inner: false });
+    c.restore();
+    // the frame: two caps and two posts
+    for (const sy of [-1, 1]) neon(c, x => { roundRect(x, -R * 0.64, sy > 0 ? H : -H - R * 0.17, R * 1.28, R * 0.17, R * 0.06); }, col, { lw: 1.8, blur: 14, core: 'rgba(40,26,4,0.95)' });
+    neon(c, x => { x.beginPath(); for (const sx of [-1, 1]) { x.moveTo(sx * R * 0.56, -H); x.lineTo(sx * R * 0.56, H); } }, col, { lw: 1.8, blur: 10, core: null });
+    c.restore();
+  },
+
+  /* the last ember: a cracked heart that still beats -- twice, slowly, a
+     loop -- with a little flame in its cleft and ash lifting off it */
+  afterglow(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    const pulse = v => Math.exp(-Math.pow((u - v) / 0.035, 2));
+    const beat = pulse(0.06) + 0.6 * pulse(0.17) + pulse(0.56) + 0.6 * pulse(0.67);
+    hglow(c, col, 0, R * 0.05, R * (1.4 + 0.2 * beat), 0.18 + 0.2 * beat);
+    // ash, peeling up off the top and fading
+    for (let i = 0; i < 4; i++) {
+      const v = (u + i / 4) % 1, ax = (i % 2 ? 1 : -1) * R * (0.3 + 0.2 * i / 4) + Math.sin(v * TAU + i) * R * 0.12, ay = -R * 0.5 - v * R * 0.75;
+      c.save(); c.globalAlpha *= (1 - v) * 0.85; c.translate(ax, ay); c.rotate(v * 4 + i);
+      neon(c, x => { x.beginPath(); x.moveTo(-R * 0.09, -R * 0.02); x.lineTo(-R * 0.02, -R * 0.07); x.lineTo(R * 0.03, -R * 0.03); x.lineTo(R * 0.09, -R * 0.05); x.lineTo(R * 0.05, R * 0.05); x.lineTo(-R * 0.05, R * 0.04); x.closePath(); }, v < 0.35 ? '#ff9a3c' : '#a8a0a8', { lw: 0.8, blur: v < 0.35 ? 7 : 3, core: 'rgba(40,34,38,0.85)', inner: false });
+      c.restore();
+    }
+    const s = 1 + 0.07 * beat;
+    c.save(); c.scale(s, s);
+    const heart = x => { x.beginPath(); x.moveTo(0, R * 0.86); x.bezierCurveTo(-R * 1.18, R * 0.02, -R * 0.62, -R * 0.98, 0, -R * 0.36); x.bezierCurveTo(R * 0.62, -R * 0.98, R * 1.18, R * 0.02, 0, R * 0.86); x.closePath(); };
+    neon(c, heart, col, { lw: 2.8, blur: 20, core: 'rgba(26,4,2,0.96)' });
+    bodyLight(c, heart, 0, R * 0.1, R * 0.02, R * 0.85, [[0, 'rgba(255,209,102,' + (0.25 + 0.3 * beat).toFixed(3) + ')'], [0.5, 'rgba(255,90,60,0.12)'], [1, 'rgba(0,0,0,0)']]);
+    // the cracks: the heat shows through them, brighter on the beat
+    c.save(); c.globalAlpha *= 0.55 + 0.45 * Math.min(1, beat);
+    neon(c, x => {
+      x.beginPath();
+      x.moveTo(0, -R * 0.3); x.lineTo(-R * 0.08, -R * 0.05); x.lineTo(R * 0.06, R * 0.14); x.lineTo(-R * 0.04, R * 0.4); x.lineTo(R * 0.02, R * 0.62);
+      x.moveTo(-R * 0.08, -R * 0.05); x.lineTo(-R * 0.36, -R * 0.12); x.lineTo(-R * 0.48, -R * 0.36);
+      x.moveTo(R * 0.06, R * 0.14); x.lineTo(R * 0.34, R * 0.04); x.lineTo(R * 0.5, -R * 0.2);
+      x.moveTo(-R * 0.04, R * 0.4); x.lineTo(-R * 0.26, R * 0.36);
+    }, sk.ring, { lw: 1.3, blur: 12, core: null, innerColor: '#fff6d8' });
+    c.restore();
+    c.restore();
+    // a small flame in the cleft, guttering
+    const fl = 1 + 0.2 * Math.sin(ph * 5) + 0.1 * Math.sin(ph * 11), lean = Math.sin(ph * 3) * R * 0.05;
+    c.save(); c.translate(0, -R * 0.38 * s);
+    neon(c, x => { const q = R * 0.12 * fl; x.beginPath(); x.moveTo(0, 0); x.bezierCurveTo(-q, -q * 0.4, -q * 0.6, -q * 1.3, lean, -q * 2.4); x.bezierCurveTo(q * 0.6, -q * 1.3, q, -q * 0.4, 0, 0); x.closePath(); }, sk.ring, { lw: 1.1, blur: 12, core: '#fff0c4', inner: false });
+    c.restore();
+  },
+
+  /* a black slab: nothing on its face but a line of light going down it,
+     and three lights on three orbits that line up over it once a loop */
+  monolith(c, sk, R, t, col) {
+    const u = ((t || 0) % 4) / 4, ph = u * TAU;
+    hglow(c, col, 0, 0, R * 1.7, 0.18);
+    // the orbits, faint, and the three lights
+    c.save(); c.globalAlpha *= 0.35; c.setLineDash([R * 0.08, R * 0.12]);
+    neon(c, x => { x.beginPath(); x.arc(0, 0, R * 1.22, 0, TAU); }, col, { lw: 0.8, blur: 4, core: null, inner: false });
+    c.restore();
+    const LIT = [[1.06, 1, '#ffd166'], [1.22, 2, '#ffffff'], [1.38, 3, '#9ef7ff']];
+    const al = Math.pow(0.5 + 0.5 * Math.cos(ph), 8);
+    for (const [rr, n, lc] of LIT) {
+      const a = -Math.PI / 2 + ph * n, px = Math.cos(a) * R * rr, py = Math.sin(a) * R * rr;
+      hglow(c, lc, px, py, R * (0.24 + 0.08 * al), 0.45 + 0.2 * al);
+      neon(c, x => { x.beginPath(); x.arc(px, py, R * 0.06, 0, TAU); }, lc, { lw: 0.9, blur: 9, core: lc, inner: false });
+    }
+    // when they line up, a thread of light joins them to the slab
+    if (al > 0.02) {
+      c.save(); c.globalAlpha *= al; c.globalCompositeOperation = 'lighter';
+      const g = c.createLinearGradient(0, -R * 1.4, 0, -R * 0.95); g.addColorStop(0, 'rgba(158,247,255,0)'); g.addColorStop(1, 'rgba(255,240,200,0.9)');
+      c.strokeStyle = g; c.lineWidth = R * 0.05; c.beginPath(); c.moveTo(0, -R * 1.4); c.lineTo(0, -R * 0.95); c.stroke();
+      c.restore();
+    }
+    // a side face and a top face, so it stands there rather than lies flat
+    neon(c, x => { x.beginPath(); x.moveTo(R * 0.4, -R * 0.94); x.lineTo(R * 0.56, -R * 1.04); x.lineTo(R * 0.56, R * 0.84); x.lineTo(R * 0.4, R * 0.94); x.closePath(); }, col, { lw: 1.4, blur: 10, core: 'rgba(26,16,52,0.97)', inner: false });
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.4, -R * 0.94); x.lineTo(-R * 0.24, -R * 1.04); x.lineTo(R * 0.56, -R * 1.04); x.lineTo(R * 0.4, -R * 0.94); x.closePath(); }, sk.ring, { lw: 1.2, blur: 10, core: 'rgba(60,44,20,0.95)', inner: false });
+    const slab = x => roundRect(x, -R * 0.4, -R * 0.94, R * 0.8, R * 1.88, R * 0.03);
+    neon(c, slab, col, { lw: 2.2, blur: 18, core: 'rgba(2,1,8,0.985)' });
+    // the line of light going down its face, and a faint gold edge on the lit side
+    c.save(); slab(c); c.clip(); c.globalCompositeOperation = 'lighter';
+    const sy = -R * 0.94 + u * R * 1.88, g2 = c.createLinearGradient(0, sy - R * 0.22, 0, sy + R * 0.22);
+    g2.addColorStop(0, 'rgba(201,163,255,0)'); g2.addColorStop(0.5, 'rgba(255,240,220,0.42)'); g2.addColorStop(1, 'rgba(201,163,255,0)');
+    c.fillStyle = g2; c.fillRect(-R * 0.4, sy - R * 0.22, R * 0.8, R * 0.44);
+    const g3 = c.createLinearGradient(-R * 0.4, 0, R * 0.4, 0); g3.addColorStop(0, 'rgba(255,209,102,0.16)'); g3.addColorStop(0.3, 'rgba(255,209,102,0)');
+    c.fillStyle = g3; c.fillRect(-R * 0.4, -R * 0.94, R * 0.8, R * 1.88);
+    c.restore();
+    neon(c, x => { x.beginPath(); x.moveTo(-R * 0.34, -R * 0.88); x.lineTo(-R * 0.34, R * 0.88); }, sk.ring, { lw: 0.9, blur: 6, core: null, inner: false });
+  }
+};
+
+/* the ??? a secret skin wears in the wardrobe until it is found: a dark well,
+   a dashed rim turning, a question mark */
+function secretGlyph(pr) {
+  return sprite('secret_q_' + Math.round(pr), pr * 5, pr * 5, cc => {
+    neon(cc, x => { x.beginPath(); x.arc(0, 0, pr * 0.95, 0, TAU); }, '#7d86ab', { lw: 1.6, blur: 10, core: 'rgba(6,8,20,0.92)', inner: false });
+    cc.save(); cc.setLineDash([pr * 0.22, pr * 0.16]);
+    neon(cc, x => { x.beginPath(); x.arc(0, 0, pr * 1.18, 0, TAU); }, '#9ef7ff', { lw: 1, blur: 6, core: null, inner: false });
+    cc.restore();
+    cc.save(); cc.font = '900 ' + Math.round(pr * 1.25) + 'px ' + FONT; cc.textAlign = 'center'; cc.textBaseline = 'middle';
+    cc.shadowColor = '#9ef7ff'; cc.shadowBlur = pr * 0.6; cc.fillStyle = '#cfe9ff'; cc.fillText('?', 0, pr * 0.06);
+    cc.restore();
+  });
+}
 /* draws a skin body centred at the origin, sized to R */
 function paintSkin(c, sk, R, t) {
   const col = skinCol(sk, t);
@@ -9415,6 +9998,10 @@ function paintSkin(c, sk, R, t) {
       c.restore();
       break;
     }
+    case 'widow': case 'wraith': case 'ninelives': case 'candlemass':
+    case 'stillpoint': case 'sandglass': case 'afterglow': case 'monolith':
+      SKIN_ART[sk.id](c, sk, R, t, col);
+      break;
     default:
       neon(c, x => pathStar(x, 4, R, R * 0.38, 0), col, o);
   }
@@ -9512,6 +10099,8 @@ class Player {
     }
     const mv = (G.coop && UI.mpMenu) ? { x: 0, y: 0, m: 0 } : Input.move();
     let ax = mv.x, ay = mv.y;
+    // standing still, for STILLPOINT: no stick, no keys, no dash
+    if (G.runStats) G.runStats.still = (ax || ay || this.dashT > 0) ? 0 : (G.runStats.still || 0) + dt;
 
     // dash
     // the latched press, or one this very frame (a step driven straight from G.update reads it too)
@@ -12339,6 +12928,7 @@ class Shot {
     }
   }
   draw(c) {
+    if (this.kind === 'dart') { drawDartShot(c, this); return; }
     const g = glowSprite(this.col);
     c.save();
     c.globalCompositeOperation = 'lighter';
@@ -12568,23 +13158,30 @@ class Pickup {
     }
     const p = G.coop ? Coop.pickupTarget(this) : G.player;
     const d = dist(this.x, this.y, p.x, p.y);
+    const R = MOTE_RUSH, pv = Math.hypot(p.vx || 0, p.vy || 0);
     if (!this.pull && d < (p === G.player ? G.stats.magnet : (p.mag || 150))) this.pull = true;
     if (this.pull) {
+      // the rush: straight at you, and never slower than about a fifth of a
+      // second from wherever it was caught, whatever the radius
       const a = Math.atan2(p.y - this.y, p.x - this.x);
-      const sp = 300 + Math.max(0, 460 - d) * 2.6;
+      const sp = Math.min(R.max, Math.max(300 + Math.max(0, 460 - d) * 2.6, d * R.reach, pv + R.over));
       this.vx = Math.cos(a) * sp; this.vy = Math.sin(a) * sp;
-    } else if (this.age > 1.5) {
-      // slow inevitable drift so nothing is ever truly lost
+    } else if (this.age > R.rest && !G.rel('overripe')) {
+      // the chase: anything left lying comes after you, and by the time it has
+      // been after you a second and a half it is faster than you are
       const a = Math.atan2(p.y - this.y, p.x - this.x);
-      const sp = Math.min(190, 28 + (this.age - 1.5) * 26);
-      const k = 1 - Math.exp(-2.2 * dt);
+      const sp = Math.min(Math.max(R.chase, pv * 1.35), 60 + (this.age - R.rest) * R.chaseAcc);
+      const k = 1 - Math.exp(-5 * dt);
       this.vx += (Math.cos(a) * sp - this.vx) * k;
       this.vy += (Math.sin(a) * sp - this.vy) * k;
     } else {
       this.vx *= Math.exp(-4 * dt); this.vy *= Math.exp(-4 * dt);
     }
+    const reach = p.r + this.r + 6;
+    // a step that would carry it past you is a catch, never an orbit
+    const caught = this.pull && Math.hypot(this.vx, this.vy) * dt >= d - reach;
     this.x += this.vx * dt; this.y += this.vy * dt;
-    if (d < p.r + this.r + 6) {
+    if (caught || d < reach) {
       if (!G.coop) this.collect();
       else if (p === G.player) Coop.claim(this);
       else Coop.allyTook(this);
@@ -12595,6 +13192,7 @@ class Pickup {
     const p = G.player;
     if (this.type === 'mote') {
       G.addXp(this.val);
+      ARMS.glean.mote(this);
       G.comboPitch = (G.comboPitch + 1) % 8;
       Sound.pickup(G.comboPitch);
       p.pickupPulse = 1;
@@ -12624,6 +13222,34 @@ class Pickup {
       const s = moteSprite(), g = glowSprite(PAL.xp), t = G.time;
       c.save();
       c.globalCompositeOperation = 'lighter';
+      // the rushing ones draw a short streak behind them (length by speed, so
+      // the same at any frame rate): one path, a wide soft band and a hot core
+      // (tapered: the whole length soft, the front third hot)
+      let ns = 0;
+      const P1 = MOTE_PATHS[0], P2 = MOTE_PATHS[1];
+      P1.length = 0; P2.length = 0;
+      for (let k = i; k < j; k++) {
+        const p = L[k];
+        if (!p.pull) continue;
+        const v2 = p.vx * p.vx + p.vy * p.vy;
+        if (v2 < 360000) continue;
+        const v = Math.sqrt(v2), len = Math.min(46, v * MOTE_RUSH.streak), bob = Math.sin(t * 4 + p.ph) * 2;
+        const ux = p.vx / v, uy = p.vy / v, y0 = p.y + bob;
+        P1.push(p.x - ux * len, y0 - uy * len, p.x, y0);
+        P2.push(p.x - ux * len * 0.36, y0 - uy * len * 0.36, p.x, y0);
+        ns++;
+      }
+      if (ns) {
+        c.lineCap = 'round';
+        const seg = A => { c.beginPath(); for (let q = 0; q < A.length; q += 4) { c.moveTo(A[q], A[q + 1]); c.lineTo(A[q + 2], A[q + 3]); } };
+        seg(P1);
+        c.strokeStyle = PAL.xp;
+        c.globalAlpha = 0.2; c.lineWidth = 7; c.stroke();
+        c.globalAlpha = 0.5; c.lineWidth = 2.2; c.stroke();
+        seg(P2);
+        c.strokeStyle = '#f2fff4';
+        c.globalAlpha = 0.85; c.lineWidth = 1.5; c.stroke();
+      }
       c.globalAlpha = 0.42;
       for (let k = i; k < j; k++) {
         const p = L[k], bob = Math.sin(t * 4 + p.ph) * 2, gs = 10 + Math.sin(t * 6 + p.ph) * 1.4;
@@ -12670,6 +13296,17 @@ class Pickup {
   }
 }
 
+/* how motes come to you (20: the rush) */
+const MOTE_RUSH = {
+  reach: 4.6,      // a caught mote moves at least this many times its distance a second
+  over: 420,       // ...and at least this much faster than you
+  max: 2400,
+  rest: 0.45,      // a fresh drop scatters and settles this long before it gives chase
+  chase: 360,      // the chase's top speed (or 1.35x yours, if you are faster)
+  chaseAcc: 480,   // how quickly the chase gets up to it
+  streak: 0.03     // a rushing mote's streak: this many seconds of its flight
+};
+const MOTE_PATHS = [[], []];
 function moteSprite() {
   return _moteSpr || (_moteSpr = sprite('mote', 34, 34, cc => {
     neon(cc, x => pathPoly(x, 4, 5.5, 0), PAL.xp, { lw: 1.7, blur: 9, core: 'rgba(20,60,36,0.5)' });
@@ -13183,12 +13820,645 @@ function weaponColor(w) {
   const def = WEAPONS[w.id];
   return w.evolved ? def.evo.color : def.color;
 }
+/* ========================================================================
+   FOUR MORE WEAPONS (22). One for each passive that only ever had one
+   partner: FUSE for EMBER, GLEAN for MAGNET, FLASHPOINT for VOLATILE, SNARE
+   for ANCHOR. Each runs from its own tick (ARMS[id].tick, called by
+   Weapons.update), keeps what it leaves on the floor in G.gadgets (so it is
+   interpolated, culled and cleared like the rest), and draws from baked
+   parts plus a handful of banded strokes.
+   ======================================================================== */
+
+/* a baked part stamped at a scale (neonPart sprites are drawn at 2x) */
+function armStamp(c, s, x, y, rot, k, a) {
+  c.save();
+  c.translate(x, y);
+  if (rot) c.rotate(rot);
+  if (a !== undefined && a < 1) c.globalAlpha *= a;
+  const w = s.width / 2 * k, h = s.height / 2 * k;
+  c.drawImage(s, -w / 2, -h / 2, w, h);
+  c.restore();
+}
+function armOwned(w) { return G.weapons.indexOf(w) >= 0; }
+
+/* ------------------------------------------------------------------ FUSE
+   The ground you cross burns. The line is sampled by distance (one point
+   every 18 px), so it is the same line at any frame rate. */
+const FUSE_TICK = { n: 0 };
+class FuseTrail {
+  constructor(w) {
+    this.owner = w; this.kind = 'fuse'; this.dead = false;
+    this.pts = []; this.brush = [];
+    const p = G.player; this.x = p.x; this.y = p.y; this.lx = p.x; this.ly = p.y;
+    this.tk = 0; this.emberT = 0; this.brushT = 0; this.life = 1; this.r = 40;
+    this.pts.push({ x: p.x, y: p.y, t: G.time });
+  }
+  update(dt) {
+    const w = this.owner;
+    if (!w || !armOwned(w)) { this.dead = true; return; }
+    const s = weaponStats(w), p = G.player, col = weaponColor(w), evo = !!w.evolved;
+    const dur = s.dur * (evo ? 1.5 : 1), half = s.w * (evo ? 1.35 : 1) / 2;
+    this.x = p.x; this.y = p.y;
+    // lay the line
+    let dx = p.x - this.lx, dy = p.y - this.ly, d = Math.hypot(dx, dy);
+    if (d > 400) { this.lx = p.x; this.ly = p.y; this.pts.push({ x: p.x, y: p.y, t: G.time, gap: 1 }); d = 0; }
+    while (d >= 18) {
+      this.lx += dx / d * 18; this.ly += dy / d * 18;
+      this.pts.push({ x: this.lx, y: this.ly, t: G.time });
+      dx = p.x - this.lx; dy = p.y - this.ly; d = Math.hypot(dx, dy);
+    }
+    const old = G.time - dur;
+    let cut = 0; while (cut < this.pts.length - 1 && this.pts[cut].t < old) cut++;
+    if (cut) this.pts.splice(0, cut);
+    if (this.pts.length > 240) this.pts.splice(0, this.pts.length - 240);
+    // WILDFIRE: what it set burning drops fire as it goes
+    if (evo) {
+      this.brushT -= dt;
+      if (this.brushT <= 0) {
+        this.brushT = 0.3;
+        const E = G.enemies;
+        for (let i = 0; i < E.length && this.brush.length < 56; i++) {
+          const e = E[i];
+          if (e.dead || !(e.fuseT > G.time) || e.burn <= 0) continue;
+          if (e._fzB > G.time) continue;
+          e._fzB = G.time + 0.5;
+          this.brush.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), t: G.time, r: Math.min(30, 14 + e.r * 0.6), ph: rnd(TAU) });
+        }
+      }
+      for (let i = this.brush.length - 1; i >= 0; i--) if (G.time - this.brush[i].t > 1.5) this.brush.splice(i, 1);
+    } else if (this.brush.length) this.brush.length = 0;
+    // burn: every tick, everything on the line (once a tick, however many points it stands on)
+    this.tk -= dt;
+    if (this.tk <= 0) {
+      this.tk = s.tick * Math.sqrt(G.stats.cdMul);
+      const id = FUSE_TICK.n = FUSE_TICK.n + 1;
+      const P = this.pts;
+      for (let i = 0; i < P.length; i += 2) {
+        const q = P[i];
+        const list = G.queryEnemies(q.x, q.y, half + 46);
+        for (let j = 0; j < list.length; j++) {
+          const e = list[j];
+          if (e.dead || e.spawnT > 0 || e._fz === id) continue;
+          const rr = half + e.r * 0.7;
+          if (dist2(e.x, e.y, q.x, q.y) > rr * rr) continue;
+          e._fz = id;
+          G.hitEnemy(e, s.dmg, { col: col, noKb: true });
+          // the ground is burning: it is slow going
+          if (!e.dead) { G.ignite(e, s.burn, 2.2, false); e.fuseT = G.time + 2.2; if (!e.boss) e.slow = Math.max(e.slow, 0.45); }
+        }
+      }
+      for (const b of this.brush) {
+        const list = G.queryEnemies(b.x, b.y, b.r + 40);
+        for (let j = 0; j < list.length; j++) {
+          const e = list[j];
+          if (e.dead || e.spawnT > 0 || e._fz === id) continue;
+          const rr = b.r + e.r * 0.7;
+          if (dist2(e.x, e.y, b.x, b.y) > rr * rr) continue;
+          e._fz = id;
+          G.hitEnemy(e, s.dmg * 0.6, { col: '#ff5136', noKb: true, silent: true });
+          if (!e.dead) { G.ignite(e, s.burn * 0.8, 1.8, false); e.fuseT = G.time + 1.8; }
+        }
+      }
+    }
+    // the spark: every so often one runs the line from its cold end to you,
+    // and when it gets to you it goes off
+    this.runT = (this.runT === undefined ? 0.6 : this.runT) - dt;
+    if (!this.run && this.runT <= 0 && this.pts.length > 5) { this.run = { u: 0 }; this.runT = s.cd; }
+    if (this.run) {
+      this.run.u += dt / 0.5;
+      const P = this.pts, q = P[Math.min(P.length - 1, Math.floor(this.run.u * (P.length - 1)))];
+      if (q && (G.frame & 1)) Particles.spark(q.x, q.y, rnd(TAU), rnd(80, 220), { col: rand() < 0.5 ? '#ffffff' : '#ffe08a', life: 0.25, w: 2 });
+      if (this.run.u >= 1) {
+        this.run = null;
+        G.explode(p.x, p.y, s.rad, s.dmg * 2.2, col);
+        Particles.ring(p.x, p.y, 10, s.rad * G.stats.blastMul, { col: '#ffe08a', life: 0.3, w: 5 });
+        Cam.shake(0.12); Sound.shoot('nova');
+      }
+    }
+    // embers come up off it (by time, not by frame)
+    this.emberT -= dt;
+    if (this.pts.length <= 2) this.emberT = Math.max(this.emberT, 0);
+    while (this.emberT <= 0) {
+      this.emberT += G.quality ? 0.045 : 0.11;
+      const q = this.pts[(rand() * (this.pts.length - 1)) | 0];
+      const hot = rand() < 0.5;
+      Particles.spark(q.x + rnd(-half, half) * 0.6, q.y + rnd(-half, half) * 0.6, -Math.PI / 2 + rnd(-0.6, 0.6), rnd(40, 120),
+        { col: hot ? '#ffe08a' : (evo ? '#ff5136' : '#ff7a2a'), life: rnd(0.3, 0.6), w: 2 });
+    }
+  }
+  draw(c) {
+    const w = this.owner;
+    if (!w) return;
+    const P = this.pts, n = P.length;
+    if (n < 2 && !this.brush.length) return;
+    const s = weaponStats(w), evo = !!w.evolved, col = weaponColor(w);
+    const dur = s.dur * (evo ? 1.5 : 1), half = s.w * (evo ? 1.35 : 1) / 2;
+    const T = G.time, hot = evo ? '#fff0c8' : '#fff4d6', flame = evo ? '#ff3a24' : '#ff6a2a';
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    // the charred bed: dark, so the fire reads on any floor
+    c.globalCompositeOperation = 'source-over';
+    c.beginPath();
+    for (let i = 0; i < n; i++) { const q = P[i]; if (!i || q.gap) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y); }
+    c.strokeStyle = evo ? 'rgba(40,4,0,0.42)' : 'rgba(34,10,0,0.38)'; c.lineWidth = half * 1.25; c.stroke();
+    c.globalCompositeOperation = 'lighter';
+    // the embers in it: three bands by age, the newest hottest
+    const cuts = [0, Math.floor(n * 0.4), Math.floor(n * 0.72), n - 1];
+    for (let b = 0; b < 3; b++) {
+      const i0 = cuts[b], i1 = cuts[b + 1];
+      if (i1 <= i0) continue;
+      c.beginPath();
+      let pen = false;
+      for (let i = i0; i <= i1; i++) {
+        const q = P[i];
+        if (!pen || q.gap) { c.moveTo(q.x, q.y); pen = true; } else c.lineTo(q.x, q.y);
+      }
+      BA.band(c, col, half * (0.12 + b * 0.05), 0.35 + b * 0.22, b === 2 ? hot : null);
+    }
+    // the flames: a tongue off every point, each on its own flicker, taller
+    // where the line is fresh; red outside, gold inside
+    c.beginPath();
+    const c2 = []; 
+    for (let i = 1; i < n; i++) {
+      const q = P[i];
+      const age = (T - q.t) / dur;
+      if (age > 0.92 || q.gap) continue;
+      const f = Math.sin(T * 13 + i * 1.7) * 0.5 + 0.5, g = Math.sin(T * 7.3 + i * 2.9) * 0.5 + 0.5;
+      const h = half * (0.7 + 1.1 * f) * (1 - age * 0.85), wd = half * 0.44 * (1 - age * 0.4);
+      const ox = (((i * 37) % 11) / 11 - 0.5) * half * 0.8, x = q.x + ox, lean = (g - 0.5) * half * 0.6;
+      c.moveTo(x - wd, q.y);
+      c.quadraticCurveTo(x - wd * 0.2 + lean * 0.4, q.y - h * 0.55, x + lean, q.y - h);
+      c.quadraticCurveTo(x + wd * 0.2 + lean * 0.4, q.y - h * 0.55, x + wd, q.y);
+      if (f > 0.45) c2.push(x, q.y, h * 0.6, wd * 0.55, lean * 0.6);
+    }
+    // a body of light inside each tongue, then its edge
+    c.fillStyle = flame; c.globalAlpha = 0.34; c.fill(); c.globalAlpha = 1;
+    BA.band(c, flame, 1.3, 0.75);
+    c.beginPath();
+    for (let j = 0; j < c2.length; j += 5) {
+      const x = c2[j], y = c2[j + 1], h = c2[j + 2], wd = c2[j + 3], ln = c2[j + 4];
+      c.moveTo(x - wd, y); c.quadraticCurveTo(x + ln * 0.4, y - h * 0.6, x + ln, y - h); c.quadraticCurveTo(x + ln * 0.4, y - h * 0.6, x + wd, y);
+    }
+    c.fillStyle = '#ffd27a'; c.globalAlpha = 0.42; c.fill(); c.globalAlpha = 1;
+    BA.band(c, '#ffd27a', 1.0, 0.8, '#fff6e0');
+    // WILDFIRE's brush: small fires where the burning walked
+    for (const b of this.brush) {
+      const age = (T - b.t) / 1.5, k = sat((1 - age) * 3) * sat(age * 8);
+      if (k <= 0) continue;
+      c.globalAlpha = k * 0.5;
+      c.drawImage(glowSprite('#ff5136'), b.x - b.r * 1.4, b.y - b.r * 1.4, b.r * 2.8, b.r * 2.8);
+      c.globalAlpha = 1;
+      c.beginPath();
+      for (let j = 0; j < 3; j++) {
+        const x = b.x + (j - 1) * b.r * 0.45, f = Math.sin(T * 15 + b.ph + j * 2.1) * 0.5 + 0.5, h = b.r * (0.6 + f * 0.7) * (1 - age * 0.6);
+        c.moveTo(x - b.r * 0.22, b.y); c.quadraticCurveTo(x, b.y - h * 0.6, x + (f - 0.5) * 4, b.y - h); c.quadraticCurveTo(x, b.y - h * 0.6, x + b.r * 0.22, b.y);
+      }
+      BA.band(c, '#ff5136', 1.4, k * 0.85, '#ffd27a');
+    }
+    // the spark running the line: the stretch just behind it burns white
+    if (this.run && n > 2) {
+      const i1 = Math.min(n - 1, Math.floor(this.run.u * (n - 1))), i0 = Math.max(0, i1 - 5);
+      c.beginPath(); c.moveTo(P[i0].x, P[i0].y);
+      for (let i = i0 + 1; i <= i1; i++) c.lineTo(P[i].x, P[i].y);
+      BA.band(c, '#ffe08a', half * 0.16, 0.95, '#ffffff');
+      const q = P[i1];
+      c.globalAlpha = 0.9;
+      c.drawImage(glowSprite('#ffffff'), q.x - 16, q.y - 16, 32, 32);
+      c.drawImage(glowSprite('#ffe08a'), q.x - 30, q.y - 30, 60, 60);
+      c.globalAlpha = 1;
+    }
+    // where it is being lit: under the ship
+    if (n > 1) {
+      const q = P[n - 1];
+      c.globalAlpha = 0.55 + Math.sin(T * 20) * 0.15;
+      c.drawImage(glowSprite(col), q.x - half * 1.6, q.y - half * 1.6, half * 3.2, half * 3.2);
+    }
+    c.restore();
+  }
+}
+
+/* ----------------------------------------------------------------- GLEAN
+   Motes go into it; darts come out. A mote is a token, and the tokens are
+   spent at the weapon's rate, so a flood of motes is a steady stream of
+   darts, never a frame with forty of them in it. */
+const GLEAN_DART = new Map();
+function gleanDart(col) {
+  let s = GLEAN_DART.get(col);
+  if (s) return s;
+  // a grain of light with its own tail, baked once: one stamp a dart
+  s = neonPart('gleanDart' + col, 64, (cc, kb) => {
+    const g = cc.createLinearGradient(-26, 0, 4, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, col);
+    cc.globalCompositeOperation = 'lighter';
+    cc.strokeStyle = g; cc.lineCap = 'round';
+    cc.globalAlpha = 0.35; cc.lineWidth = 6; cc.beginPath(); cc.moveTo(-26, 0); cc.lineTo(0, 0); cc.stroke();
+    cc.globalAlpha = 0.9; cc.lineWidth = 1.6; cc.stroke();
+    cc.globalCompositeOperation = 'source-over'; cc.globalAlpha = 1;
+    neon(cc, x => { x.beginPath(); x.moveTo(9, 0); x.lineTo(0, -3.4); x.lineTo(-7, 0); x.lineTo(0, 3.4); x.closePath(); }, col, { lw: 1.5, blur: 9 * kb, core: 'rgba(40,24,0,0.75)' });
+    neon(cc, x => { x.beginPath(); x.moveTo(6, 0); x.lineTo(-4, 0); }, '#ffffff', { lw: 1, blur: 4 * kb, core: null, inner: false });
+  });
+  GLEAN_DART.set(col, s);
+  return s;
+}
+
+/* -------------------------------------------------------------- FLASHPOINT
+   A charge is thrown in an arc, lands, and swells: its ring shows how far
+   the blast will reach, its light blinks faster as the fuse runs down. */
+class Charge {
+  constructor(x0, y0, x1, y1, o) {
+    this.kind = 'charge'; this.dead = false;
+    this.x0 = x0; this.y0 = y0; this.tx = x1; this.ty = y1; this.x = x0; this.y = y0;
+    Object.assign(this, o);
+    this.age = 0; this.rot = rnd(TAU); this.r = 12; this.life = this.fly + this.fuse;
+    this.ph = rnd(TAU);
+  }
+  update(dt) {
+    this.age += dt; this.life = this.fly + this.fuse - this.age;
+    this.rot += dt * (2 + this.age * 2);
+    if (this.age < this.fly) {
+      const u = this.age / this.fly;
+      this.x = lerp(this.x0, this.tx, u); this.y = lerp(this.y0, this.ty, u);
+      return;
+    }
+    this.x = this.tx; this.y = this.ty;
+    if (!this.landed) {
+      this.landed = true;
+      Particles.ring(this.x, this.y, 4, 34, { col: this.col, life: 0.3, w: 3 });
+      Sound.hit(0.25);
+    }
+    if (this.age >= this.fly + this.fuse) this.blow();
+  }
+  blow() {
+    if (this.dead) return;
+    this.dead = true;
+    const R = this.rad * G.stats.blastMul;
+    G.explode(this.x, this.y, this.rad, this.dmg, this.col);
+    Particles.ring(this.x, this.y, R * 0.15, R * 1.05, { col: '#ffffff', life: 0.28, w: 6 });
+    Particles.ring(this.x, this.y, R * 0.3, R * 1.25, { col: this.col, life: 0.5, w: 10 });
+    for (let i = 0; i < (this.mini ? 8 : 18); i++) Particles.spark(this.x, this.y, rnd(TAU), rnd(220, 620), { col: i % 3 ? this.col : '#ffffff', life: rnd(0.25, 0.55), w: 2.6, len: 1.8 });
+    Flash.hit(this.col, this.mini ? 0.03 : 0.08);
+    Cam.shake(this.mini ? 0.12 : 0.3);
+    if (!this.mini) FX.kick(0.35);
+    Sound.shoot('nova');
+    // CRITICAL MASS: four more, smaller and quicker, and they throw none
+    if (this.cascade) {
+      const a0 = rnd(TAU);
+      for (let i = 0; i < 4; i++) {
+        const a = a0 + i / 4 * TAU, d = this.rad * rnd(0.75, 1.05);
+        let x = this.x + Math.cos(a) * d, y = this.y + Math.sin(a) * d;
+        const m = Math.hypot(x, y), lim = G.arenaR - 30; if (m > lim) { x = x / m * lim; y = y / m * lim; }
+        G.gadgets.push(new Charge(this.x, this.y, x, y, { fly: 0.22, fuse: 0.42 + i * 0.07, rad: this.rad * 0.55, dmg: this.dmg * 0.42, col: this.col2 || this.col, col2: this.col2, mini: true, cascade: false }));
+      }
+    }
+  }
+  draw(c) {
+    const col = this.col, flying = this.age < this.fly;
+    const u = flying ? this.age / this.fly : 1;
+    const sw = flying ? 0 : sat((this.age - this.fly) / this.fuse);
+    const R = this.rad * G.stats.blastMul;
+    const k = this.mini ? 0.62 : 1;
+    // the arc of the throw: it is in the air, its shadow is on the floor
+    const hgt = flying ? Math.sin(u * Math.PI) * (this.mini ? 40 : 90) : 0;
+    c.save();
+    if (!flying) {
+      // how far it will reach: a ring that fills as the fuse burns
+      // (dashed and marching: yours, never mistaken for a hazard's solid ring)
+      c.globalCompositeOperation = 'lighter';
+      c.setLineDash([9, 13]); c.lineDashOffset = -G.time * 36;
+      c.beginPath(); c.arc(this.x, this.y, R, 0, TAU);
+      BA.band(c, col, 1.2, 0.14 + sw * 0.26);
+      c.setLineDash([]);
+      c.beginPath(); c.arc(this.x, this.y, R, -Math.PI / 2, -Math.PI / 2 + TAU * sw);
+      BA.band(c, col, 1.8, 0.32 + sw * 0.36, '#ffffff');
+      c.globalAlpha = 0.06 + sw * 0.1;
+      c.drawImage(glowSprite(col), this.x - R, this.y - R, R * 2, R * 2);
+      c.globalAlpha = 1;
+    } else {
+      c.globalCompositeOperation = 'source-over';
+      c.fillStyle = 'rgba(0,0,0,0.35)';
+      c.beginPath(); c.ellipse(this.x, this.y, 9 * k, 4 * k, 0, 0, TAU); c.fill();
+    }
+    const y = this.y - hgt;
+    // the blink quickens as the fuse runs out
+    const blink = flying ? 0.6 : 0.5 + 0.5 * Math.sin((this.age - this.fly) * (8 + sw * sw * 46) + this.ph);
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = (0.35 + blink * 0.4) * k;
+    const gs = (26 + sw * 22) * k;
+    c.drawImage(glowSprite(col), this.x - gs, y - gs, gs * 2, gs * 2);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    const sc = (0.9 + sw * 0.35) * k;
+    armStamp(c, neonPart('fpRing' + col, 76, (cc, kb) => {
+      neon(cc, x => { x.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; x.moveTo(Math.cos(a) * 15, Math.sin(a) * 15); x.arc(0, 0, 15, a, a + 0.62); } }, col, { lw: 2, blur: 12 * kb, core: null, inner: false });
+    }), this.x, y, this.rot, sc);
+    armStamp(c, neonPart('fpRing2' + col, 60, (cc, kb) => {
+      neon(cc, x => { x.beginPath(); for (let i = 0; i < 3; i++) { const a = i / 3 * TAU; x.moveTo(Math.cos(a) * 10.5, Math.sin(a) * 10.5); x.arc(0, 0, 10.5, a, a + 1.3); } }, '#ffffff', { lw: 1.4, blur: 8 * kb, core: null, inner: false });
+    }), this.x, y, -this.rot * 1.6, sc);
+    armStamp(c, neonPart('fpCore' + col, 44, (cc, kb) => {
+      neon(cc, x => pathStar(x, 4, 7, 2.6, 0), col, { lw: 1.6, blur: 10 * kb, core: 'rgba(30,0,20,0.8)' });
+    }), this.x, y, this.rot * 0.4, sc);
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = blink;
+    c.drawImage(glowSprite('#ffffff'), this.x - 6 * sc, y - 6 * sc, 12 * sc, 12 * sc);
+    c.restore();
+  }
+}
+
+/* ----------------------------------------------------------------- SNARE
+   Open: a ring of teeth on the floor. The first thing in shuts it; it holds
+   what it caught (never a boss or an elite: those only bleed), grinds them,
+   and when its grip runs out it crushes them. */
+class Snare {
+  constructor(x, y, o) {
+    this.kind = 'snare'; this.dead = false; this.x = x; this.y = y;
+    Object.assign(this, o);
+    this.state = 'arm'; this.t = 0; this.rot = rnd(TAU); this.r = this.rad; this.life = 1;
+    this.held = []; this.tick = 0; this.ph = rnd(TAU); this.uses = this.uses || 1;
+  }
+  update(dt) {
+    this.t += dt;
+    this.rot += dt * (this.state === 'held' ? 2.2 : 0.35);
+    if (this.state === 'arm') { if (this.t >= 0.45) { this.state = 'open'; this.t = 0; } return; }
+    if (this.state === 'open') {
+      if (this.t > 9) { this.dead = true; Particles.burst(this.x, this.y, 6, this.col, { spd1: 120, life: 0.3 }); return; }
+      const list = G.queryEnemies(this.x, this.y, this.rad + 40);
+      for (let i = 0; i < list.length; i++) {
+        const e = list[i];
+        if (e.dead || e.spawnT > 0 || e.hidden) continue;
+        if (dist2(e.x, e.y, this.x, this.y) < (this.rad * 0.8 + e.r * 0.5) ** 2) { this.shut(); break; }
+      }
+      return;
+    }
+    if (this.state === 'shut') { if (this.t >= 0.16) { this.state = 'held'; this.t = 0; } this.grip(dt); return; }
+    if (this.state === 'held') {
+      this.grip(dt);
+      this.tick -= dt;
+      if (this.tick <= 0) {
+        this.tick = 0.4 / (G.stats.deployRate || 1);
+        const list = G.queryEnemies(this.x, this.y, this.rad + 40);
+        for (let i = 0; i < list.length; i++) {
+          const e = list[i];
+          if (e.dead || e.spawnT > 0) continue;
+          if (dist2(e.x, e.y, this.x, this.y) > (this.rad + e.r * 0.5) ** 2) continue;
+          G.hitEnemy(e, this.dmg, { col: this.col, noKb: true });
+        }
+        Sound.hit(0.12);
+      }
+      if (this.t >= this.dur) this.crush();
+      return;
+    }
+    if (this.state === 'spent') { if (this.t > 0.5) this.dead = true; }
+  }
+  shut() {
+    this.state = 'shut'; this.t = 0; this.held.length = 0;
+    this.take();
+    Particles.ring(this.x, this.y, this.rad * 1.3, this.rad * 0.4, { col: this.col, life: 0.25, w: 5 });
+    Cam.shake(0.14); Sound.shoot('lash');
+  }
+  // whatever is in the jaws, up to its grip, and never a boss or an elite
+  take() {
+    const list = G.queryEnemies(this.x, this.y, this.rad + 40);
+    for (let i = 0; i < list.length && this.held.length < this.hold; i++) {
+      const e = list[i];
+      if (e.dead || e.boss || e.elite || e.spawnT > 0 || e.hidden || e.def.mega || this.held.indexOf(e) >= 0) continue;
+      if (dist2(e.x, e.y, this.x, this.y) > (this.rad + e.r * 0.5) ** 2) continue;
+      if (e._snT > G.time) continue;
+      this.held.push(e);
+    }
+  }
+  grip(dt) {
+    if (this.held.length < this.hold && (G.frame & 7) === 0) this.take();
+    const n = this.held.length;
+    for (let i = n - 1; i >= 0; i--) {
+      const e = this.held[i];
+      if (e.dead) { this.held.splice(i, 1); continue; }
+      e.stun = Math.max(e.stun, 0.12); e._snT = G.time + 0.2;
+      e.vx = e.vy = 0; e.kx *= 0.5; e.ky *= 0.5;
+      // drawn in to a ring just inside the teeth
+      const a = this.rot * 0.15 + i / Math.max(1, n) * TAU, rr = this.rad * 0.45;
+      const tx = this.x + Math.cos(a) * rr, ty = this.y + Math.sin(a) * rr;
+      const kk = 1 - Math.exp(-7 * dt);
+      e.x += (tx - e.x) * kk; e.y += (ty - e.y) * kk;
+    }
+  }
+  crush() {
+    const col = this.col;
+    for (const e of this.held) {
+      if (e.dead) continue;
+      G.hitEnemy(e, this.crushDmg, { col: col, kb: 260, kbAngle: Math.atan2(e.y - this.y, e.x - this.x) });
+      // OUBLIETTE: what is left of it drops into the void
+      if (this.pit && !e.dead && e.hp < e.maxHp * 0.25) {
+        Particles.ring(e.x, e.y, e.r * 2, 2, { col: '#2a0a4a', life: 0.35, w: 6 });
+        G.hitEnemy(e, e.hp + 1, { col: '#b9a2ff', silent: true, noKb: true });
+      }
+    }
+    // OUBLIETTE: the jaws slam hard enough to hurt everything near them
+    if (this.pit) {
+      const list = G.queryEnemies(this.x, this.y, this.rad * 1.7 + 40);
+      for (let i = 0; i < list.length; i++) {
+        const e = list[i];
+        if (e.dead || e.spawnT > 0 || this.held.indexOf(e) >= 0) continue;
+        if (dist2(e.x, e.y, this.x, this.y) > (this.rad * 1.7 + e.r) ** 2) continue;
+        G.hitEnemy(e, this.crushDmg * 0.6, { col: '#b9a2ff', kb: 220, kbAngle: Math.atan2(e.y - this.y, e.x - this.x) });
+      }
+    }
+    for (let i = 0; i < 10; i++) Particles.shard(this.x, this.y, rnd(TAU), rnd(120, 320), { col: i % 2 ? col : '#ffffff', r: rnd(2.5, 4.5), sides: 3 });
+    Particles.ring(this.x, this.y, this.rad * 0.2, this.rad * 1.5, { col: col, life: 0.4, w: 8 });
+    if (this.pit) {
+      Particles.ring(this.x, this.y, this.rad * 1.2, 4, { col: '#b9a2ff', life: 0.45, w: 10 });
+      Flash.hit('#b9a2ff', 0.05);
+    }
+    Cam.shake(0.3); Sound.shoot('nova');
+    this.held.length = 0;
+    this.uses--;
+    if (this.uses > 0) { this.state = 'arm'; this.t = 0; }
+    else { this.state = 'spent'; this.t = 0; }
+  }
+  draw(c) {
+    const col = this.col, st = this.state, T = G.time;
+    const shutK = st === 'shut' ? sat(this.t / 0.16) : (st === 'held' ? 1 : (st === 'spent' ? 1 - sat(this.t / 0.5) : 0));
+    const fade = st === 'spent' ? 1 - sat(this.t / 0.5) : (st === 'open' && this.t > 8 ? 1 - (this.t - 8) : (st === 'arm' ? 0.4 + 0.6 * sat(this.t / 0.45) : 1));
+    const k = this.rad / 100;
+    c.save();
+    c.globalAlpha = fade;
+    // under it: a dark disc with a faint light, so the jaws read on any floor
+    c.fillStyle = 'rgba(4,6,20,0.45)';
+    c.beginPath(); c.arc(this.x, this.y, this.rad * 0.92, 0, TAU); c.fill();
+    c.globalCompositeOperation = 'lighter';
+    const br = st === 'open' ? 0.5 + 0.2 * Math.sin(T * 4 + this.ph) : 0.85;
+    c.globalAlpha = fade * 0.16 * br;
+    c.drawImage(glowSprite(col), this.x - this.rad * 1.2, this.y - this.rad * 1.2, this.rad * 2.4, this.rad * 2.4);
+    c.globalAlpha = fade;
+    c.globalCompositeOperation = 'source-over';
+    // the teeth: they close in toward the middle as it shuts
+    const tk = 1 - shutK * 0.34;
+    armStamp(c, neonPart('snTeeth' + col, 230, (cc, kb) => {
+      neon(cc, x => { x.beginPath(); x.arc(0, 0, 96, 0, TAU); }, col, { lw: 2.2, blur: 12 * kb, core: null, inner: false });
+      neon(cc, x => {
+        x.beginPath();
+        for (let i = 0; i < 12; i++) {
+          const a = i / 12 * TAU, a1 = a - 0.13, a2 = a + 0.13;
+          x.moveTo(Math.cos(a1) * 92, Math.sin(a1) * 92); x.lineTo(Math.cos(a) * 62, Math.sin(a) * 62); x.lineTo(Math.cos(a2) * 92, Math.sin(a2) * 92);
+        }
+      }, col, { lw: 2.4, blur: 14 * kb, core: 'rgba(8,10,30,0.7)' });
+    }), this.x, this.y, this.rot, k * tk);
+    // the inner hexagon turns the other way, white
+    armStamp(c, neonPart('snHex', 120, (cc, kb) => {
+      neon(cc, x => pathPoly(x, 6, 40, 0), '#ffffff', { lw: 1.4, blur: 9 * kb, core: null, inner: false });
+      neon(cc, x => { x.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + Math.PI / 6; x.moveTo(Math.cos(a) * 12, Math.sin(a) * 12); x.lineTo(Math.cos(a) * 30, Math.sin(a) * 30); } }, col, { lw: 1.2, blur: 6 * kb, core: null, inner: false });
+    }), this.x, this.y, -this.rot * 1.4, k * (0.85 - shutK * 0.2), st === 'open' ? 0.45 + 0.25 * Math.sin(T * 3 + this.ph) : 0.9);
+    // the grip: a live line to everything it holds
+    if (this.held.length) {
+      c.globalCompositeOperation = 'lighter';
+      c.beginPath();
+      for (const e of this.held) { if (e.dead) continue; c.moveTo(this.x, this.y); c.lineTo(e.x, e.y); }
+      BA.band(c, col, 1.6, 0.7 + 0.3 * Math.sin(T * 22), '#ffffff');
+    }
+    if (this.pit && st === 'held') {
+      // OUBLIETTE: the floor is opening
+      const u = sat(this.t / Math.max(0.1, this.dur));
+      c.globalCompositeOperation = 'source-over';
+      c.fillStyle = 'rgba(10,0,24,' + (0.4 + u * 0.4) + ')';
+      c.beginPath(); c.arc(this.x, this.y, this.rad * 0.3 * u, 0, TAU); c.fill();
+      c.globalCompositeOperation = 'lighter';
+      c.beginPath(); c.arc(this.x, this.y, this.rad * 0.3 * u, 0, TAU);
+      BA.band(c, '#b9a2ff', 1.4, 0.8);
+    }
+    c.restore();
+  }
+}
+
+const ARMS = {
+  fuse: {
+    tick(w, dt) {
+      for (const g of G.gadgets) if (g.kind === 'fuse' && g.owner === w && !g.dead) return;
+      G.gadgets.push(new FuseTrail(w));
+    }
+  },
+  glean: {
+    tick(w, dt) {
+      const s = weaponStats(w), p = G.player;
+      w.tok = Math.min(w.tok || 0, s.rate * 2);
+      w.t -= dt;
+      if (w.t <= 0) {
+        w.t += Math.max(0.1, s.cd);
+        for (let i = 0; i < s.count; i++) this.dart(w, s, null, i);
+      }
+      // the gleaned: spent at the weapon's rate
+      w.gT = (w.gT || 0) - dt;
+      while (w.tok >= 1 && w.gT <= 0) {
+        w.tok -= 1; w.gT += 1 / s.rate;
+        this.dart(w, s, null, (w.gN = ((w.gN | 0) + 1)) % 3);
+      }
+      if (w.gT < 0) w.gT = 0;
+    },
+    dart(w, s, ang, k) {
+      const p = G.player, col = weaponColor(w);
+      let a = ang;
+      if (a === null || a === undefined) {
+        const tg = G.randomEnemy(p.x, p.y, 520) || G.nearestEnemy(p.x, p.y, 700);
+        if (!tg) { a = p.aim + (k - 1) * 0.3; }
+        else a = Math.atan2(tg.y - p.y, tg.x - p.x) + (k - 1) * 0.12;
+      }
+      const sp = s.spd;
+      G.shots.push(new Shot({
+        x: p.x + Math.cos(a) * 14, y: p.y + Math.sin(a) * 14, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        r: 5, dmg: s.dmg, life: 640 / sp, pierce: s.pierce, homing: 5, col: col,
+        kind: 'dart', split: w.evolved ? 1 : 0, wkey: 'glean'
+      }));
+      if ((G.frame & 1) === 0) Sound.shoot();
+    },
+    /* a mote landed: every GLEAN you carry takes a token for it */
+    mote(m) {
+      for (const w of G.weapons) {
+        if (w.id !== 'glean') continue;
+        w.tok = (w.tok || 0) + 1;
+        if (w.evolved) {
+          w.lode = (w.lode | 0) + 1;
+          // a crown at most every two and a half seconds, whatever the floor is paying
+          if (w.lode >= 10 && !(w.crownT > G.time)) {
+            w.lode = 0; w.crownT = G.time + 2.5;
+            const s = weaponStats(w), p = G.player, a0 = rnd(TAU);
+            for (let i = 0; i < 8; i++) this.dart(w, s, a0 + i / 8 * TAU, 1);
+            Particles.ring(p.x, p.y, 10, 120, { col: weaponColor(w), life: 0.35, w: 4 });
+          }
+        }
+      }
+    }
+  },
+  flashpoint: {
+    tick(w, dt) {
+      w.t -= dt;
+      if (w.t > 0) return;
+      const s = weaponStats(w), p = G.player, col = weaponColor(w);
+      w.t += Math.max(0.3, s.cd);
+      const used = [];
+      for (let i = 0; i < s.count; i++) {
+        const tg = this.target(p, s, used);
+        if (!tg) { w.t = Math.min(w.t, 0.35); break; }
+        used.push(tg);
+        let x = tg.x + (tg.vx || 0) * 0.3, y = tg.y + (tg.vy || 0) * 0.3;
+        const m = Math.hypot(x, y), lim = G.arenaR - 30; if (m > lim) { x = x / m * lim; y = y / m * lim; }
+        G.gadgets.push(new Charge(p.x, p.y, x, y, { fly: 0.36, fuse: s.fuse, rad: s.rad, dmg: s.dmg, col: col, col2: '#ffffff', cascade: !!w.evolved }));
+      }
+      if (used.length) Sound.shoot('lash');
+    },
+    // the thickest knot within reach (a boss, if one is close)
+    target(p, s, used) {
+      const list = G.queryEnemies(p.x, p.y, 480);
+      let best = null, bn = -1, seen = 0;
+      for (let i = 0; i < list.length && seen < 22; i++) {
+        const e = list[i];
+        if (e.dead || e.spawnT > 0 || e.hidden || e.noAim) continue;
+        let near = false; for (const u of used) if (dist2(u.x, u.y, e.x, e.y) < s.rad * s.rad) near = true;
+        if (near) continue;
+        seen++;
+        const n = (e.boss ? 12 : 0) + G.queryEnemies(e.x, e.y, s.rad * 0.8).length;
+        if (n > bn) { bn = n; best = e; }
+      }
+      return best;
+    }
+  },
+  snare: {
+    tick(w, dt) {
+      w.t -= dt;
+      if (w.t > 0) return;
+      const s = weaponStats(w), p = G.player;
+      w.t += Math.max(0.3, s.cd);
+      let live = 0, oldest = null;
+      for (const g of G.gadgets) if (g.kind === 'snare' && g.owner === w && !g.dead) { live++; if (g.state === 'open' && (!oldest || g.t > oldest.t)) oldest = g; }
+      if (live >= s.max) { if (oldest && oldest.t > 4) oldest.dead = true; else return; }
+      const sp = Math.hypot(p.vx, p.vy), back = sp > 30 ? Math.atan2(p.vy, p.vx) + Math.PI : rnd(TAU);
+      let x = p.x + Math.cos(back) * 40, y = p.y + Math.sin(back) * 40;
+      const m = Math.hypot(x, y), lim = G.arenaR - 60; if (m > lim) { x = x / m * lim; y = y / m * lim; }
+      G.gadgets.push(new Snare(x, y, {
+        owner: w, col: weaponColor(w), rad: s.rad, dmg: s.dmg, hold: s.hold + (w.evolved ? 2 : 0),
+        dur: s.dur * (G.stats.deployMul || 1), crushDmg: s.crush, pit: !!w.evolved, uses: w.evolved ? 2 : 1
+      }));
+      Particles.ring(x, y, 8, s.rad, { col: weaponColor(w), life: 0.3, w: 3 });
+      Sound.shoot('arc');
+    }
+  }
+};
+// the darts draw from their baked sprite: one stamp each
+function drawDartShot(c, s) {
+  const a = Math.atan2(s.vy, s.vx);
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  c.globalAlpha = 0.55;
+  c.drawImage(glowSprite(s.col), s.x - 15, s.y - 15, 30, 30);
+  c.restore();
+  armStamp(c, gleanDart(s.col), s.x, s.y, a, 1.55);
+}
 
 const Weapons = {
   update(dt) {
     if (G.coop && (G.player.downed || G.player.dead)) return;
     if (G.time < G.silenceT) return;   // THE TOLL: nothing of yours fires in here
     for (const w of G.weapons) {
+      const AR = ARMS[w.id];
+      if (AR) { AR.tick(w, dt); continue; }
       if (w.id === 'thorns') { this.thornsTick(w, dt); continue; }
       if (w.id === 'veil') { this.veilTick(w, dt); continue; }
       if (w.id === 'pharos') { this.pharosTick(w, dt); continue; }
@@ -24317,7 +25587,8 @@ const Game = {
     if (this.gal) diffId = this.gal.diff;
     if (diffId) this.diff = diffId;
     this.hollow = null; this._hr = this.hollowReq || null; this.hollowReq = null;
-    this.D = this._hr ? Hollow.diff(this._hr.lv) : (DIFFS[this.diff] || DIFFS.medium);
+    this.rush = null; this._rr = this._hr ? null : (this.rushReq || null); this.rushReq = null;
+    this.D = this._hr ? Hollow.diff(this._hr.lv) : (this._rr ? Rush.diff(this._rr.diff) : (DIFFS[this.diff] || DIFFS.medium));
     const D = this.D;
     this.solo = !!(this.planet && this.planet.solo);
     this.sky = this.planet ? this.planet.sky : null;
@@ -24337,7 +25608,7 @@ const Game = {
     this.pickups.length = 0; this.pools.length = 0; this.fx.length = 0;
     this.gadgets.length = 0;
     this.banners.length = 0; this.callouts.length = 0;
-    this.tide = 0; this.tideT = D.tideEvery || 20;
+    this.tide = 0; this.tideT = D.endless ? tideLen(0) : (D.tideEvery || 20); this.tideLen = this.tideT; this.tidePulse = 0;
     this.bossRollT = rnd(TIDE.rollMin, TIDE.rollMax);
     if (D.daily) {
       this.dayKey = dailyKey();
@@ -24377,8 +25648,9 @@ const Game = {
     Ach.toasts.length = 0;
     this._achT = 1;
     this.state = 'playing';
-    if (!this.solo && !this.coop && !this.D.hollow) for (let i = 0; i < 5; i++) this.spawnOne(this.fz('drifter'));
+    if (!this.solo && !this.coop && !this.D.hollow && !this.D.rush) for (let i = 0; i < 5; i++) this.spawnOne(this.fz('drifter'));
     if (this.D.hollow) Hollow.init(this._hr);
+    if (this.D.rush) Rush.init(this._rr);
     Thicket.reset();
     Sound.startMusic();
     Sound.setIntensity(0.05);
@@ -24672,6 +25944,7 @@ const Game = {
     e.hurt = 1;
     this.runStats.dmgDealt += dmg;
     if (e.forms) this.sowerBleed(e, dmg);
+    else if (e.rushBoss) Rush.bleed(e, dmg);
     if (o.kb && !o.noKb) {
       const res = 1 - (e.def.kbres || 0);
       const a = o.kbAngle === undefined ? Math.atan2(e.y - this.player.y, e.x - this.player.x) : o.kbAngle;
@@ -24886,7 +26159,7 @@ const Game = {
       else {
         this.banner(def.name + ' FALLS', def.col);
         Sound.fanfare(true);
-        this.chestQueue += (this.endless ? 1 : 2) + (this.rel('bloomcrown') ? 1 : 0);
+        this.chestQueue += (this.endless || this.rush ? 1 : 2) + (this.rel('bloomcrown') ? 1 : 0);
         this.rerolls++;
         this.player.heal(Math.round(this.player.maxHp * 0.3));
         Cam.tzoom = Cam.base;
@@ -25190,7 +26463,7 @@ const Game = {
       this.bossPetalLasers(b, 3 + ph * 2);
     } else if (id === 'nova' || id === 'toll' || id === 'undertow') {
       this.eShock(b.x, b.y, 760 + ph * 140, (13 + ph * 4) * S, col);
-    } else if (id === 'mire' || id === 'shroud' || id === 'cinder' || id === 'starfall') {
+    } else if (id === 'mire' || id === 'shroud' || id === 'cinder' || id === 'starfall' || id === 'fuse') {
       for (let i = 0; i < this.bossN(3 + ph); i++) {
         this.hexCircle(p.x + rnd(-240, 240), p.y + rnd(-240, 240), 120, 1.15, 30 * S, col);
       }
@@ -25200,12 +26473,12 @@ const Game = {
         const a = off + i / n * TAU;
         this.enemyBullet(b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r, Math.cos(a) * 200, Math.sin(a) * 200, 12 * S, col);
       }
-    } else if (id === 'seeker' || id === 'familiar' || id === 'harvest') {
+    } else if (id === 'seeker' || id === 'familiar' || id === 'harvest' || id === 'glean') {
       for (let i = 0; i < this.bossN(5 + ph * 2); i++) {
         const a = a0 + rnd(-0.5, 0.5);
         this.enemyBullet(b.x, b.y, Math.cos(a) * 175, Math.sin(a) * 175, 12 * S, col);
       }
-    } else if (id === 'rupture' || id === 'quake' || id === 'hunger') {
+    } else if (id === 'rupture' || id === 'quake' || id === 'hunger' || id === 'flashpoint' || id === 'snare') {
       this.eShock(b.x, b.y, 620, (12 + ph * 4) * S, col);
       this.hexCircle(p.x, p.y, 140, 1.0, 34 * S, col);
     } else {
@@ -25916,9 +27189,9 @@ const Game = {
     let base = Math.min(15, 1.5 + t * 0.0285) * this.D.rate;
     // the sparse modes only: HARD and up were already crowded from the start
     if (!this.endless && this.D.rate <= 1) base *= 1 + 1.3 * Math.max(0, 1 - t / 90);
-    if (this.endless) base *= Math.min(3.2, 1 + this.tide * TIDE.rate);
+    if (this.endless) base *= Math.min(TIDE.rateCap, 1 + this.tide * TIDE.rate) * (this.tide >= 35 ? 1.3 : 1);
     if (this.postBloom) base *= 1 + Math.min(1.2, (t - BOSS_T) / 420);
-    return Math.min(34, base);
+    return Math.min(this.endless ? Tide.spawnCap(this.tide) : 34, base);
   },
   tideMul(key, cap) {
     if (!this.endless) return 1;
@@ -25936,13 +27209,13 @@ const Game = {
   // how likely a given corpse is to fire a parting shot
   burstsOnDeath() {
     let c = this.D.deathBurst || 0;
-    if (this.endless && this.tide >= TIDE.burstAt) c = Math.max(c, 0.5);
+    if (this.endless && this.tide >= TIDE.burstAt) c = Math.max(c, Math.min(0.5, 0.15 + (this.tide - TIDE.burstAt) * 0.025));
     return c;
   },
   // what share of the rank and file spawn carrying a weapon
   enemyGunRate() {
     let r = this.D.enemyGuns || 0;
-    if (this.endless && this.tide >= TIDE.gunAt) r = Math.max(r, Math.min(0.28, (this.tide - TIDE.gunAt) * 0.012));
+    if (this.endless && this.tide >= TIDE.gunAt) r = Math.max(r, Math.min(0.28, 0.06 + (this.tide - TIDE.gunAt) * 0.011));
     return r;
   },
   pickType() {
@@ -26006,11 +27279,12 @@ const Game = {
   },
   surge() {
     const t = this.coop ? Coop.rampT() : this.time;
+    const big = !this.coop && this.endless && this.tide >= 5 ? 1.3 : 1;
     const kind = rand();
     const p = this.coop ? Coop.randomTarget() : this.player;
     const R = Math.max(VW, VH) * 0.6 / Cam.zoom + 70;
     if (kind < 0.4) {
-      const n = Math.min(46, 14 + (t / 30) | 0);
+      const n = Math.round(Math.min(46, 14 + (t / 30) | 0) * big);
       this.banner('ENCIRCLED', '#ff9a3c');
       for (let i = 0; i < n; i++) {
         const a = i / n * TAU;
@@ -26020,7 +27294,7 @@ const Game = {
         this.enemies.push(new Enemy(t > 200 && rand() < 0.3 ? this.fz('bulwark') : this.fz('drifter'), x, y, this.hpMul(), this.dmgScale));
       }
     } else if (kind < 0.75) {
-      const n = Math.min(50, 18 + (t / 24) | 0);
+      const n = Math.round(Math.min(50, 18 + (t / 24) | 0) * big);
       const a0 = rnd(TAU);
       this.banner('SWARM', SWARM_COL);
       for (let i = 0; i < n; i++) {
@@ -26030,7 +27304,7 @@ const Game = {
         this.enemies.push(new Enemy(this.fz('swarmer'), p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, this.hpMul(), this.dmgScale));
       }
     } else {
-      const n = Math.min(16, 5 + (t / 70) | 0);
+      const n = Math.round(Math.min(16, 5 + (t / 70) | 0) * big);
       this.banner('HEAVY', '#ff5fa2');
       for (let i = 0; i < n; i++) {
         const a = rnd(TAU);
@@ -26100,17 +27374,17 @@ const Game = {
     // like a finale, harder with every body it stands back up in
     const FSr = (this.boss && this.boss.forms) || SOWER_FORMS;
     const rampT = this.coop ? Coop.rampT() : (this.solo ? ((FSr[(this.boss && this.boss.form) | 0] || FSr[0]).t) : this.time);
-    this.dmgScale = (1 + rampT / 260 * D.dmgRamp) * dEase * (this.endless ? (1 + this.tide * TIDE.dmg) : 1);
-    this.enemySpeedMul = (1 + Math.min(0.55, this.time / 1250) * D.spdRamp) * D.spd * this.tideMul('spd', 1.9) * (this.rel('bait') ? 1.05 : 1) * (this.rel('undertow') ? 1.04 : 1);
+    this.dmgScale = (1 + rampT / 260 * D.dmgRamp) * dEase * (this.endless ? (1 + this.tide * TIDE.dmg) * (this.tide > 40 ? 1 + (this.tide - 40) * 0.03 : 1) : 1);
+    this.enemySpeedMul = (1 + Math.min(0.55, this.time / 1250) * D.spdRamp) * D.spd * this.tideMul('spd', 1.9) * (this.rel('bait') ? 1.05 : 1) * (this.rel('undertow') ? 1.04 : 1) * (this.endless && this.tide >= 30 ? 1.12 : 1);
     // the tide: endless escalation, forever
     if (this.endless && !this.over) {
       this.tideT -= dt;
       if (this.tideT <= 0) {
-        this.tideT = D.tideEvery;
         this.tide++;
-        if (this.tide % 5 === 0) { this.banner('TIDE \u00d7' + this.tide, D.color); Flash.hit(D.color, 0.14); }
-        if (this.tide % TIDE.wardenEvery === 0) this.spawnElite();
+        this.tideLen = this.tideT = tideLen(this.tide);
+        Tide.rise(this);
       }
+      if (this.tidePulse > 0) this.tidePulse = Math.max(0, this.tidePulse - dt * 1.8);
       // Bosses come when they come -- but never on top of each other. One at a
       // time until the tide is deep, and always a real gap after the last one.
       this.bossRollT -= dt;
@@ -26168,6 +27442,8 @@ const Game = {
       if (Coop.auth) Coop.director(dt);
     } else if (!this.over && this.hollow) {
       Hollow.tick(dt);
+    } else if (!this.over && this.rush) {
+      Rush.tick(dt);
     } else if (!this.over && this.solo) {
       // EVENTIDE: no trash, no elites, no gauntlet. It is already down there.
       if (!this.bossSpawned && this.time >= 2.4) {
@@ -26181,7 +27457,7 @@ const Game = {
       let guard = 0;
       while (this.spawnAcc >= 1 && guard++ < 24) { this.spawnAcc -= 1; this.spawnOne(); }
       this.surgeT -= dt;
-      if (this.surgeT <= 0 && (this.time < this.bossTime() || this.endless)) { this.surgeT = Math.max(24, 44 - this.time / 22) + rnd(-4, 6); this.surge(); }
+      if (this.surgeT <= 0 && (this.time < this.bossTime() || this.endless)) { this.surgeT = (Math.max(24, 44 - this.time / 22) + rnd(-4, 6)) * (this.endless && this.tide >= 5 ? 0.62 : 1); this.surge(); }
       const eliteTimes = this.eliteTimes;
       if (this.eliteIdx < eliteTimes.length && this.time >= eliteTimes[this.eliteIdx]) { this.eliteIdx++; this.spawnElite(); }
       if (!this.endless) {
@@ -26535,6 +27811,7 @@ const Game = {
   gameOver(win) {
     if (this.over) return;
     if (this.D && this.D.hollow) { Hollow.over(win); return; }
+    if (this.D && this.D.rush) { this.titheReleaseAll(false); Rush.over(win); return; }
     this.titheReleaseAll(false);
     this.over = true;
     this.state = win ? 'win' : 'dead';
@@ -26606,6 +27883,10 @@ const Game = {
       let evo = 0;
       for (let i = 0; i < this.weapons.length; i++) if (this.weapons[i].evolved) evo++;
       if (evo >= 2) Ach.grant('ascendant');
+      if (!this.coop && !this.tut && this.player) {
+        if (this.player.hp > 0 && this.player.hp < this.player.maxHp * 0.1) Ach.grant('sc_ember');
+        if (this.runStats && (this.runStats.dashes | 0) === 0) Ach.grant('sc_calm');
+      }
     }
     Ach.sweepMeta();
 
@@ -26759,7 +28040,23 @@ const ACHS = [
 
   /* --- the wardrobe --------------------------------------------------- */
   { id: 'rich', n: 'FLUSH', d: 'Hold 5,000 shards at once', c: '#c9a3ff', g: 'THE WARDROBE', prog: () => [Math.min(5000, Save.data.shards || 0), 5000] },
-  { id: 'dressed', n: 'WELL DRESSED', d: 'Own six skins', c: '#ffd166', g: 'THE WARDROBE', prog: () => [Math.min(6, (Save.data.owned || []).length), 6] }
+  { id: 'dressed', n: 'WELL DRESSED', d: 'Own six skins', c: '#ffd166', g: 'THE WARDROBE', prog: () => [Math.min(6, (Save.data.owned || []).length), 6] },
+
+  /* --- boss rush (23) ------------------------------------------------- */
+  { id: 'rush_half', n: 'HALFWAY UP', d: 'Bring down five bosses in one BOSS RUSH', c: '#ffd166', g: 'BOSS RUSH' },
+  { id: 'rush_clear', n: 'TEN IN A ROW', d: 'Clear BOSS RUSH', c: '#ff6b4a', g: 'BOSS RUSH' },
+  { id: 'rush_hard', n: 'NO BREATHER', d: 'Clear BOSS RUSH on HARD or IMPOSSIBLE', c: '#ff4f7a', g: 'BOSS RUSH' },
+  { id: 'rush_fast', n: 'SPRINTER', d: 'Clear BOSS RUSH inside 8:00', c: '#ff4fd8', g: 'BOSS RUSH' },
+
+  /* --- the hollow harvest (24) ---------------------------------------- */
+  { id: 'hw_night', n: 'THE LONG NIGHT', d: 'Win THE HOLLOW HARVEST on all three levels in one October', c: '#c9a3ff', g: 'THE HOLLOW HARVEST', skin: 'ninelives' },
+  { id: 'hw_spotless', n: 'NOT A SCRATCH', d: 'Win THE HOLLOW HARVEST on HOLLOW, hit five times or fewer', c: '#ff9a3c', g: 'THE HOLLOW HARVEST', skin: 'candlemass' },
+
+  /* --- secrets: the list shows ??? and a riddle until you have one ----- */
+  { id: 'sc_still', n: 'STILLPOINT', d: 'Stand perfectly still for a whole minute in a run', hint: 'A WHOLE MINUTE, AND NOT ONE STEP', secret: true, c: '#e8f4ff', g: 'SECRETS', skin: 'stillpoint' },
+  { id: 'sc_calm', n: 'SANDGLASS', d: 'Win a run without dashing once', hint: 'WIN WITHOUT EVER ONCE HURRYING', secret: true, c: '#ffd166', g: 'SECRETS', skin: 'sandglass' },
+  { id: 'sc_ember', n: 'AFTERGLOW', d: 'Win a run with less than a tenth of your life left', hint: 'WIN ON YOUR LAST EMBER', secret: true, c: '#ff5a3c', g: 'SECRETS', skin: 'afterglow' },
+  { id: 'sc_untouched', n: 'MONOLITH', d: 'Past 5:00 in a run, go three minutes without being touched', hint: 'LATE IN A RUN, THREE MINUTES WITHOUT A SCRATCH', secret: true, c: '#c9a3ff', g: 'SECRETS', skin: 'monolith' }
 ];
 const ACH_BY_ID = Object.create(null);
 for (const a of ACHS) ACH_BY_ID[a.id] = a;
@@ -26841,6 +28138,12 @@ const Ach = {
     if (Object.keys(g.passives).length >= 7) this.grant('wellrounded');
     if (g.ascend > 0) this.grant('ascend');
     if (g.time >= 480 && g.runStats && g.runStats.weaponsTaken <= 1) this.grant('purist');
+    // the secrets nobody is told about (SECRET_SKINS)
+    const rsS = g.runStats;
+    if (rsS && !g.coop && !g.tut) {
+      if ((rsS.still || 0) >= 60 && g.time >= 120) this.grant('sc_still');
+      if (g.time >= 480 && g.time - Math.max((g.relicT && g.relicT.lastHit) || 0, 300) >= 180) this.grant('sc_untouched');
+    }
     if (g.runStats && g.runStats.dashes >= 150) this.grant('dasher');
     let evo = 0;
     for (let i = 0; i < g.weapons.length; i++) if (g.weapons[i].evolved) evo++;
@@ -29457,16 +30760,16 @@ const Descent = {
   },
 
   // planetId null: a skirmish, the daily, endless
-  start(planetId, diff) {
+  start(planetId, diff, o) {
     this.grab();
     const pl = planetId ? PLANET_BY_ID[planetId] : null;
-    if (!this.el || (planetId && !pl)) { if (planetId) G.reset(diff, planetId); else G.reset(diff); return; }
+    if (!this.el || (planetId && !pl)) { if (o && o.rush) G.rushReq = o.rush; if (planetId) G.reset(diff, planetId); else G.reset(diff); return; }
     if (this.go) return;
     const D = DIFFS[diff] || DIFFS.medium;
-    this.go = { id: pl ? planetId : null, diff: diff, t: 0, n: 0, built: false };
+    this.go = { id: pl ? planetId : null, diff: diff, t: 0, n: 0, built: false, rush: o && o.rush || null };
     Loader.show('run', { wash: true,
-      name: pl ? pl.name : (D.daily || diff === 'daily' || diff === 'endless' ? D.name : 'SKIRMISH · ' + D.name),
-      col: pl ? pl.col : D.color });
+      name: o && o.name ? o.name : (pl ? pl.name : (D.daily || diff === 'daily' || diff === 'endless' ? D.name : 'SKIRMISH · ' + D.name)),
+      col: o && o.col ? o.col : (pl ? pl.col : D.color) });
     Sound.ui(true);
   },
 
@@ -29480,6 +30783,7 @@ const Descent = {
       // the wash is fully dark, and has been painted, before the run is built
       if (g.t < 0.26 || g.n < 3) return;
       g.built = true; g.n = 0;
+      if (g.rush) G.rushReq = g.rush;
       if (g.id) G.reset(g.diff, g.id); else G.reset(g.diff);
       return;
     }
@@ -30760,21 +32064,35 @@ const VBUX_PACKS = [
 /* ------------------------------------------------------------------------
    EVENT BANNERS  --  a banner marked `yearly` (THE HOLLOW HARVEST) runs on
    every build, every year, on the player's own clock; any other one is the
-   desktop app's, switched on by the server. A banner is one event's roll: three
-   skins, one TOP, one MID, one LOW. A roll costs one TICKET. Tickets come
+   desktop app's, switched on by the server. A banner is one event's roll: its
+   skins by tier, MYTH, TOP, MID and LOW (a tier may hold more than one: a TOP
+   gives the one you are missing first). A roll costs one TICKET. Tickets come
    from the event (boss kill, tasks: not wired yet) or are bought with
    voidbux, five a day at most. Pity, and duplicates turning into shards,
    are below. Tickets expire when the banner's `end` passes (0 = no end);
    the skins won stay.
    ------------------------------------------------------------------------ */
-const ROLL = { TICKET_VB: 60, BUY_DAY: 3, PITY: 20,
-  ODDS: { top: 5, mid: 25, low: 70 },            // percent per roll
-  DUPE: { top: 1500, mid: 600, low: 250 } };      // shards for a skin you already own
-const ROLL_COL = { top: '#ffd166', mid: '#c9a3ff', low: '#63d4ff' };
+const ROLL = { TICKET_VB: 60, BUY_DAY: 3, PITY: 20, MPITY: 80,
+  ODDS: { myth: 2, top: 6, mid: 25, low: 67 },    // percent per roll (a banner with no MYTH: TOP 5, MID 25, LOW 70)
+  DUPE: { myth: 3000, top: 1500, mid: 600, low: 250 } };   // shards for a skin you already own
+const ROLL_COL = { myth: '#ff4fd8', top: '#ffd166', mid: '#c9a3ff', low: '#63d4ff' };
+/* a tier's skins (a tier is one id or a list), and every prize in the order the banner shows them */
+function bannerTier(b, tier) { const v = b && b.skins ? b.skins[tier] : null; return v ? (Array.isArray(v) ? v : [v]) : []; }
+function bannerPrizes(b) {
+  const out = [], tops = bannerTier(b, 'top');
+  const ord = bannerTier(b, 'myth').length ? ['low', 'top', 'myth', 'top', 'mid'] : ['low', 'top', 'mid'];
+  let ti = 0;
+  for (const tr of ord) {
+    if (tr === 'top') { if (ord.indexOf('myth') < 0) { for (const id of tops) out.push({ tier: 'top', id: id }); } else if (tops[ti] !== undefined) out.push({ tier: 'top', id: tops[ti++] }); }
+    else for (const id of bannerTier(b, tr)) out.push({ tier: tr, id: id });
+  }
+  return out;
+}
+function bannerOdds(b, tier) { return bannerTier(b, 'myth').length ? ROLL.ODDS[tier] : ({ top: 5, mid: 25, low: 70 })[tier] || 0; }
 const BANNERS = [
   { id: 'halloween26', ev: 'halloween26', title: 'THE HOLLOW HARVEST', col: '#ff9a3c', start: Date.UTC(2026, 9, 1), end: Date.UTC(2026, 10, 1),
     yearly: { from: [9, 1], to: [10, 1], first: 2026 },        // 1 Oct to the end of 31 Oct, every year, local time
-    skins: { top: 'harvestmoon', mid: 'witchfire', low: 'gourdlight' } }
+    skins: { myth: 'wraith', top: ['harvestmoon', 'widow'], mid: 'witchfire', low: 'gourdlight' } }
 ];
 /* a yearly banner's window this year, on the player's own clock: { y, start, end }.
    No server: every build sees the same dates, and it comes back every October. */
@@ -30926,11 +32244,20 @@ const Banners = {
     const r = this.rec(b), d = Save.data;
     if (r.tickets < 1) return { ok: false };
     r.tickets--; r.rolls++; r.pity++;
+    const myth = bannerTier(b, 'myth').length > 0;
+    if (myth) r.mpity = (r.mpity | 0) + 1;
     let tier;
-    if (r.pity >= ROLL.PITY) tier = 'top';
-    else { const x = Math.random() * 100; tier = x < ROLL.ODDS.top ? 'top' : (x < ROLL.ODDS.top + ROLL.ODDS.mid ? 'mid' : 'low'); }
-    if (tier === 'top') r.pity = 0;
-    const id = b.skins[tier];
+    if (myth && r.mpity >= ROLL.MPITY) tier = 'myth';
+    else if (r.pity >= ROLL.PITY) tier = 'top';
+    else {
+      const x = Math.random() * 100, om = myth ? bannerOdds(b, 'myth') : 0, ot = bannerOdds(b, 'top'), oM = bannerOdds(b, 'mid');
+      tier = x < om ? 'myth' : (x < om + ot ? 'top' : (x < om + ot + oM ? 'mid' : 'low'));
+    }
+    if (tier === 'myth') { r.mpity = 0; r.pity = 0; } else if (tier === 'top') r.pity = 0;
+    // a tier of more than one: the one you do not have yet, if there is one
+    const pool = bannerTier(b, tier), own = Array.isArray(d.owned) ? d.owned : [];
+    const fresh = pool.filter(q => own.indexOf(q) < 0), pick = fresh.length ? fresh : pool;
+    const id = pick[(Math.random() * pick.length) | 0];
     if (!Array.isArray(d.owned)) d.owned = ['seed'];
     const dupe = d.owned.indexOf(id) >= 0;
     let shards = 0;
@@ -31986,7 +33313,10 @@ const HW_TASKS = [
   { id: 'swift',  n: 'SWIFT HARVEST',     d: 'win in under seven minutes', sh: 350 },
   { id: 'clean',  n: 'CLEAN HANDS',       d: 'win and be hit five times or fewer', tix: 1 },
   { id: 'both',   n: 'DOUBLE UNTOUCHED',  d: 'clear both broods without being hit', tix: 1 },
-  { id: 'lock',   n: 'LOCKED IN',         d: 'win on HOLLOW', tix: 2 }
+  { id: 'lock',   n: 'LOCKED IN',         d: 'win on HOLLOW', tix: 2 },
+  // these two pay a skin (a shard purse instead, once you own it)
+  { id: 'night',  n: 'THE LONG NIGHT',    d: 'win on all three levels this October', skin: 'ninelives', ach: 'hw_night', sh: 1500 },
+  { id: 'spotless', n: 'NOT A SCRATCH',   d: 'win on HOLLOW, five hits or fewer', skin: 'candlemass', ach: 'hw_spotless', sh: 2500 }
 ];
 /* what comes for you while the boss is shielded */
 const HW_BROOD = [[['hsprout', 5], ['hwisp', 4]], [['hcrow', 5], ['hstraw', 3]]];
@@ -32324,11 +33654,19 @@ const Hollow = {
     if (h.tasks[id] || !this.on()) return;
     h.tasks[id] = 1;
     const T = HW_TASKS.find(t => t.id === id);
-    if (T.tix) { Banners.rec(this.banner()).tickets += T.tix; hw.taskTix = (hw.taskTix | 0) + T.tix; }
-    else { Save.data.shards = (Save.data.shards | 0) + T.sh; hw.shards += T.sh; }
+    let paid = '';
+    if (T.skin) {
+      // the skin comes with an achievement (and its toast); a second October pays shards
+      const had = skinOwned(T.skin);
+      Ach.grant(T.ach);
+      if (!skinOwned(T.skin)) { if (!Array.isArray(Save.data.owned)) Save.data.owned = ['seed']; Save.data.owned.push(T.skin); }
+      if (had) { Save.data.shards = (Save.data.shards | 0) + T.sh; hw.shards += T.sh; paid = ' · +' + fmtNum(T.sh) + ' SHARDS'; }
+      else paid = ' · SKIN: ' + SKIN_BY_ID[T.skin].name;
+    } else if (T.tix) { Banners.rec(this.banner()).tickets += T.tix; hw.taskTix = (hw.taskTix | 0) + T.tix; paid = ' · +' + T.tix + (T.tix > 1 ? ' TICKETS' : ' TICKET'); }
+    else { Save.data.shards = (Save.data.shards | 0) + T.sh; hw.shards += T.sh; paid = ' · +' + T.sh + ' SHARDS'; }
     Save.save();
     hw.tasks.push(T.n);
-    G.banner('TASK DONE · ' + T.n + (T.tix ? ' · +' + T.tix + (T.tix > 1 ? ' TICKETS' : ' TICKET') : ' · +' + T.sh + ' SHARDS'), '#8dff6b');
+    G.banner('TASK DONE · ' + T.n + paid, T.skin ? '#ff6bd0' : '#8dff6b');
     Sound.fanfare(true);
   },
   /* the run is over: no continue, no chest, no score. Shards were paid as the bodies fell. */
@@ -32350,6 +33688,10 @@ const Hollow = {
       h.wins[hw.lv] = (h.wins[hw.lv] | 0) + 1;
     }
     h.best[hw.lv] = Math.max(h.best[hw.lv] | 0, hw.cleared);
+    if (win) {
+      if ((h.best[0] | 0) >= 3 && (h.best[1] | 0) >= 3 && (h.best[2] | 0) >= 3) this.task('night');
+      if (hw.lv === 2 && hw.hits <= 5) this.task('spotless');
+    }
     G.lastEarned = hw.shards; G.lastMul = 1; G.chestTix = 0;
     // XP as well as shards, win, die or give up: the pilot and the pass count the run like any other
     Pass.last = null; Pilot.last = null;
@@ -32378,6 +33720,126 @@ const Hollow = {
       tracked(c, 'KILL THE BROOD', cx, by + 38 * hs, { size: 17 * hs, weight: 900, align: 'center', color: '#9ec6ff', glow: '#9ec6ff', blur: 14, track: 6, alpha: f });
       text(c, hw.left + (hw.left === 1 ? ' REMAINING' : ' REMAINING'), cx, by + 56 * hs, { size: 12 * hs, weight: 800, align: 'center', color: '#ffd166' });
     }
+  }
+};
+
+/* ========================================================================
+   THE TIDE, steeper (21). ENDLESS used to flatten out: measured with a good
+   build, the damage you took per second stayed near zero from 2:00 to 15:00
+   while your damage grew fifty-thousand-fold and the enemies' life only
+   three-thousand-fold. Now the tide comes faster as it rises (20 s, then a
+   fifth of a second less each time, never under 12), every enemy's life
+   compounds 10% a tide, and every fifth tide brings a new threat, named on
+   the screen when it lands and named under the tide bar before it does.
+   ======================================================================== */
+const TIDE_STAGES = [
+  { at: 0,  name: 'THE SURFACE',    line: '' },
+  { at: 5,  name: 'SWARMS',         line: 'Surges come faster, and thicker.' },
+  { at: 10, name: 'ARMED',          line: 'The rank and file start carrying weapons.' },
+  { at: 15, name: 'ELITES',         line: 'Elites come every third tide, two at a time.' },
+  { at: 20, name: 'VOID ARMOUR',    line: 'Every enemy shrugs off part of every hit.' },
+  { at: 25, name: 'PARTING SHOTS',  line: 'The dead fire back.' },
+  { at: 30, name: 'THE QUICKENING', line: 'Everything moves faster.' },
+  { at: 35, name: 'THE CRUSH',      line: 'They come faster than anything can kill them.' },
+  { at: 40, name: 'NO FLOOR',       line: 'From here every tide hits harder than the last.' }
+];
+function tideLen(n) { return Math.max(TIDE.lenMin, TIDE.len0 - n * TIDE.lenStep); }
+function tideStage(n) { let s = TIDE_STAGES[0]; for (const S of TIDE_STAGES) if (n >= S.at) s = S; return s; }
+function tideNext(n) { for (const S of TIDE_STAGES) if (S.at > n) return S; return null; }
+
+const Tide = {
+  /* the spawn director's ceiling: 34 a second everywhere else; THE CRUSH lifts it */
+  spawnCap(n) { return n >= 35 ? Math.min(58, 42 + (n - 35) * 0.8) : 34; },
+  rise(g) {
+    const D = g.D, n = g.tide, S = TIDE_STAGES.find(s => s.at === n && s.at > 0);
+    g.tidePulse = 1;
+    // elites: one every five tides, then two every three (first, so the
+    // tide's own banner is the one left standing)
+    if (n >= 15 ? n % 3 === 0 : n % TIDE.wardenEvery === 0) {
+      g.spawnElite();
+      if (n >= 15) g.spawnElite();
+    }
+    if (S) {
+      g.banner('TIDE ×' + n + ' · ' + S.name, D.color);
+      g.sowerLine = { text: S.line, t: 3.6, col: D.color };
+      Flash.hit(D.color, 0.2); Cam.shake(0.4); FX.kick(0.5);
+      Sound.bossHorn();
+      TideVig.pulse(true);
+    } else {
+      if (n % 5 === 0) g.banner('TIDE ×' + n, D.color);
+      Sound.shoot('nova');
+      TideVig.pulse(false);
+    }
+  },
+  hud(c, ty, hs) {
+    const G0 = G, D = G0.D, t = G0.uiT || G0.time;
+    const pu = G0.tidePulse || 0;
+    const len = G0.tideLen || tideLen(G0.tide);
+    const frac = 1 - sat(G0.tideT / len);
+    const S = tideStage(G0.tide), N = tideNext(G0.tide);
+    // the count swells when it rises
+    c.save();
+    c.translate(VW / 2, ty + 19 * hs - 4 * hs);
+    c.scale(1 + pu * 0.35, 1 + pu * 0.35);
+    tracked(c, 'TIDE ×' + G0.tide, 0, 4 * hs, { size: 13 * hs, weight: 900, align: 'center', color: pu > 0.3 ? '#ffffff' : D.color, glow: D.color, blur: 10 + pu * 16, track: 3 });
+    c.restore();
+    const tw = 116 * hs, bx = VW / 2 - tw / 2, by = ty + 25 * hs;
+    UI.bar(c, bx, by, tw, 4 * hs, frac, D.color, 'rgba(60,0,44,0.5)');
+    // the last two seconds before a tide: the bar's head burns white
+    const left = G0.tideT;
+    if (left < 2) {
+      c.save(); c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = (1 - left / 2) * (0.6 + 0.4 * Math.sin(t * 18));
+      c.drawImage(glowSprite('#ffffff'), bx + tw * frac - 9 * hs, by + 2 * hs - 9 * hs, 18 * hs, 18 * hs);
+      c.restore();
+    }
+    // what the tide has done, and what it does next
+    const narrowH = VW < 520;
+    const now = S.at > 0 ? S.name : 'THE SURFACE';
+    const nxt = N ? (narrowH ? '×' + N.at + ' ' + N.name : 'NEXT ×' + N.at + '  ' + N.name) : 'NO FLOOR';
+    const ly = ty + 41 * hs, gap = 9 * hs;
+    const s1 = 10 * hs;
+    const w1 = tracked(c, now, 0, 0, { size: s1, weight: 900, track: 2, measureOnly: true });
+    const w2 = tracked(c, nxt, 0, 0, { size: s1 * 0.92, weight: 800, track: 1.5, measureOnly: true });
+    const x0 = VW / 2 - (w1 + gap * 2 + w2) / 2;
+    tracked(c, now, x0, ly, { size: s1, weight: 900, color: S.at > 0 ? D.color : PAL.dim, track: 2, alpha: 0.95 });
+    c.save(); c.globalCompositeOperation = 'lighter';
+    c.drawImage(glowSprite(D.color), x0 + w1 + gap - 4 * hs, ly - 7 * hs, 8 * hs, 8 * hs);
+    c.restore();
+    tracked(c, nxt, x0 + w1 + gap * 2, ly, { size: s1 * 0.92, weight: 800, color: PAL.dim, track: 1.5, alpha: N && G0.tide >= N.at - 1 ? 0.65 + 0.35 * Math.sin(t * 6) : 0.75 });
+  }
+};
+
+/* The tide on the screen's edges: a DOM layer (the compositor's, not the
+   canvas's), magenta at the rim and nothing past the middle half, deeper with
+   every tide; a swell each time one rises. Only ever in a solo ENDLESS run. */
+const TideVig = {
+  el: null, on: false, n: -1,
+  get() {
+    if (this.el === null) {
+      this.el = document.getElementById('tidevig') || false;
+      if (this.el) { this.tv = this.el.querySelector('.tv'); this.tp = this.el.querySelector('.tp'); }
+    }
+    return this.el;
+  },
+  sync(st) {
+    const el = this.get();
+    if (!el) return;
+    const want = !!(G.endless && !G.coop && G.player && (st === 'playing' || st === 'levelup' || st === 'paused' || st === 'continue' || st === 'covenant'));
+    if (want !== this.on) { this.on = want; el.classList.toggle('on', want); }
+    if (want && G.tide !== this.n) {
+      this.n = G.tide;
+      this.tv.style.opacity = String(Math.min(0.9, 0.18 + G.tide * 0.018) * (Settings.flash ? 1 : 0.6));
+    }
+  },
+  pulse(big) {
+    const el = this.get();
+    if (!el || !Settings.flash) return;
+    const p = this.tp;
+    p.classList.remove('go', 'big');
+    void p.offsetWidth;          // restart the animation
+    p.classList.add('go');
+    if (big) p.classList.add('big');
   }
 };
 
@@ -32506,7 +33968,7 @@ const VbuxStore = {
 
 /* where the lobby's PLAY button goes */
 const Hub = {
-  mode() { const m = Save.data.hubMode; return m === 'skirmish' || (m === 'multi' && !CG.site()) ? m : 'conquest'; },
+  mode() { const m = Save.data.hubMode; return m === 'skirmish' || m === 'bossrush' || (m === 'multi' && !CG.site()) ? m : 'conquest'; },
   setMode(m) { Save.data.hubMode = m; Save.save(); },
   /* the world the lobby shows behind your ship: the next one on the road */
   world() {
@@ -32523,6 +33985,8 @@ const Hub = {
       Descent.start(null, id);
     } else if (m === 'multi') {
       NET.wake(); G.state = 'mp'; UI.lastState = '';
+    } else if (m === 'bossrush') {
+      Rush.start(Rush.d().diff);
     } else {
       const W = this.world();
       applySky(null);
@@ -32579,7 +34043,7 @@ const UI = {
     return st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' ||
            st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' ||
            st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' ||
-           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'gifts' || st === 'freevb';
+           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'gifts' || st === 'freevb' || st === 'rush';
   },
   /* true while an online screen owns the keyboard for typing */
   typing() {
@@ -32951,10 +34415,9 @@ const UI = {
     if (G.coop) {
       Coop.hudSub(c, ty, hs);
     } else if (G.endless) {
-      const frac = 1 - sat(G.tideT / (D.tideEvery || 20));
-      tracked(c, 'TIDE \u00d7' + G.tide, VW / 2, ty + 19 * hs, { size: 13 * hs, weight: 900, align: 'center', color: D.color, glow: D.color, blur: 10, track: 3 });
-      const tw = 116 * hs;
-      this.bar(c, VW / 2 - tw / 2, ty + 25 * hs, tw, 4 * hs, frac, D.color, 'rgba(60,0,44,0.5)');
+      Tide.hud(c, ty, hs);
+    } else if (G.rush) {
+      Rush.hud(c, ty, hs);
     } else if (!G.bossSpawned && !G.boss && G.solo) {
       text(c, G.planet && G.planet.soloLine ? G.planet.soloLine : 'IT IS ALREADY DOWN THERE', VW / 2, ty + 17 * hs, { size: 11 * hs, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 });
     } else if (!G.bossSpawned && !G.boss) {
@@ -32975,7 +34438,7 @@ const UI = {
     // ---- boss bar
     if (G.boss && !G.boss.dead) {
       const bcol = G.boss.hwShield ? '#8a93b8' : G.boss.def.col;
-      const bw = Math.min(620, VW * 0.72), bx = VW / 2 - bw / 2, by = ty + (G.endless ? 56 : 30) * hs;
+      const bw = Math.min(620, VW * 0.72), bx = VW / 2 - bw / 2, by = ty + (G.endless ? 68 : (G.rush ? 60 : 30)) * hs;
       const more = G.coop ? 0 : G.bossCount() - 1;
       const isSower = !!G.boss.forms;
       const sTitle = isSower ? (G.boss.forms[G.boss.form | 0] || G.boss.forms[0]).title : '';
@@ -35205,13 +36668,17 @@ const UI = {
     const w = Math.min(940, VW - 32);
     const ownsIt = id => (d.owned || []).indexOf(id) >= 0;
     const SHOP = SKINS.filter(s => s.price >= 0 && (!s.secret || ownsIt(s.id)));
-    const MAST = SKINS.filter(s => s.price < 0 && !s.pass && !s.exclusive && !s.event && (!s.secret || ownsIt(s.id)));
-    const EVTW = SKINS.filter(s => s.event && ownsIt(s.id));
+    const MAST = SKINS.filter(s => s.price < 0 && !s.pass && !s.exclusive && !s.event && !s.cryptic && (!s.secret || ownsIt(s.id)));
+    // October's skins all show while the harvest is on (the ones not won yet say where they come from); after it, the ones you won
+    const hwOn = Hollow.on();
+    const EVTW = SKINS.filter(s => s.event && (ownsIt(s.id) || (hwOn && s.event === 'halloween')));
+    // the secrets: always a shelf, a ??? for each until it is found
+    const SECW = SKINS.filter(s => s.cryptic);
     // season skins get their own shelf, and only once you own one
     const PASSW = SKINS.filter(s => s.pass && ownsIt(s.id));
     // the voidbux skins always show: locked, they point at the shop
     const EXCL = SKINS.filter(s => s.exclusive);
-    const WALLS = [SHOP, MAST].concat(PASSW.length ? [PASSW] : []).concat(EVTW.length ? [EVTW] : []).concat([EXCL]);
+    const WALLS = [SHOP, MAST].concat(PASSW.length ? [PASSW] : []).concat(EVTW.length ? [EVTW] : []).concat([EXCL]).concat(SECW.length ? [SECW] : []);
     // how many tiles there actually are -- a hidden secret skin is in
     // SKINS but not in any wall, so NSK overruns the grid
     const NSK = WALLS.reduce((a, W) => a + W.length, 0);
@@ -35354,7 +36821,8 @@ const UI = {
       if (W === SHOP) lbl('BOUGHT WITH SHARDS', wy[k] - 8, PAL.gold, 'finish runs to earn them');
       else if (W === MAST) lbl('MASTERY', wy[k] - 8, '#ff6bd0', 'earned, never bought');
       else if (W === PASSW) lbl('BLOOM PASS', wy[k] - 8, '#ffd166', 'season rewards');
-      else if (W === EVTW) lbl('EVENT', wy[k] - 8, '#ff9a3c', 'won from event banners');
+      else if (W === EVTW) lbl('EVENT', wy[k] - 8, '#ff9a3c', hwOn ? 'the harvest: its banner, two feats' : 'won in events');
+      else if (W === SECW) lbl('SECRETS', wy[k] - 8, '#9ef7ff', 'found, never told');
       else lbl('EXCLUSIVE', wy[k] - 8, '#ff4fd8', 'voidbux, in the shop');
     }
 
@@ -35365,7 +36833,7 @@ const UI = {
       const on = i === sel;
       const has = owned(sk.id);
       const worn = d.skin === sk.id || (!d.skin && sk.id === 'seed');
-      const locked = !has && sk.price < 0;
+      const locked = !has && sk.price < 0, hid = !has && !!sk.cryptic;
       const afford = sk.price >= 0 && (d.shards || 0) >= sk.price;
 
       c.save();
@@ -35381,13 +36849,13 @@ const UI = {
       const px = cx + cw / 2, py = cy + ch * 0.33;
       c.save();
       c.translate(px, py);
-      if (!has) c.globalAlpha = 0.3;
-      const spr = sprite('skin_' + sk.id + '_' + Math.round(pr), pr * 5, pr * 5, cc => paintSkin(cc, sk, pr, 0));
+      if (!has) c.globalAlpha = hid ? 0.92 : 0.3;
+      const spr = hid ? secretGlyph(pr) : sprite('skin_' + sk.id + '_' + Math.round(pr), pr * 5, pr * 5, cc => paintSkin(cc, sk, pr, 0));
       c.save();
       c.globalCompositeOperation = 'lighter';
       const tlv = has ? skinLv(sk.id) : 0;
       c.globalAlpha = (has ? (tlv >= 2 ? 0.5 : 0.22) : 0.14) + Math.sin(G.uiT * 3 + i) * 0.06;
-      c.drawImage(glowSprite(sk.rainbow ? skinCol(sk, G.uiT) : sk.col), -pr * 2, -pr * 2, pr * 4, pr * 4);
+      c.drawImage(glowSprite(hid ? '#7d86ab' : (sk.rainbow ? skinCol(sk, G.uiT) : sk.col)), -pr * 2, -pr * 2, pr * 4, pr * 4);
       c.restore();
       c.rotate(on ? G.uiT * 0.7 : 0);
       c.drawImage(spr, -spr.width / 2, -spr.height / 2);
@@ -35408,9 +36876,10 @@ const UI = {
 
       const fit = Math.min(1, cw / 132);
       let nSize = 10.5 * fit, nTrack = 1.3 * fit;
-      const nW = tracked(c, sk.name, 0, 0, { size: nSize, weight: 900, track: nTrack, measureOnly: true });
+      const nm = hid ? '? ? ?' : sk.name;
+      const nW = tracked(c, nm, 0, 0, { size: nSize, weight: 900, track: nTrack, measureOnly: true });
       if (nW > cw - 8) { const k = (cw - 8) / nW; nSize *= k; nTrack *= k; }
-      tracked(c, sk.name, px, cy + ch * 0.71, {
+      tracked(c, nm, px, cy + ch * 0.71, {
         size: nSize, weight: 900, align: 'center',
         color: has ? sk.col : PAL.dim, track: nTrack, alpha: has ? 1 : 0.72
       });
@@ -35424,7 +36893,7 @@ const UI = {
         color: worn ? '#fff' : (has ? PAL.dim : (sk.exclusive ? '#ff4fd8' : (locked ? '#ff6bd0' : (afford ? PAL.gold : PAL.hp)))),
         alpha: worn ? 1 : 0.9
       });
-      if (!has) {
+      if (!has && !hid) {
         c.save(); c.globalAlpha = 0.5;
         const lc = locked ? '#ff6bd0' : (afford ? PAL.gold : PAL.hp);
         c.strokeStyle = lc; c.lineWidth = 1.2;
@@ -35446,10 +36915,11 @@ const UI = {
     // ---- blurb for the selected skin
     const s = slot(sel), sk = s.sk;
     const by = y + h - footH + 22;
-    tracked(c, sk.name, VW / 2, by, { size: 15, weight: 900, align: 'center', color: sk.col, glow: sk.col, blur: 12, track: 3 });
-    text(c, sk.blurb, VW / 2, by + 19, { size: 11.5, weight: 600, align: 'center', color: PAL.text, alpha: 0.82 });
+    const hidS = !!sk.cryptic && !owned(sk.id);
+    tracked(c, hidS ? '? ? ?' : sk.name, VW / 2, by, { size: 15, weight: 900, align: 'center', color: hidS ? '#9ef7ff' : sk.col, glow: hidS ? '#9ef7ff' : sk.col, blur: 12, track: 3 });
+    text(c, hidS ? '\u201c' + sk.cryptic.toLowerCase() + '\u201d' : sk.blurb, VW / 2, by + 19, { size: 11.5, weight: 600, align: 'center', color: hidS ? '#cfe9ff' : PAL.text, alpha: 0.82 });
     const has = owned(sk.id);
-    const prompt = has ? (d.skin === sk.id ? 'worn  \u00b7  ENTER or U for its LEVELS' : 'ENTER to wear  \u00b7  U for its LEVELS')
+    const prompt = hidS ? 'A SECRET  \u00b7  NOBODY WILL TELL YOU MORE THAN THAT' : has ? (d.skin === sk.id ? 'worn  \u00b7  ENTER or U for its LEVELS' : 'ENTER to wear  \u00b7  U for its LEVELS')
       : (sk.exclusive ? 'ENTER to see its levels  \u00b7  ' + sk.vb + ' VOIDBUX in the SHOP' : sk.price < 0 ? 'LOCKED \u2014 ' + sk.req + '  \u00b7  ENTER to see its levels'
         : 'ENTER to see every level  \u00b7  ' + fmtNum(sk.price) + ' shards');
     text(c, prompt, VW / 2, by + 37, {
@@ -35457,7 +36927,7 @@ const UI = {
       color: has ? PAL.dim : (sk.price < 0 ? '#ff6bd0' : ((d.shards || 0) >= sk.price ? PAL.gold : PAL.hp))
     });
 
-    this.skinDecks(c, sk, x, y, w, h, footH, by, prompt);
+    if (!hidS) this.skinDecks(c, sk, x, y, w, h, footH, by, prompt);
     if (this._deckClick) { this._deckClick = false; this.openSkinLv(sk.id); return; }
 
     if (this.toast && this.toast.t > 0) {
@@ -35556,7 +37026,7 @@ const UI = {
       const cIdx = Math.floor(k / perCol), rIdx = k % perCol;
       const ax = x + 28 + cIdx * (colW + 18);
       const ay = top + rIdx * rowH;
-      const got = Ach.has(a.id);
+      const got = Ach.has(a.id), hid = a.secret && !got;
 
       c.save();
       c.fillStyle = got ? 'rgba(20,22,44,0.72)' : 'rgba(10,11,24,0.55)';
@@ -35574,14 +37044,14 @@ const UI = {
         { lw: 1.6, blur: got ? 12 : 0, core: got ? a.c : null, inner: false });
       c.restore();
 
-      tracked(c, a.n, ax + 38, ay + 16, {
+      tracked(c, hid ? '? ? ?' : a.n, ax + 38, ay + 16, {
         size: 11.5, weight: 900, track: 1.4,
         color: got ? a.c : PAL.dim, glow: got ? a.c : null, blur: 8, alpha: got ? 1 : 0.75
       });
       if (a.skin) {
-        text(c, '◆ SKIN', ax + colW - 10, ay + 15, { size: 8.5, weight: 900, align: 'right', color: got ? '#ff6bd0' : PAL.dim, alpha: got ? 0.95 : 0.5 });
+        text(c, hid ? '◆ SECRET SKIN' : '◆ SKIN', ax + colW - 10, ay + 15, { size: 8.5, weight: 900, align: 'right', color: got ? '#ff6bd0' : PAL.dim, alpha: got ? 0.95 : 0.5 });
       }
-      text(c, a.d, ax + 38, ay + 29, { size: 10, weight: 600, color: PAL.text, alpha: got ? 0.8 : 0.5 });
+      text(c, hid ? '\u201c' + a.hint.toLowerCase() + '\u201d' : a.d, ax + 38, ay + 29, { size: 10, weight: 600, color: hid ? '#9ef7ff' : PAL.text, alpha: got ? 0.8 : (hid ? 0.7 : 0.5) });
 
       // progress, for the ones you chip away at
       if (!got && a.prog) {
@@ -35721,7 +37191,7 @@ const UI = {
       ['', 'at 2:45, 4:45, 6:45 and 8:45. Each drops two caches.'],
       ['THE BLOOM', 'Arrives at 10:30. Kill it to win the run.'],
       ['DIFFICULTY', 'Five modes. Higher difficulty means more score per kill.'],
-      ['ENDLESS', 'No finale. The TIDE rises every 20s and never stops.'],
+      ['ENDLESS', 'No end. The TIDE speeds up; every 5th tide adds a threat.'],
       ['MASTERY', 'Clearing a difficulty unlocks a skin you cannot buy.'],
       ['PAUSE', 'P, or Start on a pad.   Mute with M.   Reroll boons with R.']
     ];
@@ -35834,7 +37304,7 @@ const UI = {
     const hz = clamp(cw / 232, 0.62, 1);
     this._lvY = y;
     if (!Tut.boonNow()) {
-      tracked(c, G.hollow ? 'BROOD CLEARED' : (G.chestQueue > 0 ? 'RELIC CACHE' : 'LEVEL ' + G.level), VW / 2, y - 42, {
+      tracked(c, G.hollow ? 'BROOD CLEARED' : (G.chestQueue > 0 ? (G.rush && G.rush.arm ? 'ARM UP \u00b7 ' + (4 - G.chestQueue) + ' / 3' : 'RELIC CACHE') : 'LEVEL ' + G.level), VW / 2, y - 42, {
         size: 30 * hz, weight: 900, align: 'center', color: G.chestQueue > 0 ? PAL.gold : PAL.xp,
         glow: G.chestQueue > 0 ? PAL.gold : PAL.xp, blur: 20, track: 7 * hz
       });
@@ -37132,6 +38602,7 @@ const UI = {
 
   endScreen(c, win) {
     if (G.hollow && G.D.hollow) { this.hollowEnd(c, win); return; }
+    if (G.rush && G.D.rush) { this.rushEnd(c, win); return; }
     this.begin(win ? 'win' : 'dead');
     this.dim(c, win ? 0.5 : 0.62);
     const col = win ? PAL.gold : PAL.hp;
@@ -38373,6 +39844,11 @@ Object.assign(UI, {
     } else if (m === 'skirmish') {
       const D = DIFFS[Save.data.lastDiff] || DIFFS.medium;
       glyphCol = D.color; line2 = D.name + '  ·  ' + D.tag; line2Short = D.name;
+    } else if (m === 'bossrush') {
+      const rr = Rush.d(), D = DIFFS[rr.diff];
+      glyphCol = D.color;
+      line2 = D.name + '  ·  ' + (rr.best[rr.diff] ? 'BEST ' + fmtTime(rr.best[rr.diff]) : (rr.far[rr.diff] ? rr.far[rr.diff] + ' / ' + RUSH_N + ' DOWN' : 'TEN IN A ROW'));
+      line2Short = D.name;
     } else {
       line2 = NET.status === 'online' ? 'SERVER ONLINE  ·  1–4 PLAYERS' : 'CO-OP  ·  1–4 PLAYERS';
     }
@@ -38393,6 +39869,14 @@ Object.assign(UI, {
       neon(c, x => pathStar(x, 4, gr, gr * 0.3, 0), glyphCol, { lw: 1.6, blur: 0, core: 'rgba(8,10,26,0.9)' });
       c.rotate(-t * 1.2);
       neon(c, x => pathStar(x, 4, gr * 0.5, gr * 0.14, Math.PI / 4), '#ffffff', { lw: 1, blur: 0, core: null, inner: false });
+    } else if (m === 'bossrush') {
+      // the ladder: three rungs climbing, the top one burning
+      hglow(c, RUSH_COL, gx, gy, gr * 1.6, 0.35);
+      c.translate(gx, gy);
+      for (let i = 0; i < 3; i++) {
+        const yy = gr * (0.62 - i * 0.62), s = gr * (0.3 + i * 0.07), on = i === (Math.floor(t * 1.5) % 3);
+        neon(c, x => { x.beginPath(); x.moveTo(0, yy - s); x.lineTo(s, yy); x.lineTo(0, yy + s); x.lineTo(-s, yy); x.closePath(); }, on ? '#ffffff' : RUSH_TIER_COL[i], { lw: 1.4, blur: 0, core: 'rgba(8,10,26,0.9)' });
+      }
     } else {
       const CC = ['#9ef7ff', '#ff7ae6', '#ffd166', '#8dff6b'];
       c.globalCompositeOperation = 'lighter';
@@ -39320,42 +40804,85 @@ Object.assign(UI, {
     bannerBack(c, B, t, VW / 2, (narrow ? 94 : 100) + (narrow ? 75 : 95), B.id === HWB_ID);
     { const tk = narrow ? 4 : 8, ts = clamp(((VW - 30) / Math.max(10, B.title.length) - tk) / 0.68, 13, 28);
       tracked(c, B.title, VW / 2, short ? 30 : 46, { size: ts, weight: 900, align: 'center', color: B.col, glow: B.col, blur: 18, track: tk }); }
-    text(c, 'event banner  \u00b7  three skins, one roll, a small chance of a bonus prize', VW / 2, short ? 48 : 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    text(c, 'event banner  \u00b7  ' + (bannerPrizes(B).length === 5 ? 'five' : 'three') + ' skins, one roll, a small chance of a bonus prize', VW / 2, short ? 48 : 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
     // tickets chip, top right
     if (narrow) tixCount(c, VW - 12, 17, 20, 'evt', rec.tickets, 'right'); else tixCount(c, VW - 20, short ? 24 : 38, short ? 20 : 34, 'evt', rec.tickets, 'right');
-    // the three prizes: LOW and MID either side, TOP in the middle and larger
-    const order = ['low', 'top', 'mid'];
-    const cw = Math.min(narrow ? 112 : 200, (lw - 30) / 3.2), chh = short ? 128 : (narrow ? 150 : 190), gap = narrow || short ? 8 : 18;
-    const x0 = lx - (cw * 3 + gap * 2) / 2, cy0 = short ? 80 : (narrow ? 94 : 100);
-    order.forEach((tier, i) => {
-      const sk = SKIN_BY_ID[B.skins[tier]], col = ROLL_COL[tier], top = tier === 'top';
-      const x = x0 + i * (cw + gap), y = cy0 - (top ? 10 : 0), h = chh + (top ? 20 : 0);
-      glass(c, x, y, cw, h, 14, col, top);
-      if (top) hglow(c, col, x + cw / 2, y + h * 0.4, cw * 0.9, 0.2);
-      if (sk) this.passSkin(c, sk, x + cw / 2, y + h * 0.4, cw * (top ? 0.26 : 0.2), t * (top ? 0.8 : 0.5) * (i === 0 ? 1 : -1), t);
-      if (top) {   // two rings turning against each other round the prize
-        c.save(); c.globalCompositeOperation = 'lighter'; c.translate(x + cw / 2, y + h * 0.4); c.lineWidth = 1.4; c.lineCap = 'round';
-        c.strokeStyle = col; c.globalAlpha = 0.55; c.rotate(t * 0.5); c.setLineDash([cw * 0.06, cw * 0.05]); c.beginPath(); c.arc(0, 0, cw * 0.4, 0, TAU); c.stroke();
-        c.strokeStyle = '#ffffff'; c.globalAlpha = 0.3; c.rotate(-t * 1.1); c.setLineDash([cw * 0.02, cw * 0.09]); c.beginPath(); c.arc(0, 0, cw * 0.46, 0, TAU); c.stroke();
-        c.restore();
-      }
-      tracked(c, tier.toUpperCase(), x + cw / 2, y + 22, { size: narrow ? 10.5 : 12, weight: 900, align: 'center', color: col, glow: col, blur: 8, track: 3 });
-      if (sk) tracked(c, sk.name, x + cw / 2, y + h * 0.78, { size: narrow ? 9.5 : 12, weight: 900, align: 'center', color: '#ffffff', track: 1.5 });
-      text(c, ROLL.ODDS[tier] + '%', x + cw / 2, y + h * 0.78 + 17, { size: narrow ? 10 : 12, weight: 800, align: 'center', color: col });
-      const have = sk && (Save.data.owned || []).indexOf(sk.id) >= 0;
-      if (have) tracked(c, 'OWNED', x + cw / 2, y + h - 10, { size: 9, weight: 900, align: 'center', color: '#8dff6b', track: 2 });
+    // the prizes: the MYTH in the middle and largest, a TOP either side of it, LOW and MID outside.
+    // A phone (narrow and tall) gets two rows: the MYTH and the TOPs, then the rest
+    const PR = bannerPrizes(B), nP = PR.length, two = narrow && !short && nP > 3;
+    const rowsP = two ? [PR.filter(p => p.tier === 'myth' || p.tier === 'top'), PR.filter(p => p.tier !== 'myth' && p.tier !== 'top')] : [PR];
+    const gap = narrow || short ? 8 : 16;
+    const wOf = p => two ? 1 : (p.tier === 'myth' ? 1.3 : (p.tier === 'top' && nP > 3 ? 1.1 : (p.tier === 'top' ? 1.2 : 1)));
+    const wSum = rowsP[0].reduce((a, p) => a + wOf(p), 0);
+    const cwB = two ? Math.min(118, (lw - 24 - gap * 2) / 3) : Math.min(nP > 3 ? (short ? 120 : 176) : (narrow ? 112 : 200), (lw - 30 - gap * (nP - 1)) / (wSum + 0.2));
+    const chB = short ? 124 : (two ? 136 : (narrow ? 150 : 182));
+    const cy0 = short ? 80 : (narrow ? 94 : 100);
+    let yRow = cy0, cardsBot = cy0;
+    rowsP.forEach((row, ri) => {
+      const ws = row.map(p => cwB * wOf(p)), tw = ws.reduce((a, b) => a + b, 0) + gap * (row.length - 1);
+      let x = lx - tw / 2;
+      row.forEach((P, i) => {
+        const sk = SKIN_BY_ID[P.id], col = ROLL_COL[P.tier], big = P.tier === 'myth' || (P.tier === 'top' && nP <= 3), top = P.tier === 'top';
+        const cw = ws[i], extra = two ? (P.tier === 'myth' ? 14 : 0) : (big ? 24 : (top ? 12 : 0));
+        const y = yRow - extra / 2, h = chB + extra, cx = x + cw / 2, cyS = y + h * (short || two ? 0.38 : 0.42);
+        glass(c, x, y, cw, h, 14, col, big || top);
+        if (big || top) hglow(c, col, cx, cyS, cw * (big ? 0.95 : 0.75), big ? 0.24 : 0.14);
+        if (sk) this.passSkin(c, sk, cx, cyS, Math.min(cw * (big ? 0.24 : 0.2), h * 0.15), t * (big ? 0.7 : 0.5) * (i % 2 ? -1 : 1), t);
+        if (big) {   // two rings turning against each other round the prize
+          c.save(); c.globalCompositeOperation = 'lighter'; c.translate(cx, cyS); c.lineWidth = 1.4; c.lineCap = 'round';
+          const rr = Math.min(cw * 0.4, h * (short || two ? 0.24 : 0.3));
+          c.strokeStyle = col; c.globalAlpha = 0.55; c.rotate(t * 0.5); c.setLineDash([rr * 0.15, rr * 0.12]); c.beginPath(); c.arc(0, 0, rr, 0, TAU); c.stroke();
+          c.strokeStyle = '#ffffff'; c.globalAlpha = 0.3; c.rotate(-t * 1.1); c.setLineDash([rr * 0.05, rr * 0.22]); c.beginPath(); c.arc(0, 0, rr * 1.15, 0, TAU); c.stroke();
+          c.restore();
+        }
+        const tfs = narrow || short ? 10 : 12;
+        tracked(c, P.tier.toUpperCase(), cx, y + 20, { size: tfs, weight: 900, align: 'center', color: col, glow: col, blur: 8, track: 3 });
+        const nY = y + h * (short || two ? 0.7 : 0.74);
+        if (sk) {
+          let ns = narrow || short ? 9.5 : 12;
+          const nw = tracked(c, sk.name, 0, 0, { size: ns, weight: 900, track: 1.5, measureOnly: true });
+          if (nw > cw - 10) ns *= (cw - 10) / nw;
+          tracked(c, sk.name, cx, nY, { size: ns, weight: 900, align: 'center', color: '#ffffff', track: 1.5 * ns / 12 });
+        }
+        text(c, bannerOdds(B, P.tier) + '%', cx, nY + (short || two ? 14 : 17), { size: narrow || short ? 10 : 12, weight: 800, align: 'center', color: col });
+        const have = sk && (Save.data.owned || []).indexOf(sk.id) >= 0;
+        if (have) tracked(c, 'OWNED', cx, Math.min(y + h - 7, nY + (short || two ? 27 : 32)), { size: 9, weight: 900, align: 'center', color: '#8dff6b', track: 2 });
+        cardsBot = Math.max(cardsBot, y + h);
+        x += cw + gap;
+      });
+      yRow += chB + (two ? 14 : 0) + gap;
     });
-    // pity
-    const py = cy0 + chh + (short ? 40 : 34), pw = Math.min(420, lw - 50), px = lx - pw / 2;
-    tracked(c, 'PITY  ' + rec.pity + ' / ' + ROLL.PITY, lx, py, { size: 12, weight: 900, align: 'center', color: ROLL_COL.top, track: 3 });
-    c.save(); c.fillStyle = 'rgba(8,10,20,0.9)'; roundRect(c, px, py + 8, pw, 8, 4); c.fill();
-    const fr = Math.min(1, rec.pity / ROLL.PITY);
-    if (fr > 0) { const g = c.createLinearGradient(px, 0, px + pw, 0); g.addColorStop(0, '#63d4ff'); g.addColorStop(1, '#ffd166');
-      c.fillStyle = g; c.shadowColor = '#ffd166'; c.shadowBlur = 8; roundRect(c, px, py + 8, Math.max(8, pw * fr), 8, 4); c.fill(); }
-    c.restore();
-    text(c, 'roll ' + ROLL.PITY + ' times without a TOP and the next roll is a TOP', lx, py + 34, { size: 10.5, weight: 600, align: 'center', color: PAL.dim });
-    if (!short) text(c, 'a skin you already own pays shards  \u00b7  TOP ' + fmtNum(ROLL.DUPE.top) + '  \u00b7  MID ' + fmtNum(ROLL.DUPE.mid) + '  \u00b7  LOW ' + fmtNum(ROLL.DUPE.low),
-      VW / 2, py + 50, { size: 10.5, weight: 600, align: 'center', color: PAL.dim });
+    // pity: a TOP (or better) every PITY rolls, the MYTH every MPITY
+    const hasM = bannerTier(B, 'myth').length > 0;
+    const py = cardsBot + (short ? 26 : 30), pw = Math.min(hasM ? 520 : 420, lw - 40), px = lx - pw / 2;
+    // a dark plate under the small print, so it reads over the moon and the hill
+    { const pl = short ? Math.min(lw - 8, pw + 40) : Math.min(VW - 16, Math.max(pw + 40, 620)), ph = short ? 50 : (B.end ? 86 : 70);
+      c.save(); c.fillStyle = 'rgba(3,4,12,0.62)'; roundRect(c, lx - pl / 2, py - 18, pl, ph, 12); c.fill(); c.restore(); }
+    const pbar = (bx, bw, lab, n, N, c0, c1) => {
+      tracked(c, lab + '  ' + n + ' / ' + N, bx + bw / 2, py, { size: narrow ? 10.5 : 12, weight: 900, align: 'center', color: c1, track: narrow ? 1.5 : 3 });
+      c.save(); c.fillStyle = 'rgba(8,10,20,0.9)'; roundRect(c, bx, py + 8, bw, 8, 4); c.fill();
+      const fr = Math.min(1, n / N);
+      if (fr > 0) { const g = c.createLinearGradient(bx, 0, bx + bw, 0); g.addColorStop(0, c0); g.addColorStop(1, c1);
+        c.fillStyle = g; c.shadowColor = c1; c.shadowBlur = 8; roundRect(c, bx, py + 8, Math.max(8, bw * fr), 8, 4); c.fill(); }
+      c.restore();
+    };
+    if (hasM) {
+      const hw2 = (pw - 16) / 2;
+      pbar(px, hw2, 'TOP PITY', rec.pity, ROLL.PITY, '#63d4ff', ROLL_COL.top);
+      pbar(px + hw2 + 16, hw2, 'MYTH PITY', rec.mpity | 0, ROLL.MPITY, '#c9a3ff', ROLL_COL.myth);
+      const ptx = narrow || short ? 'every ' + ROLL.PITY + ' rolls a TOP or better  \u00b7  every ' + ROLL.MPITY + ' the MYTH  \u00b7  a TOP is one you lack'
+                         : 'every ' + ROLL.PITY + ' rolls without a TOP or better, a TOP  \u00b7  every ' + ROLL.MPITY + ' without the MYTH, the MYTH  \u00b7  a TOP is one you do not have yet';
+      let pts = narrow ? 9.5 : 10.5; setFont(c, pts, 600); pts *= Math.min(1, (lw - 24) / Math.max(1, c.measureText(ptx).width));
+      text(c, ptx, lx, py + 34, { size: pts, weight: 600, align: 'center', color: PAL.dim });
+    } else {
+      pbar(px, pw, 'PITY', rec.pity, ROLL.PITY, '#63d4ff', ROLL_COL.top);
+      text(c, 'roll ' + ROLL.PITY + ' times without a TOP and the next roll is a TOP', lx, py + 34, { size: 10.5, weight: 600, align: 'center', color: PAL.dim });
+    }
+    if (!short) {
+      const dtx = (narrow ? 'already yours pays shards' : 'a skin you already own pays shards') + (hasM ? '  \u00b7  MYTH ' + fmtNum(ROLL.DUPE.myth) : '') + '  \u00b7  TOP ' + fmtNum(ROLL.DUPE.top) + '  \u00b7  MID ' + fmtNum(ROLL.DUPE.mid) + '  \u00b7  LOW ' + fmtNum(ROLL.DUPE.low);
+      let dts = 10.5; setFont(c, dts, 600); dts *= Math.min(1, (VW - 24) / Math.max(1, c.measureText(dtx).width));
+      text(c, dtx, VW / 2, py + 50, { size: dts, weight: 600, align: 'center', color: PAL.dim });
+    }
     if (B.end && !short) text(c, 'unspent tickets expire when the event ends', VW / 2, py + 66, { size: 10.5, weight: 600, align: 'center', color: '#ffb347' });
     // the buttons
     const left = Banners.buyLeft();
@@ -39380,15 +40907,16 @@ Object.assign(UI, {
         if (ph + TIX_OPEN > 0.5 && this.lockT <= 0 && (Input.hit('Enter', 'space') || Input.mclick || Input.gpPressed[0])) { res.at = t - TIX_OPEN; this.lockT = 0.2; }
       } else if (ph < 1.3) {
         const k = ph / 1.3, ang = k * k * 14, rad = (1 - k) * 90 + 6;
-        ['low', 'mid', 'top'].forEach((tr, i) => {
-          const sk2 = SKIN_BY_ID[B.skins[tr]], a = ang + i * TAU / 3;
+        bannerPrizes(B).forEach((P, i, A) => {
+          const sk2 = SKIN_BY_ID[P.id], a = ang + i * TAU / A.length;
           if (sk2) this.passSkin(c, sk2, cx + Math.cos(a) * rad, cy + Math.sin(a) * rad * 0.6, 20, t * 3, t, 0.4 + 0.6 * k);
         });
         c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = col; c.shadowColor = col; c.shadowBlur = 14; c.lineWidth = 2; c.globalAlpha = 0.5 * k;
         c.beginPath(); c.arc(cx, cy, 30 + 80 * (1 - k), 0, TAU); c.stroke(); c.restore();
       } else {
         if (!res.burst) {
-          res.burst = true; Flash.hit(col, res.tier === 'top' ? 0.7 : 0.35); Sound.fanfare(res.tier !== 'low');
+          res.burst = true; Flash.hit(col, res.tier === 'myth' ? 0.9 : (res.tier === 'top' ? 0.7 : 0.35)); Sound.fanfare(res.tier !== 'low');
+          if (res.tier === 'myth') { Particles.ring(cx, cy, 20, 640, { col: '#ffffff', life: 1.2, w: 10 }); Cam.shake(0.5); }
           Particles.ring(cx, cy, 14, 420, { col: col, life: 0.9, w: 8 });
         }
         const e = Math.min(1, (ph - 1.3) / 0.35);
@@ -39431,27 +40959,28 @@ Object.assign(UI, {
     else tixCount(c, VW - 20, 38, 34, 'evt', tix, 'right');
     // the tasks: eight, the hard ones pay a ticket and the rest pay shards
     const NT = HW_TASKS.length, doneN = HW_TASKS.filter(k => h.tasks[k.id]).length;
-    const pay = k => k.tix ? '+' + k.tix + (k.tix > 1 ? ' TICKETS' : ' TICKET') : '+' + k.sh + ' SHARDS';
+    const pay = k => k.skin ? (skinOwned(k.skin) ? '+' + fmtNum(k.sh) + ' SHARDS' : 'SKIN \u00b7 ' + SKIN_BY_ID[k.skin].name) : (k.tix ? '+' + k.tix + (k.tix > 1 ? ' TICKETS' : ' TICKET') : '+' + k.sh + ' SHARDS');
+    const kcol = k => k.skin ? '#ff6bd0' : (k.tix ? '#ffd166' : A);
     let ny;
     if (short) {
       const rw = Math.min(780, VW - 36), x0 = VW / 2 - rw / 2, cols = 4, cw = (rw - 6 * (cols - 1)) / cols;
       HW_TASKS.forEach((k, i) => {
-        const done = !!h.tasks[k.id], col = done ? '#8dff6b' : (k.tix ? '#ffd166' : A), x = x0 + (i % cols) * (cw + 6), y = 60 + ((i / cols) | 0) * 40;
+        const done = !!h.tasks[k.id], col = done ? '#8dff6b' : kcol(k), x = x0 + (i % cols) * (cw + 6), y = 60 + ((i / cols) | 0) * 40;
         glass(c, x, y, cw, 34, 10, col, false);
         tracked(c, k.n, x + cw / 2, y + 14, { size: 9.5, weight: 900, align: 'center', color: col, glow: done ? col : null, blur: 6, track: 1 });
         text(c, done ? 'DONE' : pay(k), x + cw / 2, y + 27, { size: 9, weight: 800, align: 'center', color: done ? '#8dff6b' : '#ffffff' });
       });
-      ny = 60 + 2 * 40 + 18;
+      ny = 60 + Math.ceil(NT / cols) * 40 + 18;
     } else {
       const cols = VW >= 640 ? 2 : 1, rw = Math.min(cols === 2 ? 900 : 560, VW - 36), x0 = VW / 2 - rw / 2, cw = (rw - (cols - 1) * 10) / cols;
-      const rh = narrow ? 40 : 46, y0 = narrow ? 118 : 94;
-      tracked(c, narrow ? 'TASKS  ·  ' + doneN + ' / ' + NT : 'TASKS  ·  ' + doneN + ' / ' + NT + '  ·  THE HARD ONES PAY TICKETS, THE REST PAY SHARDS', x0, y0 - 8, { size: 10, weight: 800, color: PAL.dim, track: narrow ? 3 : 2.5 });
+      const y0 = narrow ? 118 : 94, rh = clamp(Math.floor((VH - 286 - y0) / Math.ceil(NT / cols)) - 6, 34, narrow ? 40 : 46);
+      tracked(c, narrow ? 'TASKS  ·  ' + doneN + ' / ' + NT : 'TASKS  ·  ' + doneN + ' / ' + NT + '  ·  TWO PAY SKINS, THE HARD ONES TICKETS, THE REST SHARDS', x0, y0 - 8, { size: 10, weight: 800, color: PAL.dim, track: narrow ? 3 : 2.5 });
       HW_TASKS.forEach((k, i) => {
-        const cx0 = x0 + (i % cols) * (cw + 10), y = y0 + ((i / cols) | 0) * (rh + 6), done = !!h.tasks[k.id], col = done ? '#8dff6b' : (k.tix ? '#ffd166' : A);
+        const cx0 = x0 + (i % cols) * (cw + 10), y = y0 + ((i / cols) | 0) * (rh + 6), done = !!h.tasks[k.id], col = done ? '#8dff6b' : kcol(k);
         glass(c, cx0, y + 4, cw, rh, 12, col, false);
         tracked(c, k.n, cx0 + 18, y + 4 + rh * 0.42, { size: clamp(cw / 24, 10.5, 14), weight: 900, color: col, glow: done ? col : null, blur: 8, track: 2 });
         text(c, k.d, cx0 + 18, y + 4 + rh * 0.78, { size: 10, weight: 600, color: PAL.dim });
-        tracked(c, done ? 'DONE' : pay(k), cx0 + cw - 16, y + 4 + rh * 0.78, { size: 10.5, weight: 900, align: 'right', color: done ? '#8dff6b' : (k.tix ? '#ffd166' : '#ffffff'), track: 1.5 });
+        tracked(c, done ? 'DONE' : pay(k), cx0 + cw - 16, y + 4 + rh * (narrow ? 0.42 : 0.78), { size: 10.5, weight: 900, align: 'right', color: done ? '#8dff6b' : (k.skin ? '#ff6bd0' : (k.tix ? '#ffd166' : '#ffffff')), track: 1.5 });
       });
       ny = y0 + Math.ceil(NT / cols) * (rh + 6) + 24;
     }
@@ -40019,13 +41548,14 @@ Object.assign(UI, {
       this.passSigil(c, x, y, r * 0.75, cd.S, t);
       tracked(c, 'PREMIUM', x, y + r * 1.05, { size: clamp(r * 0.2, 9, 13), weight: 900, align: 'center', color: cd.S.col, glow: cd.S.col, blur: 10, track: 4 });
     } else if (cd.kind === 'banner') {
-      const B = cd.b, sk = tier => SKIN_BY_ID[B.skins[tier]];
+      const B = cd.b, sk = (tier, k) => SKIN_BY_ID[bannerTier(B, tier)[k || 0]];
       hglow(c, ROLL_COL.top, x, y - r * 0.1, r * 1.3, on ? 0.3 : 0.18);
       c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = ROLL_COL.top; c.lineWidth = 1.4; c.shadowColor = ROLL_COL.top; c.shadowBlur = 10;
       c.globalAlpha = 0.5;
       c.translate(x, y - r * 0.1); c.rotate(t * 0.35); c.setLineDash([r * 0.2, r * 0.16]);
       c.beginPath(); c.arc(0, 0, r * 1.05, 0, TAU); c.stroke(); c.restore();
-      const sl = sk('low'), sm = sk('mid'), st2 = sk('top');
+      const hasM = bannerTier(B, 'myth').length > 0;
+      const sl = hasM ? sk('top') : sk('low'), sm = hasM ? (sk('top', 1) || sk('mid')) : sk('mid'), st2 = hasM ? sk('myth') : sk('top');
       if (sl) this.passSkin(c, sl, x - r * 0.98, y + r * 0.42, r * 0.34, t * 0.6, t);
       if (sm) this.passSkin(c, sm, x + r * 0.98, y + r * 0.42, r * 0.38, -t * 0.6, t);
       if (st2) this.passSkin(c, st2, x, y - r * 0.08, r * 0.6, Math.sin(t * 0.8) * 0.3, t);
@@ -42035,6 +43565,7 @@ function frame(now) {
   if (st === 'roll' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rollBack();
   if (st === 'std' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.stdBack();
   if (st === 'hollow' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.hollowBack();
+  if (st === 'rush' && UI.lockT <= 0 && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rushBack();
   if (st === 'freevb' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.fvbBack();
   if (st === 'mp' && (Input.hit('Escape') || Input.gpPressed[1] || (Input.hit('Backspace') && !Input.textOn))) {
     if (UI.mpMode !== 'menu') { UI.mpMode = 'menu'; Input.textOn = false; Input.text = ''; } else UI.leaveMp();
@@ -42107,7 +43638,7 @@ function frame(now) {
 
   if (st === 'settings' && UI.settingsFrom === 'paused') {
     UI.world(c); UI.hud(c); UI.settings(c);
-  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb') {
+  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb' || st === 'rush') {
     Cosmos.req = null;
     const cosOn = Cosmos.show(st === 'conquest' || st === 'planet' || st === 'modes' || st === 'hub');
     if (cosOn) c.clearRect(0, 0, VW, VH);
@@ -42119,6 +43650,7 @@ function frame(now) {
     else if (st === 'roll') { UI.roll(c); }
     else if (st === 'std') { UI.fit(c, 0, 600, () => UI.std(c)); }
     else if (st === 'hollow') { UI.hollow(c); }
+    else if (st === 'rush') { UI.fit(c, 0, 470, () => UI.rush(c)); }
     else if (st === 'pilot') { UI.fit(c, 0, 540, () => UI.pilot(c)); }
     else if (st === 'gifts') { UI.fit(c, 0, 560, () => UI.gifts(c)); }
     else if (st === 'freevb') { UI.freevb(c); Payout.draw(c, k => UI.payTarget(UI.hubLayout(), k)); }
@@ -42191,6 +43723,7 @@ function frame(now) {
   FX.run(st === 'playing' || st === 'paused' || st === 'levelup' || st === 'covenant' || st === 'continue'
          || st === 'dead' || st === 'win' || st === 'mpend' ? 1.0 : 0.82);
   Grille.sync(st);
+  TideVig.sync(st);
 
   if (G.showFps) {
     text(c, Math.round(fps) + ' fps' + (FrameCap.hz(st) ? ' \u00b7 cap ' + FrameCap.hz(st) : '') + (G.quality ? '' : ' (lite)') + (RenderRes.cur < 0.999 ? ' \u00b7 ' + Math.round(RenderRes.cur * 100) + '%' : ''), 8, VH - 8, { size: 11, weight: 700, color: 'rgba(150,170,220,0.7)', mono: true });
@@ -45468,6 +47001,8 @@ const MODE_CARDS = [
     lines: ['Take the galaxy one world at a time.', 'Twelve planets, each with its own', 'boss, and a relic to win.'] },
   { id: 'skirmish', name: 'SKIRMISH', col: '#c9a3ff',
     lines: ['One run at the difficulty you pick.', 'Survive to 10:30, then', 'kill THE BLOOM.'] },
+  { id: 'bossrush', name: 'BOSS RUSH', col: '#ff6b4a',
+    lines: ['Ten bosses back to back,', 'nothing else on the floor.', 'Beat the clock to all ten.'] },
   { id: 'multi', name: 'MULTIPLAYER', col: '#ff7ae6',
     lines: ['Up to four players, online.', 'Buffed enemies and three mega', 'bosses in THE UNDERVAULT.'] }
 ];
@@ -45714,6 +47249,486 @@ const ModeArt = {
   }
 };
 
+/* ========================================================================
+   BOSS RUSH (23). Ten bosses back to back and nothing else on the floor.
+   You start with your armory weapon and three picks (ARM UP); every boss
+   bleeds motes as it is hurt, so the build grows inside the fight; each one
+   down pays two picks, a heal and a breath, then the next walks in. The
+   ladder climbs: the first three are drawn from the gentlest worlds' bosses
+   and the gauntlet, the next three from the wild ones and the middle worlds,
+   the next three from the hardest worlds and the daily's four, and the
+   tenth is a finale. The clock never stops: the record is the time to clear
+   all ten, and how far you got, kept per difficulty.
+   ======================================================================== */
+const RUSH_N = 10;
+const RUSH_COL = '#ff6b4a', RUSH_COL2 = '#ffd166';
+const RUSH_DIFFS = ['easy', 'medium', 'hard', 'impossible'];
+// each boss's life, against what the same boss would have at this level in a run: more,
+// since here every weapon you own is on it and nothing else is on the floor
+const RUSH_HP = [0.13, 0.3, 0.5, 0.7, 0.82, 0.92, 1.0, 1.08, 1.15, 1.1];
+// what a body bleeds: one mote for every twenty-fourth of its life, worth this much
+const RUSH_MOTES = 24, RUSH_MOTE = [3, 5, 8, 13, 19, 26, 35, 45, 57, 70];
+// shards for every boss down, by difficulty; the tenth pays the clear on top
+const RUSH_PAY = { easy: 22, medium: 40, hard: 70, impossible: 115 };
+const RUSH_CLEAR = { easy: 220, medium: 400, hard: 700, impossible: 1150 };
+const RUSH_FIRST = { easy: 400, medium: 800, hard: 1400, impossible: 2300 };
+const RUSH_GAP = 3.4;          // the breath between bodies (after the picks)
+const RUSH_TIER_NAMES = ['THE SHALLOW END', 'THE WILD', 'THE DEEP', 'THE FINALE'];
+const RUSH_TIER_COL = ['#8dff6b', '#ffd166', '#ff6b4a', '#ff4fd8'];
+function rushTier(i) { return i < 3 ? 0 : (i < 6 ? 1 : (i < 9 ? 2 : 3)); }
+
+/* the four pools, built once from the worlds (by the threat of the world a
+   boss guards), the galaxies' wild bosses and the daily's four */
+let _rushPools = null;
+function rushPools() {
+  if (_rushPools) return _rushPools;
+  const P = [[], [], [], ['bloom', 'voidheart', 'underbloom']];
+  const has = id => P[0].indexOf(id) >= 0 || P[1].indexOf(id) >= 0 || P[2].indexOf(id) >= 0 || P[3].indexOf(id) >= 0;
+  const add = (k, id) => { if (ENEMY[id] && ENEMY[id].boss && !has(id)) P[k].push(id); };
+  for (const p of ALL_WORLDS) {
+    if (p.solo || p.core || !p.finale) continue;
+    const th = p.threat | 0;
+    add(th <= 2 ? 0 : (th === 3 ? 1 : 2), p.finale);
+  }
+  for (const id of MID_BOSSES) add(0, id);
+  for (const g of GALAXIES) for (const id of (g.wild || [])) add(1, id);
+  for (const id of DAILY_BOSSES) add(2, id);
+  _rushPools = P;
+  return P;
+}
+function rushOrder() {
+  const P = rushPools(), out = [];
+  const pool = P.map(a => a.slice());
+  for (let i = 0; i < RUSH_N; i++) {
+    const a = pool[rushTier(i)];
+    out.push(a.splice((rand() * a.length) | 0, 1)[0]);
+  }
+  return out;
+}
+
+const Rush = {
+  d() {
+    const d = Save.data;
+    if (!d.rush || typeof d.rush !== 'object') d.rush = {};
+    const r = d.rush;
+    for (const k of ['best', 'far', 'clears', 'first']) if (!r[k] || typeof r[k] !== 'object') r[k] = {};
+    if (RUSH_DIFFS.indexOf(r.diff) < 0) r.diff = 'medium';
+    r.runs = r.runs | 0;
+    return r;
+  },
+  /* the difficulty's own chassis: its boss tempo, life and damage; no rank and file */
+  diff(id) {
+    const B = DIFFS[id] || DIFFS.medium;
+    return Object.assign({}, B, { rush: true, name: 'BOSS RUSH', tag: B.name, color: RUSH_COL, baseColor: B.color, revives: B.revives || 0, rushDiff: B.id });
+  },
+  start(diffId) {
+    const r = this.d();
+    if (RUSH_DIFFS.indexOf(diffId) >= 0) { r.diff = diffId; Save.save(); }
+    Sound.resume();
+    Descent.start(null, r.diff, { name: 'BOSS RUSH · ' + DIFFS[r.diff].name, col: RUSH_COL, rush: { diff: r.diff } });
+  },
+  init(rr) {
+    G.rush = { diff: rr.diff, order: rushOrder(), idx: -1, state: 'arm', t: 0, splits: [], downs: 0, at: [], arm: true, cleared: false };
+    G.arenaTarget = 1180;
+    G.bossSpawned = true;                // no gauntlet clock, no finale clock: the ladder is the run
+    G.chestQueue = 3;
+  },
+  tick(dt) {
+    const R = G.rush;
+    if (!R) return;
+    R.t += dt;
+    G.spawnAcc = 0;
+    if (R.state === 'arm') {
+      // three picks before the first one: the state flips to levelup, and the clock waits
+      if (G.chestQueue > 0 && G.state === 'playing') { G.cards = G.buildCards(true); G.cardSel = 0; G.state = 'levelup'; Sound.levelUp(); return; }
+      R.arm = false;
+      R.state = 'gap'; R.t = RUSH_GAP - 1.6;
+      return;
+    }
+    if (R.state === 'gap') {
+      if (R.t >= RUSH_GAP) this.spawnNext();
+      return;
+    }
+    if (R.state === 'fight') {
+      let alive = 0;
+      for (const e of G.enemies) if (e.rushBoss && !e.dead && !e.isDecoy && !e.isSpawn) alive++;
+      if (!alive) this.down();
+    }
+  },
+  spawnNext() {
+    const R = G.rush;
+    R.idx++;
+    if (R.idx >= RUSH_N) { R.state = 'done'; return; }
+    const id = R.order[R.idx], last = R.idx === RUSH_N - 1;
+    const before = new Set(G.enemies);
+    G._lastBoss = null;
+    if (last) G._spawnFinale = true;
+    // spawnBoss sizes it by your level as a run would; here that growth is damped (a
+    // build that hits a crowd hard hits one body much less hard than the curve assumes)
+    const LM = G.bossLevelMul(), damp = (1 + (LM - 1) * 0.45) / LM;
+    G.spawnBoss(id, RUSH_HP[R.idx] * damp);
+    G._spawnFinale = false;
+    for (const e of G.enemies) {
+      if (before.has(e) || !e.boss || e.isDecoy || e.isSpawn) continue;
+      e.rushBoss = true; e.rushIdx = R.idx; e.bleed = 0;
+      if (last) e.isFinale = true;
+    }
+    if (G._lastBoss && last) G._lastBoss.isFinale = true;
+    R.state = 'fight'; R.t = 0; R.at[R.idx] = G.time;
+    G.banner('BOSS ' + (R.idx + 1) + ' / ' + RUSH_N, RUSH_TIER_COL[rushTier(R.idx)]);
+  },
+  /* a body bleeds motes as it is hurt: the fight is where the build comes from */
+  bleed(e, dmg) {
+    const per = e.maxHp / RUSH_MOTES;
+    e.bleed = (e.bleed || 0) + dmg;
+    const v = RUSH_MOTE[e.rushIdx | 0] || 40;
+    let guard = 0;
+    while (e.bleed >= per && guard++ < 6) {
+      e.bleed -= per;
+      const a = rnd(TAU), d2 = e.r * rnd(0.7, 1.35);
+      G.pickups.push(new Pickup(e.x + Math.cos(a) * d2, e.y + Math.sin(a) * d2, 'mote', v));
+    }
+  },
+  /* it is down: count it, clear the floor, breathe (the picks come from the boss-kill path) */
+  down() {
+    const R = G.rush;
+    R.downs = R.idx + 1;
+    R.splits[R.idx] = G.time - (R.at[R.idx] || G.time);
+    R.state = 'gap'; R.t = 0;
+    // what it left behind goes with it: no adds, no bullets, no hazards in the breath
+    for (const e of G.enemies) {
+      if (e.dead || e.boss) continue;
+      e.quietDeath = true; e.dead = true;
+      Particles.burst(e.x, e.y, 6, e.def.col, { spd1: 160, life: 0.35 });
+    }
+    G.ebullets.length = 0;
+    for (let i = G.fx.length - 1; i >= 0; i--) { const f = G.fx[i]; if (f.t === 'tele' || f.t === 'hex' || f.t === 'eshock' || f.t === 'door' || f.t === 'web') G.fx.splice(i, 1); }
+    for (let i = G.pools.length - 1; i >= 0; i--) if (G.pools[i].hostile) G.pools.splice(i, 1);
+    // and whatever its galaxy's systems left planted (posts, threads, graves, snares)
+    Thicket.reset(); Shallows.reset(); Rot.reset();
+    G.boss = null;
+    // a body that pulled the walls in (THE LONG NIGHT, a closing finale) gives the room back
+    G.arenaTarget = 1180;
+    // the motes on the floor come in for the breath
+    for (const k of G.pickups) if (k.type === 'mote') { k.pull = true; }
+  },
+  over(win) {
+    const R = G.rush, r = this.d(), k = R ? R.diff : 'medium';
+    G.over = true; G.state = win ? 'win' : 'dead'; G.player.dead = !win;
+    Sound.stopMusic(!win); Sound.fanfare(win);
+    if (win) { Flash.hit('#fff', 0.8); Cam.shake(1); CG.win(); } else { Flash.vignette('rgba(120,0,20,0.85)', 1); Cam.shake(0.6); }
+    const d = Save.data;
+    const downs = win ? RUSH_N : (R ? R.downs : 0);
+    if (R) { R.downs = downs; R.cleared = !!win; if (win && R.at[RUSH_N - 1] !== undefined) R.splits[RUSH_N - 1] = G.time - R.at[RUSH_N - 1]; }
+    d.runs = (d.runs | 0) + 1;
+    d.kills = (d.kills | 0) + G.kills;
+    r.runs++;
+    // the record: furthest, then the clock for a clear
+    const prevBest = r.best[k] || 0;
+    if (downs > (r.far[k] | 0)) r.far[k] = downs;
+    let firstClear = 0, newBest = false;
+    if (win) {
+      r.clears[k] = (r.clears[k] | 0) + 1;
+      if (!prevBest || G.time < prevBest) { r.best[k] = G.time; newBest = true; }
+      if (!r.first[k]) { r.first[k] = 1; firstClear = RUSH_FIRST[k] || 0; }
+    }
+    // shards: every boss down pays more than the last; a clear pays its bonus, and the first clear more
+    let sh = 0;
+    for (let i = 0; i < downs; i++) sh += Math.round((RUSH_PAY[k] || 40) * (1 + i * 0.12));
+    if (win) sh += RUSH_CLEAR[k] || 0;
+    sh = Math.round(sh * Cloud.shardMul() * (1 + petPerkV('shards'))) + firstClear;
+    d.shards = Math.max(0, (d.shards | 0) + sh);
+    G.lastEarned = sh; G.lastMul = Cloud.shardMul(); G.chestTix = 0;
+    if (R) { R.shards = sh; R.firstClear = firstClear; R.newBest = newBest; R.prevBest = prevBest; }
+    Ach.grant('firstlight');
+    if (downs >= 5) Ach.grant('rush_half');
+    if (win) {
+      Ach.grant('rush_clear');
+      if (k === 'hard' || k === 'impossible') Ach.grant('rush_hard');
+      if (G.time < 480) Ach.grant('rush_fast');
+    }
+    Ach.sweepMeta();
+    Pass.last = null; Pilot.last = null;
+    try {
+      const rs = G.runStats || {};
+      let evoN = 0; for (const w of G.weapons) if (w.evolved) evoN++;
+      Pass.runDone({ coop: false, secs: G.time, kills: G.kills, bosses: rs.bossKills || downs, dashes: rs.dashes || 0, win: !!win,
+        diff: k, planet: false, daily: false, endless: false, tide: 0, evolved: evoN, level: G.level });
+    } catch (e) { }
+    Payout.owe(sh, Pilot.last, Pass.last);
+    Save.save();
+    for (let i = 0; i < 70; i++) Particles.spark(G.player.x, G.player.y, rnd(TAU), rnd(90, 520), { col: win ? '#fff' : PAL.hp, life: rnd(0.4, 1.1), w: 3 });
+  },
+
+  /* under the clock: the ladder, ten pips, and in a breath the name of what comes next */
+  hud(c, ty, hs) {
+    const R = G.rush;
+    if (!R) return;
+    const t = G.uiT || G.time;
+    const n = RUSH_N, gap = 15 * hs, y = ty + 21 * hs;
+    const x0 = VW / 2 - (n - 1) * gap / 2;
+    const cur = R.state === 'fight' ? R.idx : R.idx + 1;
+    c.save();
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * gap, tc = RUSH_TIER_COL[rushTier(i)];
+      const done = i < R.downs, on = i === cur;
+      const s = (i === n - 1 ? 5.6 : 4.2) * hs * (on ? 1 + 0.18 * Math.sin(t * 6) : 1);
+      c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x, y + s); c.lineTo(x - s, y); c.closePath();
+      c.fillStyle = done ? tc : 'rgba(6,8,20,0.85)'; c.globalAlpha = done ? 0.85 : 1; c.fill();
+      c.globalAlpha = done ? 0.5 : (on ? 1 : 0.55);
+      c.strokeStyle = on ? '#ffffff' : tc; c.lineWidth = on ? 1.6 : 1.1; c.stroke();
+      if (on) { c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.5; c.drawImage(glowSprite(tc), x - s * 3, y - s * 3, s * 6, s * 6); c.globalCompositeOperation = 'source-over'; }
+    }
+    c.globalAlpha = 1;
+    c.restore();
+    if (R.state === 'gap' && R.idx + 1 < n && !R.arm) {
+      const nx = ENEMY[R.order[R.idx + 1]], left = Math.max(0, RUSH_GAP - R.t);
+      const col = RUSH_TIER_COL[rushTier(R.idx + 1)];
+      text(c, 'NEXT  ·  ' + Math.ceil(left), VW / 2, y + 19 * hs, { size: 11 * hs, weight: 900, align: 'center', color: col, alpha: 0.75 + 0.25 * Math.sin(t * 7) });
+      // the floor is clear: the next one is named big, over where it will walk in
+      const a = sat((R.t - 0.9) / 0.35) * sat(left / 0.3);
+      if (a > 0 && nx) {
+        const cy = VH * 0.3, w = Math.min(460, VW - 40), h = 74 * hs;
+        c.save(); c.globalAlpha = a;
+        c.fillStyle = 'rgba(6,8,20,0.72)'; roundRect(c, VW / 2 - w / 2, cy - h / 2, w, h, 14); c.fill();
+        c.strokeStyle = col; c.lineWidth = 1.4; c.globalAlpha = a * 0.7; roundRect(c, VW / 2 - w / 2, cy - h / 2, w, h, 14); c.stroke();
+        c.globalAlpha = a;
+        tracked(c, 'BOSS ' + (R.idx + 2) + ' / ' + n + '  ·  ' + RUSH_TIER_NAMES[rushTier(R.idx + 1)], VW / 2, cy - h * 0.18, { size: 10.5 * hs, weight: 900, align: 'center', color: col, track: 3 });
+        const nz = Math.min(26 * hs, (w - 90) / Math.max(6, nx.name.length * 0.95));
+        tracked(c, nx.name, VW / 2, cy + h * 0.24, { size: nz, weight: 900, align: 'center', color: '#ffffff', glow: nx.col, blur: 18, track: nz * 0.2 });
+        // the count, as a ring burning down round the number on the right
+        const rx = VW / 2 + w / 2 - 30 * hs, rr = 14 * hs, f = left / RUSH_GAP;
+        c.globalCompositeOperation = 'lighter';
+        c.beginPath(); c.arc(rx, cy, rr, -Math.PI / 2, -Math.PI / 2 + TAU * f);
+        BA.band(c, col, 2, a, '#ffffff');
+        c.restore();
+        text(c, String(Math.ceil(left)), rx, cy + 5 * hs, { size: 14 * hs, weight: 900, align: 'center', color: '#ffffff', alpha: a });
+      }
+    } else if (R.state === 'fight' && VW >= 560) {
+      text(c, 'BOSS ' + (R.idx + 1) + ' / ' + n + '  ·  ' + RUSH_TIER_NAMES[rushTier(R.idx)], VW / 2, y + 18 * hs, { size: 10 * hs, weight: 800, align: 'center', color: PAL.dim, alpha: 0.85 });
+    }
+  }
+};
+
+/* ------------------------------------------------ the picture on its card
+   A boss in the middle throwing its spiral; you circling and firing; its
+   bar draining; when it goes, the next steps in from the queue at the
+   bottom. The rungs of the ladder light under the bar. */
+const RUSH_ART = ['choir', 'hermit', 'pruner', 'mirror', 'sexton', 'bloom'];
+Object.assign(ModeArt, {
+  rush(c, x, y, w, h, t, on) {
+    const cx = x + w * 0.5, cy = y + h * 0.58, s = Math.min(w, h) / 300;
+    const per = 3.4, k = Math.floor(t / per), u = (t / per) - k;
+    const id = RUSH_ART[k % RUSH_ART.length], def = ENEMY[id];
+    c.save();
+    c.beginPath(); c.rect(x, y, w, h); c.clip();
+    const g = c.createRadialGradient(cx, cy, 10, cx, cy, Math.max(w, h) * 0.75);
+    g.addColorStop(0, '#1e0a0c'); g.addColorStop(0.55, '#0c0610'); g.addColorStop(1, '#04050d');
+    c.fillStyle = g; c.fillRect(x, y, w, h);
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(255,107,74,0.10)'; c.lineWidth = 1.2;
+    for (let r = 60; r < 420; r += 60) { c.beginPath(); c.arc(cx, cy, r * s, 0, TAU); c.stroke(); }
+    // the boss: in on a scale, out in a flash
+    const inK = sat(u / 0.14), outK = sat((u - 0.86) / 0.14);
+    const bk = (0.62 * s) * (0.7 + 0.3 * inK) * (1 - outK * 0.5);
+    const R = def.r, rot = t * 0.25;
+    const col = BOSS_BULLET[id] || def.col;
+    // its spiral: bullets out along two arms, turning
+    if (u < 0.86) {
+      for (let arm = 0; arm < 3; arm++) {
+        for (let j = 0; j < 9; j++) {
+          const q = ((t * 0.9 + j / 9) % 1);
+          const a = arm / 3 * TAU + q * 2.4 + t * 0.6;
+          const rr = R * bk + q * Math.max(w, h) * 0.6;
+          const bx = cx + Math.cos(a) * rr, by = cy + Math.sin(a) * rr;
+          c.globalAlpha = Math.min(1, (1 - q) * 1.6) * inK;
+          c.drawImage(ebHalo(col), bx - 9 * s * 1.4, by - 9 * s * 1.4, 18 * s * 1.4, 18 * s * 1.4);
+          const bb = ebBody(col, 6);
+          c.drawImage(bb, bx - bb.width * 0.28, by - bb.height * 0.28, bb.width * 0.56, bb.height * 0.56);
+        }
+      }
+    }
+    c.globalAlpha = 0.3 * (1 - outK);
+    c.drawImage(glowSprite(def.col), cx - R * bk * 3, cy - R * bk * 3, R * bk * 6, R * bk * 6);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    drawSprite(c, enemySprite(def, outK > 0.3), cx, cy, rot, bk, 1 - outK * 0.6);
+    if (outK > 0) {
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = outK * (1 - outK) * 3;
+      c.drawImage(glowSprite('#ffffff'), cx - R * bk * 2.4, cy - R * bk * 2.4, R * bk * 4.8, R * bk * 4.8);
+      c.strokeStyle = def.col; c.lineWidth = 3;
+      c.beginPath(); c.arc(cx, cy, R * bk * (1 + outK * 2.5), 0, TAU); c.stroke();
+      c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    }
+    // you: circling, firing into it
+    const sk = currentSkin();
+    const pa = -t * 0.8, pr = Math.min(w, h) * 0.38;
+    const px = cx + Math.cos(pa) * Math.min(w * 0.4, pr * 1.25), py = cy + Math.sin(pa) * pr * 0.6;
+    c.globalCompositeOperation = 'lighter';
+    const fa = Math.atan2(cy - py, cx - px), dd = Math.hypot(cx - px, cy - py) - R * bk;
+    for (let j = 0; j < 4; j++) {
+      const q = ((t * 2.6 + j / 4) % 1), d0 = 18 * s + q * dd;
+      c.globalAlpha = 0.9 * (1 - q * 0.5) * (1 - outK);
+      c.drawImage(glowSprite('#9ef7ff'), px + Math.cos(fa) * d0 - 6, py + Math.sin(fa) * d0 - 6, 12, 12);
+    }
+    c.globalAlpha = 0.85;
+    c.drawImage(glowSprite(sk.core), px - 20 * s, py - 20 * s, 40 * s, 40 * s);
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    const body = sprite('player_body_' + sk.id + (sk.rainbow || sk.oil ? '_ma' : ''), 88, 88, cc => paintSkin(cc, sk, 19.5, 0));
+    drawSprite(c, body, px, py, t * 1.7, 0.95 * s, 1);
+    // its bar, and the ladder under it
+    const bw = Math.min(w * 0.62, 300), bx = cx - bw / 2, by = y + 26;
+    tracked(c, def.name, cx, by - 7, { size: Math.max(8, 9.5 * s), weight: 900, align: 'center', color: def.col, glow: def.col, blur: 8, track: 2, alpha: 0.95 * inK * (1 - outK) });
+    c.fillStyle = 'rgba(6,8,20,0.85)'; roundRect(c, bx - 2, by - 2, bw + 4, 9, 4); c.fill();
+    c.strokeStyle = def.col; c.globalAlpha = 0.45; c.lineWidth = 1; roundRect(c, bx - 2, by - 2, bw + 4, 9, 4); c.stroke(); c.globalAlpha = 1;
+    const life = 1 - sat((u - 0.12) / 0.74);
+    c.fillStyle = def.col; c.globalAlpha = 0.95; roundRect(c, bx, by, Math.max(2, bw * life), 5, 2.5); c.fill();
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.6; c.drawImage(glowSprite('#ffffff'), bx + bw * life - 7, by - 4.5, 14, 14);
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+    const rung = k % RUSH_N;
+    for (let i = 0; i < RUSH_N; i++) {
+      const rx = cx + (i - (RUSH_N - 1) / 2) * 11 * Math.max(0.8, s), ry = by + 19;
+      const tc = RUSH_TIER_COL[rushTier(i)], ss = 3.2;
+      c.beginPath(); c.moveTo(rx, ry - ss); c.lineTo(rx + ss, ry); c.lineTo(rx, ry + ss); c.lineTo(rx - ss, ry); c.closePath();
+      c.fillStyle = i < rung ? tc : 'rgba(6,8,20,0.85)'; c.fill();
+      c.strokeStyle = i === rung ? '#ffffff' : tc; c.globalAlpha = i <= rung ? 1 : 0.45; c.lineWidth = 1; c.stroke(); c.globalAlpha = 1;
+    }
+    // the queue: the next three, small and dim, bottom right
+    for (let j = 1; j <= 3; j++) {
+      const nd = ENEMY[RUSH_ART[(k + j) % RUSH_ART.length]];
+      const qx = x + w - 20 * s - (3 - j) * 34 * s - 6, qy = y + h - 22 * s;
+      const qk = 0.16 * s * (1 + (j === 1 ? 0.12 * u : 0));
+      c.globalAlpha = 0.55 - j * 0.1;
+      drawSprite(c, enemySprite(nd, false), qx, qy, t * 0.3 + j, qk, 1);
+      c.globalAlpha = 1;
+    }
+    tracked(c, 'NEXT', x + w - 20 * s - 2 * 34 * s - 6 - 24 * s, y + h - 18 * s, { size: Math.max(7, 8 * s), weight: 900, align: 'right', color: PAL.dim, track: 2 });
+    c.restore();
+  }
+});
+
+/* --------------------------------------------------------------- screens */
+Object.assign(UI, {
+  rushFrom: null,
+  openRush(from) { this.rushFrom = from || 'hub'; G.state = 'rush'; this.lastState = ''; Sound.ui(true); },
+  rushBack() { G.state = this.rushFrom === 'modes' ? 'modes' : 'hub'; this.rushFrom = null; this.lastState = ''; Sound.ui(false); },
+  /* the briefing: what it is, the ladder, your records, and a difficulty to start at */
+  rush(c) {
+    const fresh = this.lastState !== 'rush';
+    this.begin('rush');
+    const r = Rush.d(), t = G.uiT, narrow = VW < 640, short = VH < 560;
+    if (fresh) this.sels.rush = Math.max(0, RUSH_DIFFS.indexOf(r.diff));
+    this.dim(c, 0.72);
+    const ts = clamp((VW - 30) / 14, 18, 30);
+    // a tall screen (a phone held upright) gets the block in its middle, not at the top
+    const ty = (short ? 34 : 48) + (VH > 720 ? Math.min(150, (VH - 640) / 2) : 0);
+    tracked(c, 'BOSS RUSH', VW / 2, ty, { size: ts, weight: 900, align: 'center', color: RUSH_COL, glow: RUSH_COL, blur: 18, track: narrow ? 6 : 10 });
+    text(c, narrow ? 'ten bosses back to back  ·  nothing else on the floor' : 'ten bosses back to back  ·  nothing else on the floor  ·  they bleed motes, so you grow in the fight',
+      VW / 2, ty + (short ? 18 : 22), { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    // the picture, as on its card
+    let y = ty + (short ? 30 : 40);
+    const pw = Math.min(560, VW - 32), ph = short ? 0 : clamp(VH * 0.26, 110, 200);
+    if (ph > 0) {
+      const px = VW / 2 - pw / 2;
+      c.save(); c.beginPath(); roundRect(c, px, y, pw, ph, 10); c.clip();
+      ModeArt.rush(c, px, y, pw, ph, t, true);
+      c.restore();
+      c.save(); c.strokeStyle = RUSH_COL; c.globalAlpha = 0.5; c.lineWidth = 1; roundRect(c, px, y, pw, ph, 10); c.stroke(); c.restore();
+      y += ph + 14;
+    }
+    // the ladder: four bands
+    const lw = Math.min(620, VW - 32), lx = VW / 2 - lw / 2, cells = [3, 3, 3, 1], cw = lw / RUSH_N;
+    let i0 = 0;
+    for (let b = 0; b < 4; b++) {
+      const n = cells[b], x0 = lx + i0 * cw, ww = n * cw, col = RUSH_TIER_COL[b];
+      for (let i = 0; i < n; i++) {
+        const xx = x0 + (i + 0.5) * cw, s = b === 3 ? 7 : 5.5, lit = 0.5 + 0.5 * Math.sin(t * 3 - (i0 + i) * 0.6);
+        c.save();
+        c.beginPath(); c.moveTo(xx, y + 8 - s); c.lineTo(xx + s, y + 8); c.lineTo(xx, y + 8 + s); c.lineTo(xx - s, y + 8); c.closePath();
+        c.fillStyle = 'rgba(6,8,20,0.9)'; c.fill();
+        c.strokeStyle = col; c.globalAlpha = 0.55 + 0.45 * lit; c.lineWidth = 1.5; c.stroke();
+        c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.25 * lit;
+        c.drawImage(glowSprite(col), xx - s * 2.6, y + 8 - s * 2.6, s * 5.2, s * 5.2);
+        c.restore();
+      }
+      tracked(c, b === 3 ? 'FINALE' : RUSH_TIER_NAMES[b].replace('THE ', ''), x0 + ww / 2, y + 30, { size: narrow ? 8.5 : 9.5, weight: 900, align: 'center', color: col, track: narrow ? 1 : 2, alpha: 0.9 });
+      i0 += n;
+    }
+    y += short ? 46 : 56;
+    // the rows: one per difficulty, with its record; then BACK
+    const items = RUSH_DIFFS.map(id => {
+      const D = DIFFS[id], best = r.best[id], far = r.far[id] | 0, cl = r.clears[id] | 0;
+      const rec = best ? 'BEST ' + fmtTime(best) : (far ? 'FURTHEST ' + far + ' / ' + RUSH_N : 'NOT YET RUN');
+      const pay = '+' + fmtNum(RUSH_FIRST[id]) + ' FIRST CLEAR';
+      return { label: () => D.name + '  ·  ' + rec + (narrow || cl ? '' : '  ·  ' + pay), color: D.color, act: () => Rush.start(id) };
+    });
+    items.push({ label: 'BACK', color: PAL.dim, act: () => this.rushBack() });
+    const gapR = short ? 28 : 36;
+    const my = Math.min(VH - 24 - gapR * (items.length - 1), y + 8);
+    this.menu(c, items, VW / 2, my, gapR, { size: short ? 13 : (narrow ? 13.5 : 16), w: Math.min(600, VW - 20), id: 'rush' });
+    if (!short) {
+      const sel = clamp(this.sels.rush | 0, 0, RUSH_DIFFS.length - 1), sd = RUSH_DIFFS[sel];
+      if (this.sels.rush < RUSH_DIFFS.length) {
+        const D = DIFFS[sd];
+        text(c, (narrow ? '' : D.name + ': ') + D.detail[D.detail.length >= 4 ? 3 : 0] + '  ·  ' + fmtNum(RUSH_PAY[sd]) + '+ shards a boss', VW / 2, Math.min(VH - 12, my + gapR * items.length + 4), { size: 10.5, weight: 700, align: 'center', color: PAL.dim, alpha: 0.85 });
+      }
+    }
+  },
+  rushEnd(c, win) {
+    this.begin(win ? 'win' : 'dead');
+    this.dim(c, win ? 0.5 : 0.62);
+    const R = G.rush || { downs: 0, diff: 'medium', splits: [] }, D = DIFFS[R.diff] || DIFFS.medium, A = win ? RUSH_COL2 : PAL.hp;
+    const head = win ? 'THE RUSH IS YOURS' : 'THE RUSH ENDS AT ' + R.downs + ' / ' + RUSH_N;
+    const shortE = VH < 560, ty = shortE ? 38 : VH * 0.2;
+    tracked(c, head, VW / 2, ty, { size: Math.min(shortE ? 30 : 46, VW * 0.05 * (head.length > 18 ? 0.86 : 1)), weight: 900, align: 'center', color: A, glow: A, blur: 26, track: 8 });
+    const nx = !win && R.order && R.order[R.downs] ? ENEMY[R.order[R.downs]] : null;
+    text(c, win ? 'ten of them, one after the other, and you are still here' : (nx ? nx.name + ' was the one' : 'the ladder goes on without you'), VW / 2, ty + (shortE ? 20 : 28), { size: 13, weight: 600, align: 'center', color: PAL.dim });
+    tracked(c, 'BOSS RUSH · ' + D.name, VW / 2, ty + (shortE ? 36 : 48), { size: 11, weight: 900, align: 'center', color: D.color, alpha: 0.85, track: 4 });
+    const r = Rush.d();
+    const rows = [
+      ['BOSSES DOWN', R.downs + ' / ' + RUSH_N],
+      ['TIME', fmtTime(G.time) + (win && R.newBest ? '   NEW BEST' : '')],
+      ['BEST', r.best[R.diff] ? fmtTime(r.best[R.diff]) : (r.far[R.diff] ? 'FURTHEST ' + r.far[R.diff] + ' / ' + RUSH_N : '—')],
+      ['LEVEL', String(G.level)],
+      ['SHARDS EARNED', '+' + fmtNum(G.lastEarned || 0) + (R.firstClear ? '   FIRST CLEAR' : '')]
+    ];
+    { const xs = [];
+      if (Pass.last && Pass.last.season) xs.push('PASS +' + fmtNum(Pass.last.xp));
+      if (Pilot.last) xs.push('PILOT +' + fmtNum(Pilot.last.xp));
+      if (xs.length) rows.push(['XP', xs.join('  ·  ')]); }
+    const rowH = shortE ? 21 : clamp(Math.min((VH * 0.4) / rows.length, 40), 24, 36);
+    const w = Math.min(470, VW - 60), h = (shortE ? 14 : 28) + rows.length * rowH, x = VW / 2 - w / 2, y = shortE ? ty + 46 : VH * 0.29;
+    this.panel(c, x, y, w, h, win ? 'rgba(255,209,102,0.32)' : 'rgba(255,84,112,0.28)');
+    let ry = shortE ? y + 19 : y + 40 - (42 - rowH) * 0.4;
+    for (const [k, v] of rows) {
+      text(c, k, x + 34, ry, { size: 13, weight: 700, color: PAL.dim });
+      text(c, v, x + w - 34, ry, { size: Math.min(19, rowH * 0.5), weight: 900, align: 'right', color: v.indexOf('NEW BEST') >= 0 || v.indexOf('FIRST CLEAR') >= 0 ? PAL.gold : PAL.text });
+      ry += rowH;
+    }
+    // the splits: one rung per boss, its time on it
+    if (!shortE && R.splits && R.splits.length && VW >= 520) {
+      const sw = Math.min(560, VW - 40), sx = VW / 2 - sw / 2, sy = y + h + 22, cw = sw / RUSH_N;
+      for (let i = 0; i < RUSH_N; i++) {
+        const done = i < R.downs, col = RUSH_TIER_COL[rushTier(i)], xx = sx + (i + 0.5) * cw;
+        c.save();
+        c.beginPath(); c.moveTo(xx, sy - 5); c.lineTo(xx + 5, sy); c.lineTo(xx, sy + 5); c.lineTo(xx - 5, sy); c.closePath();
+        c.fillStyle = done ? col : 'rgba(6,8,20,0.9)'; c.fill(); c.strokeStyle = col; c.globalAlpha = done ? 1 : 0.4; c.lineWidth = 1.2; c.stroke();
+        c.restore();
+        if (done && R.splits[i] !== undefined) text(c, fmtTime(R.splits[i]), xx, sy + 17, { size: 9.5, weight: 800, align: 'center', color: col, alpha: 0.85, mono: true });
+      }
+    }
+    const items = [
+      { label: 'RUN AGAIN', color: RUSH_COL, act: () => CG.midgameAd(() => Rush.start(R.diff)) },
+      { label: 'CHANGE DIFFICULTY', color: '#c9a3ff', act: () => this.openRush('hub') }
+    ];
+    { const pn = Pass.pending(); if (pn) items.push({ label: 'BLOOM PASS  • ' + pn + ' TO CLAIM', color: '#ffd166', act: () => UI.openPass(G.state) }); }
+    items.push({ label: 'LOBBY', color: PAL.dim, act: () => { G.state = 'hub'; UI.lastState = ''; } });
+    const eTop = y + h + (shortE ? 30 : 64), eGap = clamp((VH - 20 - eTop) / Math.max(1, items.length - 1), 22, 36);
+    this.menu(c, items, VW / 2, eTop, eGap, { size: Math.min(17, eGap * 0.48), w: 340, id: win ? 'win' : 'dead' });
+  }
+});
+
 /* a wrap that splits into even lines, so a blurb never leaves one word alone;
    returns the y of the last line */
 function evenWrap(c, str, x, y, maxW, lh, o) {
@@ -45755,7 +47770,7 @@ Object.assign(UI, {
     const narrow = VW < 760 && !(VH < 500 && VW > VH * 1.3), cmp = !narrow && VH < 500;
     const hy = cmp ? -22 : (VH < 560 ? -14 : 0);
     tracked(c, 'CHOOSE A WAY DOWN', VW / 2, 52 + hy, { size: cmp ? Math.min(24, VW * 0.04) : Math.min(28, VW * 0.05), weight: 900, align: 'center', color: '#dfe7ff', glow: '#c9a3ff', blur: 18, track: 7 });
-    text(c, N === 3 ? 'three ways into the dark' : 'two ways into the dark', VW / 2, 74 + hy, { size: 12.5, weight: 700, align: 'center', color: PAL.dim });
+    text(c, ['', 'one way', 'two ways', 'three ways', 'four ways'][N] + ' into the dark', VW / 2, 74 + hy, { size: 12.5, weight: 700, align: 'center', color: PAL.dim });
 
     const top = cmp ? 64 : 96 + hy, bottom = VH - (cmp ? 30 : 56);
     let cards = [];
@@ -45817,10 +47832,11 @@ Object.assign(UI, {
       c.fill('evenodd');
       c.restore();
       // the picture
-      if (i === 0) {
+      if (M.id === 'conquest') {
         if (!cosOn) ModeArt.conquest2D(c, px, py, pw, ph, t, Q);
         ModeArt.conquestOver(c, px, py, pw, ph, t, Q);
-      } else if (i === 1) ModeArt.skirmish(c, px, py, pw, ph, t, on);
+      } else if (M.id === 'skirmish') ModeArt.skirmish(c, px, py, pw, ph, t, on);
+      else if (M.id === 'bossrush') ModeArt.rush(c, px, py, pw, ph, t, on);
       else ModeArt.multi(c, px, py, pw, ph, t, on);
       // frame of the picture: two colours, a slow sweep along the top edge
       c.save();
@@ -45879,8 +47895,15 @@ Object.assign(UI, {
       }
       // the line along the bottom: what you have done here
       let foot = '', fcol = PAL.dim;
-      if (i === 0) { const GX = Conquest.gal(); foot = GX.name + '  ·  ' + Conquest.count(GX) + ' / ' + GX.planets.length + ' WORLDS TAKEN'; fcol = GX.col; }
-      else if (i === 1) {
+      if (M.id === 'conquest') { const GX = Conquest.gal(); foot = GX.name + '  ·  ' + Conquest.count(GX) + ' / ' + GX.planets.length + ' WORLDS TAKEN'; fcol = GX.col; }
+      else if (M.id === 'bossrush') {
+        const rr = Rush.d(); let bd = null;
+        for (const id of RUSH_DIFFS) if (rr.best[id]) bd = id;
+        let far = 0; for (const id of RUSH_DIFFS) far = Math.max(far, rr.far[id] | 0);
+        foot = bd ? 'BEST ' + fmtTime(rr.best[bd]) + '  ·  ' + DIFFS[bd].name : (far ? 'FURTHEST ' + far + ' / ' + RUSH_N : 'FOUR DIFFICULTIES');
+        fcol = bd ? RUSH_COL2 : PAL.dim;
+      }
+      else if (M.id === 'skirmish') {
         const d = Save.data;
         foot = d.runs > 0 ? 'BEST ' + fmtNum(d.best || 0) + '  ·  LONGEST ' + fmtTime(d.bestTime || 0) : 'SIX DIFFICULTIES';
       } else {
@@ -45910,6 +47933,7 @@ Object.assign(UI, {
       const id = MC[this.sels.modes].id;
       Hub.setMode(id);
       if (id === 'skirmish') { UI.selPick = true; G.state = 'select'; }
+      else if (id === 'bossrush') { UI.openRush('modes'); }
       else if (id === 'conquest') { UI.conqPick = true; applySky(null); G.state = 'conquest'; }
       else { if (id === 'multi') NET.wake(); G.state = 'hub'; }
       UI.lastState = '';
@@ -47643,6 +49667,8 @@ Object.assign(UI, {
   skinDet: null, skinDetLv: 1, skinDetFrom: 'skins', skinDetMsg: null, skinDetFx: 0, skinDetSel: 0,
   openSkinLv(id, from) {
     if (!SKIN_BY_ID[id]) return;
+    // a secret not yet found has no levels page to look at: that would give it away
+    if (SKIN_BY_ID[id].cryptic && !skinOwned(id)) { this.toast = { s: 'NOT YET  \u00b7  IT IS A SECRET', col: '#9ef7ff', t: 1.6 }; Sound.ui(false); return; }
     this.skinDet = id; this.skinDetFrom = from || 'skins';
     const lv = skinLv(id);
     // look first at what you would buy next; at the whole thing if it is not yours
