@@ -169,16 +169,17 @@ app.whenReady().then(() => {
     const res = await net.fetch(pathToFileURL(file).toString());
 
     /* The game is one self-contained file: no remote scripts, and the only
-       thing it ever talks to is the co-op server on Render -- and only once a
-       player opens MULTIPLAYER. So lock the page down to exactly that.
+       thing it ever talks to is the co-op server on Cloudflare (a Worker on
+       workers.dev) -- and only once a player opens MULTIPLAYER. So lock the
+       page down to exactly that.
        'unsafe-inline' is unavoidable -- the whole game IS an inline <script>
        -- but with no remote script source and connect-src limited to
-       *.onrender.com there is nothing to load and nowhere else to send
+       *.workers.dev there is nothing to load and nowhere else to send
        anything. It also means that if the CrazyGames SDK's hostname check is
        ever loosened by accident, the browser still refuses to fetch it.
        worker-src blob: is the tiny background ticker that keeps a co-op run
        stepping while the window is minimised. If the co-op server ever moves
-       off Render, add its address to connect-src. */
+       off workers.dev (a custom domain, say), add its address to connect-src. */
     const headers = new Headers(res.headers);
     headers.set('Content-Security-Policy', [
       "default-src 'self'",
@@ -187,7 +188,7 @@ app.whenReady().then(() => {
       "img-src 'self' data: blob:",
       "media-src 'self' data: blob:",
       "font-src 'self' data:",
-      "connect-src https://*.onrender.com wss://*.onrender.com",
+      "connect-src https://*.workers.dev wss://*.workers.dev",
       "worker-src blob:",
       "object-src 'none'",
       "base-uri 'none'",
