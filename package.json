@@ -1,7 +1,7 @@
 {
   "name": "voidbloom",
   "productName": "VOIDBLOOM",
-  "version": "1.1.21",
+  "version": "1.1.22",
   "description": "A bullet-heaven in a garden at the bottom of the dark.",
   "author": "Isaac Leung",
   "license": "UNLICENSED",
@@ -18,14 +18,20 @@
     "test:stats": "xvfb-run -a node test/statsrun.js"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron": "^45.2.3",
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.6.2"
   },
   "build": {
     "appId": "com.isaacleung.voidbloom",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true
+    },
     "productName": "VOIDBLOOM",
     "copyright": "Copyright (c) 2026 Isaac Leung",
     "directories": {

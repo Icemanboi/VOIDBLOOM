@@ -29,13 +29,19 @@ app.on('browser-window-created', (_e, win) => {
      Anything else is real. */
   const NOISE = /Electron Security Warning|electronjs\.org\/docs\/tutorial\/security|GL Driver Message|GPU stall|CONTEXT_LOST_WEBGL|SwiftShader|Automatic fallback to software|will not show up\s*once the app is packaged|^\s*Policy set or a policy|^\s*this app to unnecessary|^\s*For more information/i;
 
-  wc.on('console-message', (_ev, level, message) => {
-    if (level >= 2 && !NOISE.test(message)) problems.push('console: ' + message);
+  // Electron 35+ hands one event object (level as a word); older ones the
+  // level as a number and the text as separate arguments
+  wc.on('console-message', (ev, level, message) => {
+    const lv = ev && typeof ev.level === 'string' ? ({ warning: 2, error: 3 })[ev.level] || 0 : level;
+    const msg = ev && typeof ev.message === 'string' ? ev.message : message;
+    if (lv >= 2 && !NOISE.test(msg)) problems.push('console: ' + msg);
   });
   wc.on('render-process-gone', (_ev, d) => problems.push('renderer gone: ' + d.reason));
   wc.on('did-fail-load', (_ev, code, desc, url) => problems.push('load failed ' + code + ' ' + desc + ' ' + url));
 
-  wc.on('did-finish-load', async () => {
+  // once: the reload below fires did-finish-load again, and a second pass
+  // here races app.exit() (Electron 45 rejects the pending call on teardown)
+  wc.once('did-finish-load', async () => {
     try {
       // Give the game a moment to boot, then interrogate it.
       const r = await wc.executeJavaScript(`

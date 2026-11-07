@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, protocol, net, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, protocol, net, shell, ipcMain, session } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { autoUpdater } = require('electron-updater');
@@ -151,13 +151,35 @@ function createWindow() {
   win.loadURL(START);
 }
 
+// The game asks for no browser permissions (camera, microphone, location,
+// notifications, MIDI, USB...). Electron says yes to all of them unless told
+// otherwise, so say no: if anything hostile ever ran in the page it gets none.
+function lockPermissions() {
+  const s = session.defaultSession;
+  s.setPermissionRequestHandler((wc, permission, cb) => cb(false));
+  s.setPermissionCheckHandler(() => false);
+  try { s.setDevicePermissionHandler(() => false); } catch (e) { }
+}
+// no <webview>, and no window of ours ever navigates off the game
+app.on('web-contents-created', (e, wc) => {
+  wc.on('will-attach-webview', ev => ev.preventDefault());
+});
+// only the game page itself may drive the window
+function fromGame(e) {
+  const url = e && e.senderFrame ? e.senderFrame.url : '';
+  return /^voidbloom:\/\/app\//.test(url);
+}
+
 app.whenReady().then(() => {
+  lockPermissions();
   // Serve the game folder over our scheme, refusing anything outside it.
   protocol.handle('voidbloom', async (request) => {
     const { host, pathname } = new URL(request.url);
     if (host !== 'app') return new Response('not found', { status: 404 });
 
-    const rel = decodeURIComponent(pathname).replace(/^\/+/, '');
+    // a malformed %-escape must be a 400, not a rejected promise
+    let rel;
+    try { rel = decodeURIComponent(pathname).replace(/^\/+/, ''); } catch (e) { return new Response('bad request', { status: 400 }); }
     const file = path.join(GAME_DIR, rel);
 
     // path traversal guard: the resolved file must stay inside game/
@@ -228,7 +250,8 @@ app.on('window-all-closed', () => {
  *  background and installs on restart, so it never interrupts a run.
  * ------------------------------------------------------------------ */
 function setupUpdates() {
-  ipcMain.on('vb-update-restart', () => {
+  ipcMain.on('vb-update-restart', (e) => {
+    if (!fromGame(e)) return;
     stats.quickQuit();   // never hold up the installer for a heartbeat
     setImmediate(() => autoUpdater.quitAndInstall());
   });
