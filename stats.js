@@ -47,6 +47,7 @@ const FIRST_BEAT_MS = 15 * 1000;  // a quick look still counts as a session
 const BEAT_MS = 60 * 1000;        // heartbeat while the app is open
 const TICK_MS = 5 * 1000;         // time accounting
 const IDLE_S = 120;               // no mouse/keyboard this long = not active
+const SPLIT_MS = 30 * 60 * 1000;  // back after this long asleep or away = a new session
 const PAGE_WAIT_MS = 400;         // longest a closing window waits for the page
 const QUIT_WAIT_MS = 1800;        // longest quitting waits for the network
 const REQ_TIMEOUT_MS = 10 * 1000;
@@ -68,6 +69,7 @@ let lastTick = 0;
 let playBase = 0;       // play seconds from earlier page loads this session
 let pagePlay = 0;       // the current page's own count
 let lastPlayMove = 0;   // when play time last went up (gamepads don't reset OS idle)
+let lastActive = 0;     // when the player was last at the game
 let save = null;
 let gpu = null;
 let queue = { runs: [], beats: [] };
@@ -163,7 +165,27 @@ function tick() {
   let idle = 0;
   try { idle = powerMonitor.getSystemIdleTime(); } catch (e) { }
   // a gamepad doesn't reset the OS idle clock, so a live run counts as active
-  if (idle < IDLE_S || now - lastPlayMove < 15000) activeMs += dt;
+  if (idle < IDLE_S || now - lastPlayMove < 15000) {
+    // back after half an hour or more away with the game left open: that is
+    // a new sitting, so it gets its own session (and its own day on the charts)
+    if (lastActive && now - lastActive > SPLIT_MS) { newSession(now); appMs = dt; }
+    activeMs += dt;
+    lastActive = now;
+  }
+}
+
+/* Close the current session and start a fresh one under the same install.
+   Used after the machine sleeps or the game sits idle for a long time, so a
+   game left open for days doesn't read as one three-day session. */
+function newSession(now) {
+  if (!on) return;
+  beat(true);
+  session = crypto.randomUUID();
+  startedAt = now; lastTick = now; lastActive = now;
+  appMs = activeMs = 0;
+  // the page's play counter keeps running; start this session's share at 0
+  playBase = -pagePlay;
+  flush();
 }
 
 /* ------------------------------------------------------------- payloads */
@@ -172,7 +194,7 @@ const RUN_KEYS = {
   mode: 's', difficulty: 's', planet: 's', outcome: 's', seconds: 'n', level: 'n',
   kills: 'n', score: 'n', tide: 'n', boss_kills: 'n', depth: 'n', act2: 'b',
   weapons: 'a', evolved: 'n', skin: 's', pet: 's', dmg_dealt: 'n', dmg_taken: 'n',
-  avg_fps: 'n', at: 'n', day: 's'
+  avg_fps: 'n', at: 'n', day: 's', continues: 'n', tv: 'n'
 };
 const SAVE_KEYS = {
   runs: 'n', wins: 'n', kills: 'n', best: 'n', best_time: 'n', shards: 'n',
@@ -357,8 +379,11 @@ function tracker() {
 
   var send = function (kind, data) { try { window.vbStats.post(kind, data); } catch (e) { } };
   var LIVE = { playing: 1, levelup: 1, covenant: 1 };            // a run on screen, not paused
-  var IN_RUN = { playing: 1, levelup: 1, covenant: 1, paused: 1, settings: 1 };
-  var run = null, playS = 0, last = performance.now(), hooked = false;
+  // 'continue' is the ten-second CONTINUE? screen after a death: still the same
+  // run (paying carries on with it), so it must not close the run as a quit
+  var IN_RUN = { playing: 1, levelup: 1, covenant: 1, paused: 1, settings: 1, 'continue': 1 };
+  var run = null, playS = 0, last = performance.now(), hooked = false, cardT = 0;
+  var giving = false;   // inside ABANDON RUN, which ends the run through gameOver(false)
 
   var V = function () { return window.VOIDBLOOM; };
 
@@ -435,6 +460,9 @@ function tracker() {
       weapons: ids, evolved: ev,
       dmg_dealt: Math.round(+rs.dmgDealt || 0),
       dmg_taken: Math.round(+rs.dmgTaken || 0),
+      continues: +G.continues || 0,
+      // tracker version: 2 = deaths and ABANDON RUN told apart, continues kept
+      tv: 2,
       at: Date.now()
     };
     if (r.day) out.day = r.day;
@@ -516,8 +544,11 @@ function tracker() {
     var G = v.Game;
     // a new run -- and if one was still going, it was abandoned
     wrap(G, 'reset', function () { if (run) close('quit'); }, function () { open(false); });
+    // ABANDON RUN ends the run through gameOver(false), the same call a death
+    // makes: flag it so a give-up is counted as a quit, not a death
+    wrap(G, 'abandon', function () { giving = true; }, function () { giving = false; });
     wrap(G, 'gameOver', function () { return !!G.over; },
-      function (was, args) { if (!was && run) close(args[0] ? 'win' : 'dead'); });
+      function (was, args) { if (!was && run) close(args[0] ? 'win' : (giving ? 'quit' : 'dead')); giving = false; });
     // PRESS ON and DESCEND DEEPER: the first act already ended as a win;
     // what follows is its own run, carrying the same clock and score
     wrap(G, 'pressOn', null, function () { if (!run) open(true); });
@@ -558,7 +589,12 @@ function tracker() {
     try {
       if (!hook()) return;
       var v = V(), G = v.Game, st = G.state;
-      if (LIVE[st]) {
+      // only while the window has focus: the level-up and covenant screens
+      // don't pause when the player alt-tabs away, so they'd keep counting
+      // and a level-up or covenant card left open counts for its first minute
+      // only: past that, the player has walked away from it
+      cardT = st === 'playing' ? 0 : cardT + dt;
+      if (LIVE[st] && document.hasFocus() && cardT <= 60) {
         playS += dt;
         if (run && typeof v.fps === 'function') {
           var f = +v.fps();
@@ -682,7 +718,10 @@ function start(winGetter) {
   }
 
   try {
-    powerMonitor.on('resume', () => { lastTick = Date.now(); });
+    powerMonitor.on('resume', () => {
+      const now = Date.now();
+      if (now - lastTick > SPLIT_MS) newSession(now); else lastTick = now;
+    });
   } catch (e) { }
 
   app.getGPUInfo('complete')

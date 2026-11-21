@@ -38,6 +38,12 @@ protocol.registerSchemesAsPrivileged([{
    still can't reach anything but the co-op server). */
 app.commandLine.appendSwitch('disable-component-update');
 app.commandLine.appendSwitch('disable-background-networking');
+/* A laptop with two graphics chips (a weak built-in one and a real one)
+   gives Chromium the weak one unless it is asked. The WebGL layers already ask
+   (powerPreference: 'high-performance'); this asks for the whole window, the 2D
+   arena included, so every layer draws on the same, faster chip. Nothing looks
+   different: it only changes which chip does the drawing. */
+app.commandLine.appendSwitch('force_high_performance_gpu');
 
 // Two copies of the game running at once would fight over the same save.
 const gotLock = app.requestSingleInstanceLock();

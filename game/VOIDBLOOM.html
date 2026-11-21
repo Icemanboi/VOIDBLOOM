@@ -1666,6 +1666,23 @@ const TRAILS = {
     bits: [{ k: 'shape', s: 'feather', cols: ['#ff5a3c', '#ffd166', '#ff9a3c'], gap: 20, size: [5.5, 8.5], life: [0.7, 1.2], v: [30, 80], side: true, spread: 0.7, spin: [-3, 3], grav: 30, drag: 2.0 },
            { k: 'dot', cols: ['#ffd166', '#ff9a3c', '#fff0c4'], gap: 6, size: [1.5, 3], life: [0.4, 0.9], v: [30, 120], spread: 1.4, grav: -110, flick: 0.7 },
            { k: 'shape', s: 'star4', cols: ['#c56bff', '#ffffff'], gap: 36, size: [3, 5], life: [0.3, 0.6], v: [10, 40], spread: 1.5, flick: 1, add: true }] },
+  elharbinger: { name: 'BROOD',
+    core: { cols: ['#fff0c4', '#ffd166', '#ff8a3c', '#7a2a08'], r: 10, v: [10, 30] },
+    bits: [{ k: 'dot', cols: ['#ffd166', '#ff8a3c', '#fff0c4'], gap: 7, size: [1.6, 3], life: [0.7, 1.1], v: [10, 40], spread: 0.6, swirl: 5, orbit: [10, 14], drag: 1.6, flick: 0.4, jit: 0 },
+           { k: 'shape', s: 'star5', cols: ['#ff8a3c', '#ffd166'], gap: 26, size: [4, 6.5], life: [0.5, 0.9], v: [20, 60], spread: 1.3, spin: [-3, 3], drag: 2 }] },
+  elsentinel: { name: 'AEGIS',
+    core: { cols: ['#ffffff', '#a8dfff', '#5ec8ff', '#173c78'], r: 9 },
+    bits: [{ k: 'shape', s: 'diamond', cols: ['#5ec8ff', '#a8dfff', '#ffffff'], gap: 20, size: [4, 6.5], life: [0.6, 1.0], v: [20, 60], side: true, spread: 0.8, spin: [-2, 2], drag: 2.2 },
+           { k: 'ring', cols: ['#5ec8ff', '#a8dfff'], gap: 46, size: [4, 6], end: 5, life: [0.4, 0.6], w: 1.6 }] },
+  elcarver: { name: 'ACID WAKE',
+    core: { cols: ['#f4ffe0', '#c8ff5c', '#63ffc9', '#16502a'], r: 10, v: [10, 30] },
+    bits: [{ k: 'shape', s: 'chev', cols: ['#c8ff5c', '#63ffc9'], gap: 20, size: [4, 6.5], life: [0.4, 0.7], v: [60, 140], side: true, spread: 0.5, drag: 2.6 },
+           { k: 'shape', s: 'drop', cols: ['#c8ff5c', '#9effa0'], gap: 16, size: [3, 4.5], life: [0.6, 1.0], v: [10, 40], spread: 1.2, grav: 120 },
+           { k: 'spark', cols: ['#ffffff', '#c8ff5c'], gap: 12, life: [0.15, 0.3], v: [140, 260], side: true, spread: 0.5, w: 1.3, len: 1.2 }] },
+  elwardkeeper: { name: 'HONEYCOMB',
+    core: { cols: ['#eaffff', '#5ff3ff', '#2a8aa8', '#3a0a3a'], r: 10 },
+    bits: [{ k: 'shape', s: 'hex', cols: ['#5ff3ff', '#9ff8ff', '#ff5fd6'], gap: 15, size: [4, 6.5], life: [0.7, 1.1], v: [10, 40], spread: 1.2, spin: [-1.5, 1.5], drag: 2.4 },
+           { k: 'ring', cols: ['#5ff3ff', '#ff5fd6'], gap: 50, size: [5, 7], end: 6, life: [0.45, 0.6], w: 1.8 }] },
 };
 
 /* the October four and the four secrets.
@@ -3122,6 +3139,12 @@ const ENEMY = {
   carver: {
     id: 'carver', name: 'CARVER', hp: 1650, spd: 128, dmg: 33, r: 38, xp: 40, score: 600,
     col: '#c8ff5c', ai: 'carver', mass: 6, kbres: 0.88, elite: true, dashCd: 2.2, dashSpd: 880
+  },
+  /* hangs back behind its own ward and keeps its kin shielded: every six
+     seconds it re-wards the nearest six. Kill it and every ward it gave breaks. */
+  wardkeeper: {
+    id: 'wardkeeper', name: 'WARDKEEPER', hp: 2200, spd: 56, dmg: 32, r: 44, xp: 46, score: 660,
+    col: '#5ff3ff', col2: '#ff5fd6', ai: 'wardkeeper', mass: 10, kbres: 0.95, elite: true, fireCd: 2.6, bulletSpd: 250, bulletDmg: 14, noWard: true
   },
   /* ---- conquest: seeds and throats ---- */
   seedpod: {
@@ -6970,6 +6993,14 @@ function enemySprite(def, hurt) {
         neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.3, 0, TAU); }, '#fff', { lw: 2.2, blur: 14, core: null, inner: false });
         break;
       }
+      case 'wardkeeper': {
+        neon(c, cc => pathPoly(cc, 6, R, Math.PI / 6), col, { lw: 3.2, blur: 24, core: 'rgba(2,6,12,0.88)' });
+        neon(c, cc => pathPoly(cc, 6, R * 0.74, 0), col, { lw: 1.4, blur: 8, core: null, inner: false });
+        neon(c, cc => pathStar(cc, 6, R * 0.6, R * 0.3, Math.PI / 6), hurt ? col : (def.col2 || col), { lw: 2, blur: 14, core: null, inner: false });
+        neon(c, cc => { cc.beginPath(); for (let i = 0; i < 3; i++) { const a = Math.PI / 6 + i * TAU / 3, x = Math.cos(a) * R, y = Math.sin(a) * R; cc.moveTo(x + R * 0.17, y); cc.arc(x, y, R * 0.17, 0, TAU); } }, '#eaffff', { lw: 1.6, blur: 10, core: 'rgba(2,6,12,0.92)', inner: false });
+        neon(c, cc => { cc.beginPath(); cc.arc(0, 0, R * 0.2, 0, TAU); }, '#ffffff', { lw: 2, blur: 12, core: null, inner: false });
+        break;
+      }
       case 'carver': {
         neon(c, cc => { cc.beginPath(); cc.moveTo(R * 1.6, 0); cc.lineTo(-R * 0.4, R * 1.05); cc.lineTo(-R * 0.9, 0); cc.lineTo(-R * 0.4, -R * 1.05); cc.closePath(); }, col, { lw: 3.2, blur: 24, core: 'rgba(3,5,8,0.85)' });
         neon(c, cc => { cc.beginPath(); cc.moveTo(R * 0.9, 0); cc.lineTo(-R * 0.5, 0); }, '#fff', { lw: 2, blur: 12, core: null, inner: false });
@@ -7668,7 +7699,20 @@ const VB_SKINS = [
     blurb: 'It has chased the pearl since before the dark had a name. It is not tired yet.' },
   { id: 'phoenix', name: 'PHOENIX', vb: 400, req: 'SHOP · 400 VOIDBUX', short: 'SHOP',
     col: '#ff5a3c', ring: '#ffd166', core: '#fff0c4', anim: true,
-    blurb: 'It burned down to nothing in a dark with no air in it. Then it did it again.' }
+    blurb: 'It burned down to nothing in a dark with no air in it. Then it did it again.' },
+  /* the ELITES: wear what came for you. */
+  { id: 'elharbinger', name: 'HARBINGER', vb: 350, req: 'SHOP · 350 VOIDBUX', short: 'SHOP', eliteSet: true,
+    col: '#ff8a3c', ring: '#ffd166', core: '#fff0c4', anim: true,
+    blurb: 'Seven points, and a brood that never leaves its side.' },
+  { id: 'elsentinel', name: 'SENTINEL', vb: 350, req: 'SHOP · 350 VOIDBUX', short: 'SHOP', eliteSet: true,
+    col: '#5ec8ff', ring: '#a8dfff', core: '#ffffff', anim: true,
+    blurb: 'Four plates turning round a square that never blinks.' },
+  { id: 'elcarver', name: 'CARVER', vb: 350, req: 'SHOP · 350 VOIDBUX', short: 'SHOP', eliteSet: true,
+    col: '#c8ff5c', ring: '#63ffc9', core: '#f4ffe0', anim: true,
+    blurb: 'A blade that has been through everything once already.' },
+  { id: 'elwardkeeper', name: 'WARDKEEPER', vb: 450, req: 'SHOP · 450 VOIDBUX', short: 'SHOP', eliteSet: true,
+    col: '#5ff3ff', ring: '#ff5fd6', core: '#eaffff', anim: true,
+    blurb: 'It kept the others safe. Now it keeps you.' }
 ];
 for (const m of VB_SKINS) { m.price = -1; m.exclusive = true; SKINS.push(m); }
 
@@ -7716,6 +7760,57 @@ function petOwned(id) {
   return !!(Save.data.pets && Save.data.pets.indexOf(id) >= 0);
 }
 
+/* a colour turned round the wheel by deg; anything not a hex colour passes through */
+function hueHex(col, deg) {
+  if (typeof col !== 'string') return col;
+  let m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(col);
+  if (!m) return col;
+  let h = m[1]; if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  let r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  let H = 0, S = 0;
+  if (mx !== mn) {
+    const dd = mx - mn; S = l > 0.5 ? dd / (2 - mx - mn) : dd / (mx + mn);
+    H = mx === r ? (g - b) / dd + (g < b ? 6 : 0) : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4; H /= 6;
+  }
+  H = ((H + deg / 360) % 1 + 1) % 1;
+  const f = (p, q, t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  if (S === 0) { r = g = b = l; } else { const q = l < 0.5 ? l * (1 + S) : l + S - l * S, p = 2 * l - q; r = f(p, q, H + 1 / 3); g = f(p, q, H); b = f(p, q, H - 1 / 3); }
+  const x = v => ('0' + Math.round(v * 255).toString(16)).slice(-2);
+  return '#' + x(r) + x(g) + x(b);
+}
+function trailHue(T, deg) {
+  const walk = o => Array.isArray(o) ? o.map(walk) : (o && typeof o === 'object') ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, walk(v)])) : hueHex(o, deg);
+  return walk(T);
+}
+const VARIANT_HUE = [70, 130, 190, 250, 310];
+{
+  const add = [];
+  for (const b of SKINS) {
+    if (!b || b.pass || b.secret || b.mastery || b.event || b.cryptic || b.variant || !(b.price > 0 || b.exclusive)) continue;
+    let hs = 0; for (const ch of b.id) hs = (hs * 31 + ch.charCodeAt(0)) >>> 0;
+    const h1 = VARIANT_HUE[hs % VARIANT_HUE.length], h2 = (h1 + 150) % 360;
+    for (const [kind, h] of [['epic', h1], ['chroma', h2]]) {
+      const v = Object.assign({}, b);
+      delete v.__trail; delete v.__base;
+      v.id = b.id + '_' + kind; v.base = b.id; v.variant = kind; v.hue = h;
+      v.name = (kind === 'epic' ? 'EPIC ' : 'CHROMA ') + b.name;
+      v.col = hueHex(b.col, h); v.ring = hueHex(b.ring, h); v.core = hueHex(b.core, h);
+      if (b.haloCol) v.haloCol = hueHex(b.haloCol, h);
+      v.price = -1; v.exclusive = false; v.vb = 0; v.req = 'THE RARE ROLL'; v.short = 'RARE';
+      if (kind === 'chroma') v.pulse = true;
+      v.blurb = kind === 'chroma' ? 'A CHROMA from the rare roll: ' + b.name + ' running through every colour there is, with rainbow stars and a rainbow trail.'
+                                  : 'An EPIC from the rare roll: ' + b.name + ' in a colourway of its own, with a richer glow.';
+      const T0 = TRAILS[b.id] || { name: 'STREAM', core: { cols: ['#ffffff', b.col, b.ring], r: 9 }, bits: [{ k: 'shape', s: 'star4', cols: [b.col, b.ring], gap: 18, size: [4, 6.5], life: [0.5, 0.9], v: [20, 70], spread: 1.2, flick: 0.6, add: true }] };
+      const TV = Object.assign(trailHue(T0, h), { name: kind === 'chroma' ? 'PRISM ' + T0.name : T0.name });
+      // a CHROMA's trail runs the whole rainbow
+      if (kind === 'chroma') TV.bits = TV.bits.map(bt => Object.assign({}, bt, { cols: TR_RAINBOW, cycle: true }));
+      TRAILS[v.id] = TV;
+      add.push(v);
+    }
+  }
+  for (const v of add) SKINS.push(v);
+}
 const SKIN_BY_ID = Object.create(null);
 for (const s of SKINS) SKIN_BY_ID[s.id] = s;
 
@@ -7878,12 +7973,76 @@ const PERK_WORDS = {
 function perkText(pt) {
   const P = pt && PET_PERKS[pt.id];
   if (!P) return 'no perk';
-  if (P.k === 'regen') return '+' + P.v + ' life regen/s';
+  const v = P.v * (typeof petLvMul === 'function' ? petLvMul(pt.id) : 1);
+  if (P.k === 'regen') return '+' + (Math.round(v * 100) / 100) + ' life regen/s';
   const down = P.k === 'dash' || P.k === 'dr' || P.k === 'cd';
-  return (down ? '−' : '+') + Math.round(P.v * 100) + '% ' + PERK_WORDS[P.k];
+  return (down ? '−' : '+') + (Math.round(v * 1000) / 10) + '% ' + PERK_WORDS[P.k];
 }
 function petPerk() { const pt = currentPet(); return pt ? PET_PERKS[pt.id] || null : null; }
-function petPerkV(k) { const P = petPerk(); return P && P.k === k ? P.v : 0; }
+function petPerkV(k) { const P = petPerk(); return P && P.k === k ? P.v * petLvMul() : 0; }
+/* PET LEVELS. Shards, five levels. The perk grows only a little (x1.4 at
+   the top: a 5% pet ends at 7%), so a levelled pet never decides a run;
+   what a level mostly buys is life: a glow (2), two motes that circle it
+   (3), sparkles (4), a turning crown of light (5). */
+const PET_LV_MAX = 5, PET_LV_MUL = [1, 1, 1.1, 1.2, 1.3, 1.4], PET_LV_SHARE = [0, 0, 0.4, 0.7, 1.1, 1.6];
+function petLv(id) { const L = Save.data.petLv, v = L ? L[id] | 0 : 0; return v >= 1 && v <= PET_LV_MAX ? v : 1; }
+function petLvMul(id) { const pt = id ? PET_BY_ID[id] : currentPet(); return pt ? PET_LV_MUL[petLv(pt.id)] : 1; }
+function petLvCost(pt, lv) {
+  if (!pt || lv < 2 || lv > PET_LV_MAX) return 0;
+  return niceCost((pt.price > 0 ? Math.max(600, pt.price) : 1500) * PET_LV_SHARE[lv]);
+}
+function petUpgrade(id) {
+  const pt = PET_BY_ID[id], d = Save.data;
+  if (!pt || pt.form === 'none' || !petOwned(id)) return { ok: false, why: 'own' };
+  const L = petLv(id);
+  if (L >= PET_LV_MAX) return { ok: false, why: 'max' };
+  const C = petLvCost(pt, L + 1);
+  if ((d.shards || 0) < C) return { ok: false, why: 'shards', need: C - (d.shards || 0) };
+  d.shards -= C;
+  if (!d.petLv || typeof d.petLv !== 'object') d.petLv = {};
+  d.petLv[id] = L + 1;
+  Save.save();
+  return { ok: true, lv: L + 1 };
+}
+/* what the levels add round the pet, drawn over it */
+function petLvFx(c, pt, x, y, a, t, k) {
+  if (!pt || pt.form === 'none') return;
+  const L = petLv(pt.id);
+  if (L < 2 || !(a > 0.02)) return;
+  k = k || 1;
+  const col = /^#[0-9a-f]{6}$/i.test(pt.col) ? pt.col : '#9ef7ff';
+  c.save(); c.globalCompositeOperation = 'lighter';
+  // 2: a soft glow that breathes
+  c.globalAlpha = a * (0.22 + 0.06 * Math.sin(t * 2.4));
+  const g = 20 * k; c.drawImage(glowSprite(col), x - g, y - g, g * 2, g * 2);
+  // 3: two motes on a tilted orbit
+  if (L >= 3) {
+    for (let i = 0; i < 2; i++) {
+      const an = t * 2.2 + i * Math.PI, ox = Math.cos(an) * 15 * k, oy = Math.sin(an) * 6 * k;
+      c.globalAlpha = a * (0.55 + 0.3 * Math.sin(an));
+      c.fillStyle = i ? '#ffffff' : col; c.beginPath(); c.arc(x + ox, y + oy, 1.7 * k, 0, TAU); c.fill();
+    }
+  }
+  // 4: three sparkles that wink in and out
+  if (L >= 4) {
+    for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.7 + i / 3) % 1, tw = Math.sin(ph * Math.PI);
+      const an = i * 2.1 + Math.floor(t * 0.7 + i / 3) * 1.3, rr = (12 + 6 * i) * k;
+      c.globalAlpha = a * tw * 0.9; c.fillStyle = '#ffffff';
+      c.beginPath(); pathStar(c, 4, 2.6 * k * tw + 0.4, 0.7 * k, an); c.translate(0, 0);
+      c.save(); c.translate(x + Math.cos(an) * rr, y + Math.sin(an) * rr * 0.7); c.beginPath(); pathStar(c, 4, 2.8 * k * tw + 0.4, 0.8 * k, 0); c.fill(); c.restore();
+    }
+  }
+  // 5: a crown of light, turning
+  if (L >= 5) {
+    c.globalAlpha = a * 0.75; c.strokeStyle = '#ffd166'; c.lineWidth = 1.2 * k;
+    c.beginPath();
+    for (let i = 0; i < 5; i++) { const an = -t * 1.1 + i / 5 * TAU; c.moveTo(x + Math.cos(an) * 19 * k, y + Math.sin(an) * 19 * k); c.arc(x, y, 19 * k, an, an + 0.6); }
+    c.stroke();
+    c.globalAlpha = a * 0.25; c.lineWidth = 3.5 * k; c.stroke();
+  }
+  c.restore();
+}
 
 /* ========================================================================
    CONQUEST  --  twelve worlds. Each is one ordinary run with its own
@@ -9208,7 +9367,27 @@ function secretGlyph(pr) {
   });
 }
 /* draws a skin body centred at the origin, sized to R */
-function paintSkin(c, sk, R, t) {
+function paintSkin(c, sk, R, t, raw) {
+  if (sk.variant) {
+    const base = SKIN_BY_ID[sk.base];
+    if (base) {
+      if (sk.variant === 'chroma') {
+        if (raw) { paintSkin(c, base, R, t); return; }
+        const S = Math.ceil(R * 5), e = _chromaCv.get('paint') || { cv: document.createElement('canvas') };
+        if (!e.g) { e.g = e.cv.getContext('2d'); _chromaCv.set('paint', e); }
+        if (e.cv.width !== S) { e.cv.width = S; e.cv.height = S; }
+        e.g.setTransform(1, 0, 0, 1, S / 2, S / 2); e.g.clearRect(-S / 2, -S / 2, S, S);
+        paintSkin(e.g, base, R, t);
+        c.drawImage(chromaTint(e.cv, t, 'paintOut'), -S / 2, -S / 2);
+        return;
+      }
+      c.save();
+      if ('filter' in c) c.filter = 'hue-rotate(' + sk.hue + 'deg) saturate(1.3) brightness(1.06)';
+      paintSkin(c, base, R, t);
+      c.restore();
+      return;
+    }
+  }
   const col = skinCol(sk, t);
   const core = sk.invert ? sk.core : 'rgba(10,34,66,0.8)';
   const o = { lw: 3, blur: 24, core: core };
@@ -10619,6 +10798,118 @@ function paintSkin(c, sk, R, t) {
       c.restore();
       break;
     }
+    case 'elharbinger': {
+      // a seven-pointed star burning from the inside, a slit eye, and its
+      // brood of little stars on a tilted orbit (behind it, then in front)
+      const ph = ((t || 0) % 4) / 4 * TAU, rot = -ph / 7;
+      c.save(); c.fillStyle = 'rgba(14,6,2,0.9)'; c.beginPath(); c.arc(0, 0, R * 0.92, 0, TAU); c.fill(); c.restore();
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= 0.3;
+      c.strokeStyle = sk.ring; c.lineWidth = 0.8; c.beginPath(); c.ellipse(0, R * 0.08, R * 1.12, R * 0.46, 0, 0, TAU); c.stroke(); c.restore();
+      const brood = front => {
+        for (let i = 0; i < 6; i++) {
+          const a = ph + i / 6 * TAU, sn = Math.sin(a);
+          if ((sn >= 0) !== front) continue;
+          const x = Math.cos(a) * R * 1.12, y = sn * R * 0.46 + R * 0.08, near = (sn + 1) / 2, rr = R * (0.15 + 0.07 * near);
+          c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= 0.2 + 0.35 * near;
+          c.drawImage(glowSprite(i % 2 ? '#ffd166' : col), x - rr * 1.6, y - rr * 1.6, rr * 3.2, rr * 3.2);
+          c.restore();
+          neon(c, xx => pathStar(xx, 5, rr, rr * 0.48, -Math.PI / 2 + a * 2), i % 2 ? '#ffd166' : '#fff0c4', { lw: 1.2, blur: 4, core: 'rgba(50,18,2,0.95)', inner: false });
+          if (front) { c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, y, rr * 0.22, 0, TAU); c.fill(); }
+        }
+      };
+      brood(false);
+      const star = xx => pathStar(xx, 7, R * 0.94, R * 0.47, -Math.PI / 2 + rot);
+      neon(c, star, col, { lw: 2.2, blur: 16, core: 'rgba(34,12,2,0.94)', innerColor: 'rgba(255,236,200,0.8)' });
+      c.save(); star(c); c.clip();
+      const gr = c.createRadialGradient(0, 0, R * 0.05, 0, 0, R * 0.9);
+      gr.addColorStop(0, 'rgba(255,150,60,0.55)'); gr.addColorStop(0.5, 'rgba(160,50,10,0.3)'); gr.addColorStop(1, 'rgba(20,6,2,0)');
+      c.fillStyle = gr; c.fillRect(-R, -R, R * 2, R * 2); c.restore();
+      neon(c, xx => pathStar(xx, 7, R * 0.56, R * 0.3, -Math.PI / 2 - rot * 2), sk.ring, { lw: 1.2, blur: 9, core: null, inner: false });
+      const hb = 0.78 + 0.22 * Math.sin(ph * 2);
+      neon(c, xx => { xx.beginPath(); xx.ellipse(0, 0, R * 0.2 * hb, R * 0.26 * hb, 0, 0, TAU); }, '#ffffff', { lw: 1.4, blur: 12, core: 'rgba(255,200,120,0.95)', inner: false });
+      c.fillStyle = 'rgba(40,10,2,0.95)'; c.beginPath(); c.ellipse(0, 0, R * 0.045, R * 0.2 * hb, 0, 0, TAU); c.fill();
+      brood(true);
+      break;
+    }
+    case 'elsentinel': {
+      // a glass diamond with an eye in it that looks about; a square turns
+      // round the eye, rivets at the points, four shield plates orbit outside
+      const ph = ((t || 0) % 4) / 4 * TAU;
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= 0.3;
+      c.strokeStyle = sk.ring; c.lineWidth = 1; c.beginPath(); c.arc(0, 0, R * 1.2, 0, TAU); c.stroke(); c.restore();
+      neon(c, xx => { xx.beginPath(); for (let i = 0; i < 4; i++) { const a = -ph + i / 4 * TAU; xx.moveTo(Math.cos(a) * R * 1.2, Math.sin(a) * R * 1.2); xx.arc(0, 0, R * 1.2, a, a + 0.62); } },
+        '#a8dfff', { lw: 2.6, blur: 12, core: null, innerColor: '#ffffff' });
+      const dia = xx => pathPoly(xx, 4, R * 0.94, 0);
+      neon(c, dia, col, { lw: 2.4, blur: 18, core: 'rgba(2,8,20,0.92)' });
+      c.save(); dia(c); c.clip();
+      const gr = c.createLinearGradient(-R, -R, R, R);
+      gr.addColorStop(0, 'rgba(120,200,255,0.34)'); gr.addColorStop(0.45, 'rgba(30,80,140,0.12)'); gr.addColorStop(1, 'rgba(2,8,20,0)');
+      c.fillStyle = gr; c.fillRect(-R, -R, R * 2, R * 2); c.restore();
+      neon(c, xx => pathPoly(xx, 4, R * 0.6, Math.PI / 4 + ph / 4), sk.ring, { lw: 1.5, blur: 10, core: null, inner: false });
+      neon(c, xx => { xx.beginPath(); for (let i = 0; i < 4; i++) { const a = i / 4 * TAU; xx.moveTo(Math.cos(a) * R * 0.94 + R * 0.08, Math.sin(a) * R * 0.94); xx.arc(Math.cos(a) * R * 0.94, Math.sin(a) * R * 0.94, R * 0.08, 0, TAU); } },
+        '#ffffff', { lw: 1, blur: 6, core: 'rgba(2,8,20,0.95)', inner: false });
+      // the eye: an iris that glances left and right, a slit pupil
+      const lx = Math.sin(ph) * R * 0.08, bl = Math.abs(Math.sin(ph * 2)) > 0.985 ? 0.25 : 1;
+      neon(c, xx => { xx.beginPath(); xx.ellipse(0, 0, R * 0.34, R * 0.2 * bl, 0, 0, TAU); }, '#eaf7ff', { lw: 1.2, blur: 8, core: 'rgba(4,14,30,0.95)', inner: false });
+      neon(c, xx => { xx.beginPath(); xx.arc(lx, 0, R * 0.15 * Math.min(1, bl * 1.5), 0, TAU); }, col, { lw: 1.3, blur: 10, core: 'rgba(120,210,255,0.85)', inner: false });
+      c.fillStyle = '#02040c'; c.beginPath(); c.ellipse(lx, 0, R * 0.035, R * 0.12 * bl, 0, 0, TAU); c.fill();
+      break;
+    }
+    case 'elcarver': {
+      // a serrated blade, point up, with a crossguard and swept fins; a lit
+      // fuller down the middle, a glint up each edge in turn, acid dripping
+      const ph = ((t || 0) % 4) / 4 * TAU, u = ph / TAU;
+      // a long double edge with a waist above the guard, so it reads as a blade, never a tree
+      const blade = xx => { xx.beginPath(); xx.moveTo(0, -R * 1.34); xx.quadraticCurveTo(R * 0.3, -R * 0.7, R * 0.42, -R * 0.12); xx.lineTo(R * 0.52, R * 0.12); xx.lineTo(R * 0.2, R * 0.04); xx.lineTo(0, R * 0.62);
+        xx.lineTo(-R * 0.2, R * 0.04); xx.lineTo(-R * 0.52, R * 0.12); xx.lineTo(-R * 0.42, -R * 0.12); xx.quadraticCurveTo(-R * 0.3, -R * 0.7, 0, -R * 1.34); xx.closePath(); };
+      neon(c, xx => { xx.beginPath(); xx.moveTo(R * 0.3, R * 0.08); xx.lineTo(R * 1.02, R * 0.56); xx.lineTo(R * 0.42, R * 0.44); xx.moveTo(-R * 0.3, R * 0.08); xx.lineTo(-R * 1.02, R * 0.56); xx.lineTo(-R * 0.42, R * 0.44); },
+        sk.ring, { lw: 1.4, blur: 9, core: 'rgba(4,20,14,0.9)', inner: false });
+      neon(c, blade, col, { lw: 1.9, blur: 16, core: 'rgba(6,18,4,0.94)', innerColor: 'rgba(240,255,220,0.8)' });
+      c.save(); blade(c); c.clip();
+      const gr = c.createLinearGradient(0, -R * 1.3, 0, R * 0.6);
+      gr.addColorStop(0, 'rgba(230,255,180,0.4)'); gr.addColorStop(0.6, 'rgba(90,160,30,0.16)'); gr.addColorStop(1, 'rgba(6,18,4,0)');
+      c.fillStyle = gr; c.fillRect(-R, -R * 1.4, R * 2, R * 2.1); c.restore();
+      // the fuller, lit from inside, breathing
+      neon(c, xx => { xx.beginPath(); xx.moveTo(0, -R * 0.98); xx.lineTo(0, R * 0.32); }, '#ffffff', { lw: 1.0 + 0.4 * Math.sin(ph * 2), blur: 8, core: null, inner: false });
+      // the crossguard
+      neon(c, xx => { xx.beginPath(); xx.moveTo(-R * 0.4, R * 0.24); xx.lineTo(R * 0.4, R * 0.24); }, sk.ring, { lw: 2, blur: 9, core: null, inner: false });
+      // the glint: up the right edge in the first half of the loop, the left in the second
+      const side = u < 0.5 ? 1 : -1, g = (u % 0.5) * 2, gy = R * 0.12 + (-R * 1.3 - R * 0.12) * g, gx = side * R * 0.52 * (1 - g);
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= Math.sin(g * Math.PI);
+      c.drawImage(glowSprite('#ffffff'), gx - R * 0.26, gy - R * 0.26, R * 0.52, R * 0.52); c.restore();
+      for (let i = 0; i < 3; i++) {
+        const q = (u * 2 + i / 3) % 1, dx = (i - 1) * R * 0.18, dy = R * (0.66 + q * 0.6);
+        c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= (1 - q) * 0.9;
+        c.fillStyle = i === 1 ? '#c8ff5c' : '#9effa0';
+        c.beginPath(); c.arc(dx, dy, R * (0.08 - q * 0.03), 0, TAU); c.fill(); c.restore();
+      }
+      break;
+    }
+    case 'elwardkeeper': {
+      // a hexagon inside its own ward: a honeycomb ring turning one way,
+      // six plates the other, three magenta ticks outside
+      const ph = ((t || 0) % 4) / 4 * TAU;
+      c.save(); c.fillStyle = 'rgba(2,8,16,0.9)'; c.beginPath(); c.arc(0, 0, R * 1.02, 0, TAU); c.fill(); c.restore();
+      c.save(); c.rotate(ph / 10);
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * TAU, x = Math.cos(a) * R * 0.98, y = Math.sin(a) * R * 0.98;
+        c.save(); c.translate(x, y); c.rotate(a);
+        pathPoly(c, 6, R * 0.16, Math.PI / 6);
+        c.strokeStyle = 'rgba(3,8,18,0.9)'; c.lineWidth = 2.6; c.stroke();
+        c.globalCompositeOperation = 'lighter'; c.strokeStyle = col; c.globalAlpha *= 0.85; c.lineWidth = 1.2; c.stroke();
+        c.restore();
+      }
+      c.restore();
+      neon(c, xx => { xx.beginPath(); for (let i = 0; i < 6; i++) { const a = -ph / 6 + i / 6 * TAU + 0.1; xx.moveTo(Math.cos(a) * R * 1.24, Math.sin(a) * R * 1.24); xx.arc(0, 0, R * 1.24, a, a + TAU / 6 - 0.2); } },
+        col, { lw: 1.8, blur: 10, core: null, innerColor: '#eaffff' });
+      neon(c, xx => { xx.beginPath(); for (let i = 0; i < 3; i++) { const a = ph / 3 + i / 3 * TAU; xx.moveTo(Math.cos(a) * R * 1.42, Math.sin(a) * R * 1.42); xx.arc(0, 0, R * 1.42, a, a + 0.42); } },
+        sk.ring, { lw: 1.3, blur: 8, core: null, inner: false });
+      neon(c, xx => pathPoly(xx, 6, R * 0.66, Math.PI / 6), col, { lw: 2.2, blur: 15, core: 'rgba(2,10,20,0.94)' });
+      neon(c, xx => pathStar(xx, 6, R * 0.46, R * 0.22, Math.PI / 6), sk.ring, { lw: 1.4, blur: 10, core: null, inner: false });
+      const pu = 0.8 + 0.2 * Math.sin(ph * 2);
+      neon(c, xx => { xx.beginPath(); xx.arc(0, 0, R * 0.15 * pu, 0, TAU); }, '#ffffff', { lw: 1.4, blur: 10, core: 'rgba(200,250,255,0.95)', inner: false });
+      break;
+    }
     case 'widow': case 'wraith': case 'ninelives': case 'candlemass':
     case 'stillpoint': case 'sandglass': case 'afterglow': case 'monolith':
       SKIN_ART[sk.id](c, sk, R, t, col);
@@ -10629,15 +10920,61 @@ function paintSkin(c, sk, R, t) {
 }
 
 /* the orbiting flourish some skins carry -- drawn live so it turns */
+/* a CHROMA steps round the colour wheel every 8 s: 24 steps (12 for a skin
+   whose body animates, so its cached frames stay few) */
+function chromaStep(sk, t) { const N = sk.anim ? 12 : 24; return Math.floor((((t || 0) / 8) % 1 + 1) % 1 * N); }
+function chromaHue(sk, t) { return (sk.hue + chromaStep(sk, t) * 360 / (sk.anim ? 12 : 24)) % 360; }
+function chromaKey(sk, t) { return ''; }
+/* A CHROMA is its base body, cached like any other, with a rainbow laid over
+   it as it is drawn: a 'hue' blend (the light and the dark of the body stay,
+   only the colour turns) through a gradient that slides round, then cut back
+   to the body's own shape. Two draws on an 88 px tile a frame: cheap on any
+   phone, and no extra sprites at all. */
+const _chromaCv = new Map();
+let _chromaRB = null;
+function chromaTint(src, t, slot) {
+  if (!src || !src.width) return src;
+  if (!_chromaRB) { _chromaRB = []; for (let i = 0; i < 72; i++) _chromaRB.push(hueHex('#ff4a4a', i * 5)); }
+  let e = _chromaCv.get(slot);
+  const W = src.width, H = src.height;
+  if (!e || e.cv.width !== W || e.cv.height !== H) {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    e = { cv: cv, g: cv.getContext('2d') }; _chromaCv.set(slot, e);
+    if (_chromaCv.size > 24) _chromaCv.delete(_chromaCv.keys().next().value);
+  }
+  const g = e.g, a = (t || 0) * 0.7, h0 = Math.floor(((t || 0) * 9) % 72);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  g.clearRect(0, 0, W, H); g.drawImage(src, 0, 0);
+  const ca = Math.cos(a) * W * 0.6, sa = Math.sin(a) * H * 0.6;
+  const gr = g.createLinearGradient(W / 2 - ca, H / 2 - sa, W / 2 + ca, H / 2 + sa);
+  for (let i = 0; i <= 6; i++) gr.addColorStop(i / 6, _chromaRB[(h0 + i * 12) % 72]);
+  g.globalCompositeOperation = 'hue'; g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(src, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  return e.cv;
+}
 function drawSkinHalo(c, sk, x, y, R, t, scale, squash) {
+  // a CHROMA: four rainbow stars that follow it round, winking
+  if (sk.variant === 'chroma') {
+    const sc = scale === undefined ? 1 : scale, sq = squash === undefined ? 1 : squash;
+    c.save(); c.translate(x, y); c.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {
+      const a = -t * 1.3 + i / 4 * TAU, rr = R * 1.55 * sc, tw = 0.55 + 0.45 * Math.sin(t * 4 + i * 1.7);
+      const px = Math.cos(a) * rr, py = Math.sin(a) * rr * sq, s2 = R * 0.16 * tw * sc + 0.5;
+      c.globalAlpha = 0.9 * tw; c.fillStyle = i % 2 ? '#ffffff' : hueHex('#ff6a6a', (t * 90 + i * 90) % 360);
+      c.save(); c.translate(px, py); c.rotate(t * 2); pathStar(c, 4, s2 * 1.6, s2 * 0.45, 0); c.fill(); c.restore();
+    }
+    c.restore();
+  }
   if (!sk.halo) return;
   const ringR = 1.85 * (scale === undefined ? 1 : scale);
   const sq = squash === undefined ? 1 : squash;
-  const col = sk.rainbow ? skinCol(sk, t) : (sk.haloCol || sk.ring);
+  const col = sk.variant === 'chroma' ? hueHex('#ff6a6a', ((t || 0) * 90) % 360) : (sk.rainbow ? skinCol(sk, t) : (sk.haloCol || sk.ring));
   const spin = t * (sk.id === 'voidcrown' ? 1.1 : 0.8);
   const puls = sk.pulse ? 1 + Math.sin(t * 3) * 0.09 : 1;
   // rainbow halos glow in one of 24 hues, so they cost 24 sprites, not 360
-  const gcol = sk.rainbow ? 'hsl(' + (Math.round(((t || 0) * 40 % 360) / 15) * 15 % 360) + ',100%,78%)' : col;
+  const gcol = sk.rainbow ? 'hsl(' + (Math.round(((t || 0) * 40 % 360) / 15) * 15 % 360) + ',100%,78%)' : (sk.variant === 'chroma' ? hueHex('#ff8a8a', Math.round(((t || 0) * 90 % 360) / 15) * 15) : col);
   const glow = glowSprite(gcol), dr = R * 0.13, gr = dr + 10;
   c.save();
   c.translate(x, y);
@@ -10850,8 +11187,8 @@ class Player {
     // mid-dash, nothing lands: not even the hits that clear invulnerability
     if (this.dashInv > 0 && !this.dead && !this.downed && !G.over) { this.dodged(); return; }
     if (this.inv > 0 || this.dead || this.downed || G.over) return;
-    // NULLPLATE: one hit shrugged off every six seconds
-    if (G.rel('nullplate') && G.time >= (G.relicT.nullplate || 0)) {
+    // NULLPLATE: one hit shrugged off every six seconds (a piercing bolt goes through)
+    if (G.rel('nullplate') && !G._pierce && G.time >= (G.relicT.nullplate || 0)) {
       G.relicT.nullplate = G.time + 5;
       this.inv = Math.max(this.inv, 0.4);
       Sound.ui(true);
@@ -10934,10 +11271,12 @@ class Player {
     // rainbow skins can't be cached by id alone, so bucket the hue
     let key = 'player_body_' + sk.id;
     if (sk.rainbow) key += '_' + (Math.floor(G.time * 40) % 360 / 12 | 0);
+    key += chromaKey(sk, G.time);
     if (sk.oil) key += '_o' + (Math.floor(G.time * 6) % 48);
     if (sk.anim) key += '_a' + (Math.floor(G.time * 10) % 40);
     if (sk.id === 'archivist') { try { key += '_' + bossSeenCount(); } catch (e) { } }
-    const s = sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, G.time));
+    const s0 = sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, G.time, true));
+    const s = sk.variant === 'chroma' ? chromaTint(s0, G.time, 'player') : s0;
     // GLOW (LEVEL 2) is the light under it and the neon ring. Below it: a
     // faint core (you can always find yourself) and a thin ring in its colour.
     const lit = !(sk.lv < 2);
@@ -11074,6 +11413,7 @@ const Pet = {
       try { petShape(c, pet, this.x, this.y + dy, this.alpha, this.face, this.flinch, this.spin, this.bright, G.time); }
       finally { NEON_LITE = false; }
     } else petShape(c, pet, this.x, this.y + dy, this.alpha, this.face, this.flinch, this.spin, this.bright, G.time);
+    petLvFx(c, pet, this.x, this.y + dy, this.alpha, G.time, 1);
   }
 };
 
@@ -11973,6 +12313,8 @@ class Enemy {
     const dd = Math.hypot(dx, dy) || 1;
     let nx = dx / dd, ny = dy / dd;
     let spd = this.def.spd * (this.slow > 0 ? 0.45 : 1) * (this.stun > 0 ? 0 : 1) * G.enemySpeedMul;
+    if (this.ward > 0) spd *= WARD.spd;
+    if (this.wardHit > 0) this.wardHit = Math.max(0, this.wardHit - dt * 5);
     if (this.spawnT > 0) spd *= 0.25;
     // the GAMEKEEPER's mark sets the hunters on you
     if (this.def.marked && Thicket.markT > 0) spd *= 1.35;
@@ -12132,6 +12474,48 @@ class Enemy {
         }
         break;
       }
+      case 'wardkeeper': {
+        const keep = 300;
+        const s2 = dd > keep + 60 ? 1 : (dd < keep - 60 ? -0.7 : 0);
+        this.vx = (nx * s2 + ny * 0.3) * spd;
+        this.vy = (ny * s2 - nx * 0.3) * spd;
+        if (!this.wkInit) { this.wkInit = 1; this.ward = this.wardMax = Math.round(this.maxHp * 0.5); this.pulseT = 3; this.kin = []; this.tetherT = 0; }
+        this.tetherT = Math.max(0, this.tetherT - dt);
+        this.pulseT -= dt;
+        if (this.pulseT <= 0 && this.spawnT <= 0) {
+          this.pulseT = 6;
+          const near = G.queryEnemies(this.x, this.y, 400), cand = [];
+          for (let i = 0; i < near.length; i++) {
+            const e = near[i];
+            if (e === this || e.dead || e.boss || e.elite || e.isMoon || e.spawnT > 0 || e.def.noWard || e.def.mega || e.def.megaPart) continue;
+            const d2 = dist2(e.x, e.y, this.x, this.y);
+            if (d2 < 400 * 400) cand.push([d2, e]);
+          }
+          cand.sort((a, b) => a[0] - b[0]);
+          this.kin = [];
+          for (let i = 0; i < cand.length && this.kin.length < 6; i++) {
+            const e = cand[i][1];
+            e.wardMax = Math.max(e.wardMax || 0, Math.round(e.maxHp * 0.6 + 24));
+            e.ward = Math.max(e.ward || 0, e.wardMax);
+            e.wardBy = this; e.wardHit = 1;
+            this.kin.push(e);
+          }
+          this.ward = Math.max(this.ward || 0, Math.round(this.wardMax * 0.35));
+          this.tetherT = 0.6;
+          Particles.ring(this.x, this.y, this.r + 10, 400, { col: WARD.col, life: 0.55, w: 5 });
+          Sound.shoot('beam');
+        }
+        this.fireT -= dt;
+        if (this.fireT <= 0 && this.spawnT <= 0) {
+          this.fireT = this.def.fireCd;
+          const a0 = Math.atan2(ny, nx);
+          for (let i = -1; i <= 1; i++) {
+            const a = a0 + i * 0.2;
+            G.enemyBullet(this.x, this.y, Math.cos(a) * this.def.bulletSpd, Math.sin(a) * this.def.bulletSpd, this.def.bulletDmg * G.dmgScale, this.def.col, { pierce: 1 });
+          }
+        }
+        break;
+      }
       case 'carver': {
         this.dashT -= dt;
         if (this.dashing > 0) {
@@ -12161,8 +12545,9 @@ class Enemy {
     if (this.armed && this.spawnT <= 0 && this.stun <= 0 && !this.dead) {
       this.gunT -= dt;
       if (this.gunT <= 0 && dd < 640) {
-        this.gunT = ((G.D.gunCd) || 4) * rnd(0.8, 1.3);
-        this.signatureShot(nx, ny);
+        this.gunT = ((G.D.gunCd) || 4) * rnd(0.8, 1.3) * (this.ward > 0 ? 0.85 : 1);
+        G._shooter = this;
+        try { this.signatureShot(nx, ny); } finally { G._shooter = null; }
       }
     }
 
@@ -13505,6 +13890,8 @@ class Enemy {
       else this.drawBody(c);
       const TD = Thicket.drawE[this.def.id];
       if (TD) TD(c, this);
+      if (this.def.ai === 'wardkeeper') drawKeeper(c, this);
+      if (this.ward > 0 || this.exposedT > G.time) drawWard(c, this);
     } finally { if (kk) { this.x -= kk[0]; this.y -= kk[1]; } }
   }
   drawBody(c) {
@@ -13659,6 +14046,7 @@ class Shot {
     if (G && G.rel && G.rel('amberglass')) { this.vx *= 0.9; this.vy *= 0.9; }
     // SEGMENT: everything you throw goes through one more
     if (G && G.rel && G.rel('segment') && this.pierce !== undefined) this.pierce += 1;
+    if (this.wkey === undefined && G && G._wk) this.wkey = G._wk;
   }
   update(dt) {
     this.age += dt;
@@ -13808,6 +14196,38 @@ function pharosGlow(col, L, W) {
   return e;
 }
 
+/* ------------------------------------------------------------------
+   THE HORDE HARDENS. Weapons are never nerfed: the horde answers them.
+   Each weapon you hold adds to a toughness bonus on everything new that
+   spawns (rank and file in full, bosses at 60%). The weights come from
+   the run stats (Nov 2026, ~250 runs): the ultimates that out-damage the
+   field weigh the most. Eases in over ~12 s, so an evolve is not a wall.
+   ------------------------------------------------------------------ */
+const HORDE = {
+  evo: { toll: 0.30, splice: 0.20, brand: 0.16, arc: 0.16, veil: 0.16, starfall: 0.14, glean: 0.14,
+         harvest: 0.10, verdict: 0.10, seeker: 0.10, quake: 0.10, tether: 0.10, flashpoint: 0.08, hunger: 0.08 },
+  evoBase: 0.06,                                     // any other ultimate
+  raw: { longshot: 0.10, toll: 0.08, tether: 0.08 }, // strong before they evolve
+  maxLv: 0.02,                                       // a weapon at level 5+
+  cap: 0.9,                                          // never more than +90%
+  boss: 0.6
+};
+/* SHIELDED: a share of the rank and file arrive inside a hex ward that
+   soaks damage before the body takes any. While it holds they are faster,
+   hit harder, shrug off knockback and may shoot PIERCING bolts. Break it
+   and the body is EXPOSED for a moment (+25% damage taken). */
+/* the weapons that crack a ward fastest: the ones the run stats say were
+   carrying the least (Nov 2026). Their hits count this many times over
+   against a shield; the body behind it takes the normal amount. */
+const WARD_BREAK = { prism: 2.5, ricochet: 2.5, starfall: 2.5, quake: 2.5, pulse: 2, snare: 2 };
+const WARD = { hp: 0.8, flat: 24, spd: 1.22, dmg: 1.3, armed: 0.6, exposed: 2.5, exposedMul: 1.25,
+  col: '#5ff3ff', alt: '#ff5fd6', hot: '#eaffff' };
+/* PIERCING enemy bolts go through everything you hide behind: NULLPLATE,
+   BARKSKIN, SPARE SHELL, AMBERGLASS, the PEARL, INKSAC, a bomb, and the
+   ultimates that eat bullets (BASTION). Only a dash dodges one. */
+for (const k in WARD_BREAK) if (WEAPONS[k] && !WEAPONS[k].wb) { WEAPONS[k].wb = WARD_BREAK[k]; WEAPONS[k].blurb += ' Shatters shields (\u00d7' + WARD_BREAK[k] + ').'; }
+const PIERCE = { base: { easy: 0, medium: 0.035, hard: 0.06, impossible: 0.09, hardcore: 0.08, endless: 0.04, daily: 0.07 },
+  ramp: 240, power: 0.06, tide: 0.0025, boss: 0.5, cap: 0.2 };
 const HIT = {
   bullet: { src: 'bullet' }, bossBullet: { src: 'bullet', boss: 1 },
   pool: { src: 'pool' }, bossPool: { src: 'pool', boss: 1 },
@@ -13838,6 +14258,7 @@ class EBullet {
       if (o.hitCb) this.hitCb = o.hitCb;    // what it does to you besides the damage
       if (o.bead) this.bead = 1;            // THE AMBERWRIGHT's: it hangs where it stops
       if (o.bola) { this.bola = o.bola; this.bolaOff = o.bolaOff || 0; }
+      if (o.pierce) this.pierce = 1;        // goes through every shield you have
     }
   }
   update(dt) {
@@ -13865,9 +14286,10 @@ class EBullet {
     if (!this.bola) { this.x += this.vx * dt; this.y += this.vy * dt; }
     if (Math.hypot(this.x, this.y) > G.arenaR + 120) this.dead = true;
     const p = G.player;
-    if (this.frz === undefined && !p.dead && G.rel('amberglass') && dist2(this.x, this.y, p.x, p.y) < (70 + p.r) * (70 + p.r)) { this.frz = 0.8; return; }
+    if (this.frz === undefined && !this.pierce && !p.dead && G.rel('amberglass') && dist2(this.x, this.y, p.x, p.y) < (70 + p.r) * (70 + p.r)) { this.frz = 0.8; return; }
     if (!p.dead && this.arm <= 0 && dist2(this.x, this.y, p.x, p.y) < (this.r + p.r) * (this.r + p.r)) {
-      p.damage(this.dmg, this.boss ? HIT.bossBullet : HIT.bullet);
+      G._pierce = this.pierce ? 1 : 0;
+      try { p.damage(this.dmg, this.boss ? HIT.bossBullet : HIT.bullet); } finally { G._pierce = 0; }
       this.dead = true;
       if (this.hitCb) this.hitCb(this);
       Particles.burst(this.x, this.y, 8, this.col, { spd1: 200 });
@@ -13875,8 +14297,17 @@ class EBullet {
   }
   draw(c) { EBullet.drawAll(c, [this]); }
   static drawAll(c, list) {
-    const n = list.length;
+    let n = list.length;
     if (!n) return;
+    let np = 0;
+    for (let i = 0; i < n; i++) if (list[i].pierce) np++;
+    if (np) {
+      const lances = [], rest = [];
+      for (let i = 0; i < n; i++) (list[i].pierce ? lances : rest).push(list[i]);
+      EBullet.drawLances(c, lances);
+      list = rest; n = rest.length;
+      if (!n) return;
+    }
     c.save();
     c.globalCompositeOperation = 'lighter';
     let lc = null, halo = null;
@@ -13899,6 +14330,145 @@ class EBullet {
     c.restore();
   }
 }
+/* the hex ward: a lattice that turns, six plates that go out as it is
+   worn down, a counter-turning magenta tick ring, a flash where it is hit.
+   Static parts are baked per size bucket; the moving parts are two banded
+   strokes, so a screen of them stays cheap. */
+function wardLattice(R) {
+  return sprite('ward_lat_' + R, R * 2 + 24, R * 2 + 24, c => {
+    // the bubble: clear in the middle (the body stays readable), lit at the rim
+    const g = c.createRadialGradient(0, 0, R * 0.45, 0, 0, R + 1);
+    g.addColorStop(0, 'rgba(95,243,255,0)'); g.addColorStop(0.7, 'rgba(95,243,255,0.08)');
+    g.addColorStop(0.93, 'rgba(95,243,255,0.30)'); g.addColorStop(1, 'rgba(200,252,255,0.55)');
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, R + 1, 0, TAU); c.fill();
+    // two rows of hex cells round the rim, the outer brighter
+    const hr = clamp(R * 0.15, 5, 9);
+    c.lineJoin = 'round';
+    for (let row = 0; row < 2; row++) {
+      const rr = R - hr * (0.95 + row * 1.6), n = Math.max(8, Math.round(TAU * rr / (hr * 1.8)));
+      for (let i = 0; i < n; i++) {
+        const a = (i + row * 0.5) / n * TAU, x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+        c.save(); c.translate(x, y); c.rotate(a);
+        pathPoly(c, 6, hr * 0.92, Math.PI / 6);
+        if (!row) { c.globalAlpha = 1; c.strokeStyle = 'rgba(3,8,18,0.9)'; c.lineWidth = 3.4; c.stroke(); }
+        if (!row) { c.fillStyle = WARD.col; c.globalAlpha = 0.16; c.fill(); }
+        c.strokeStyle = WARD.col; c.globalAlpha = row ? 0.22 : 1; c.lineWidth = row ? 1.2 : 1.8; c.stroke();
+        c.restore();
+      }
+    }
+  });
+}
+function drawWard(c, e) {
+  const R = Math.round((e.r * (e.scale || 1) + 17) / 4) * 4;
+  const t = G.time + (e.ph || 0);
+  c.save();
+  c.translate(e.x, e.y);
+  if (!(e.ward > 0)) {
+    // EXPOSED: the plates are gone; a ragged pink rim says hit it now
+    const left = (e.exposedT - G.time) / WARD.exposed;
+    c.globalCompositeOperation = 'lighter';
+    c.beginPath();
+    for (let i = 0; i < 6; i++) { const a = t * 3 + i / 6 * TAU; c.moveTo(Math.cos(a) * R, Math.sin(a) * R); c.arc(0, 0, R, a, a + 0.32); }
+    BA.band(c, WARD.alt, 1.6, 0.6 * left + 0.15 * Math.sin(t * 20), null);
+    c.restore();
+    return;
+  }
+  const f = e.ward / e.wardMax, hit = e.wardHit || 0;
+  const lite = G.quality === 0;
+  // the dark rim under it, so the ward reads on a bright floor
+  c.beginPath(); c.arc(0, 0, R + 1.5, 0, TAU);
+  c.strokeStyle = 'rgba(3,6,14,0.6)'; c.lineWidth = 6; c.stroke();
+  c.globalCompositeOperation = 'lighter';
+  {
+    const L = wardLattice(R);
+    c.save(); c.rotate(t * 0.45);
+    c.globalAlpha = Math.min(1, 0.75 + 0.2 * f + hit * 0.4 + Math.sin(t * 3) * 0.06);
+    c.drawImage(L, -L.width / 2, -L.height / 2);
+    c.restore();
+  }
+  // the whole silhouette, always: a thin full ring
+  c.beginPath(); c.arc(0, 0, R, 0, TAU);
+  BA.band(c, WARD.col, 1.1, 0.4 + 0.2 * f, null);
+  // six plates; the ward's strength is how many are still lit
+  const lit = Math.max(1, Math.ceil(f * 6 - 1e-6)), a0 = -t * 0.9;
+  c.beginPath();
+  for (let i = 0; i < lit; i++) {
+    const a = a0 + i / 6 * TAU + 0.1, b = a0 + (i + 1) / 6 * TAU - 0.1;
+    c.moveTo(Math.cos(a) * R, Math.sin(a) * R); c.arc(0, 0, R, a, b);
+  }
+  BA.band(c, hit > 0.3 ? WARD.hot : WARD.col, 2.6 + hit * 1.4, 0.75 + 0.2 * f + hit * 0.3, WARD.hot);
+  if (!lite) {
+    // the counter-turning magenta ticks
+    c.beginPath();
+    for (let i = 0; i < 3; i++) { const a = t * 1.7 + i / 3 * TAU; c.moveTo(Math.cos(a) * (R + 6), Math.sin(a) * (R + 6)); c.arc(0, 0, R + 6, a, a + 0.42); }
+    BA.band(c, WARD.alt, 1.4, 0.6 + Math.sin(t * 5) * 0.15, null);
+  }
+  c.restore();
+}
+/* the WARDKEEPER's tell: a ring that closes on it in the last second
+   before a pulse, and threads to everything it has just shielded */
+function drawKeeper(c, e) {
+  if (e.spawnT > 0) return;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  if (e.pulseT !== undefined && e.pulseT < 1.1) {
+    const k = clamp(1 - e.pulseT / 1.1, 0, 1), rr = e.r + 20 + (1 - k) * 150;
+    c.beginPath(); c.arc(e.x, e.y, rr, 0, TAU);
+    BA.band(c, WARD.col, 1.6 + k * 2, 0.25 + k * 0.6, k > 0.7 ? WARD.hot : null);
+  }
+  if (e.tetherT > 0 && e.kin && e.kin.length) {
+    const a = e.tetherT / 0.6;
+    c.beginPath();
+    for (const o of e.kin) { if (o.dead) continue; c.moveTo(e.x, e.y); c.lineTo(o.x, o.y); }
+    BA.band(c, WARD.col, 1.5, 0.7 * a, WARD.hot);
+  }
+  c.restore();
+}
+/* a piercing bolt: a lance along its line of travel, dark-cored, white
+   edged, with a short afterimage and a hot tip. Never a ball: it must read
+   at a glance as the one your shields will not stop. */
+function ebLance(col, r) {
+  const R = Math.max(4, Math.round(r));
+  return sprite('ebl_' + col + '_' + R, R * 6 + 16, R * 3 + 16, c => {
+    const L = R * 2.6, W = R * 1.15;
+    c.beginPath(); c.moveTo(L, 0); c.lineTo(-L * 0.55, -W); c.lineTo(-L * 0.3, 0); c.lineTo(-L * 0.55, W); c.closePath();
+    c.fillStyle = 'rgba(8,4,14,0.95)'; c.fill();
+    c.lineJoin = 'miter'; c.strokeStyle = col; c.lineWidth = Math.max(2, R * 0.42);
+    c.shadowColor = col; c.shadowBlur = 6; c.stroke(); c.shadowBlur = 0;
+    c.strokeStyle = '#ffffff'; c.lineWidth = 1; c.globalAlpha = 0.95; c.stroke();
+    c.globalAlpha = 1; c.fillStyle = '#ffffff';
+    c.beginPath(); c.moveTo(L * 0.95, 0); c.lineTo(L * 0.35, -W * 0.28); c.lineTo(L * 0.35, W * 0.28); c.closePath(); c.fill();
+  });
+}
+EBullet.drawLances = function (c, list) {
+  const t = G.time;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    c.save();
+    const a = Math.atan2(b.vy, b.vx), sp = Math.hypot(b.vx, b.vy);
+    const al = b.arm > 0 ? 0.3 + 0.5 * (1 - Math.min(1, b.arm / 0.8)) : 1;
+    const hs = b.r * 2.9;
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.6 * al;
+    c.drawImage(ebHalo(b.col), b.x - hs, b.y - hs, hs * 2, hs * 2);
+    // the streak behind it: its length is set by its speed, never by the frame rate
+    const tl = Math.min(b.r * 5, sp * 0.07), ux = Math.cos(a), uy = Math.sin(a);
+    c.beginPath(); c.moveTo(b.x - ux * (b.r * 1.2 + tl), b.y - uy * (b.r * 1.2 + tl)); c.lineTo(b.x - ux * b.r * 0.8, b.y - uy * b.r * 0.8);
+    c.lineCap = 'round';
+    c.strokeStyle = b.col; c.globalAlpha = 0.3 * al; c.lineWidth = b.r * 1.1; c.stroke();
+    c.strokeStyle = '#ffffff'; c.globalAlpha = 0.45 * al; c.lineWidth = Math.max(1, b.r * 0.3); c.stroke();
+    c.globalCompositeOperation = 'source-over';
+    c.globalAlpha = al;
+    const L = ebLance(b.col, b.r);
+    c.save(); c.translate(b.x, b.y); c.rotate(a);
+    c.drawImage(L, -L.width / 2, -L.height / 2);
+    c.restore();
+    // the hot tip, on top, breathing
+    const tip = b.r * (1.1 + Math.sin(t * 22 + i) * 0.3);
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.85 * al;
+    c.drawImage(glowSprite('#ffffff'), b.x + ux * b.r * 2.4 - tip, b.y + uy * b.r * 2.4 - tip, tip * 2, tip * 2);
+    c.restore();
+  }
+};
 function ebHalo(col) {
   return sprite('ebh_' + col, 64, 64, c => {
     const g = c.createRadialGradient(0, 0, 0, 0, 0, 32);
@@ -14606,6 +15176,8 @@ function weaponStats(w) {
 }
 function weaponColor(w) {
   const def = WEAPONS[w.id];
+  const P = (G && !G.coop && typeof shotPal === 'function') ? shotPal() : null;
+  if (P) { const i = WEAPON_IDS.indexOf(w.id); return w.evolved ? P.evo[i % P.evo.length] : P.cols[i % P.cols.length]; }
   return w.evolved ? def.evo.color : def.color;
 }
 /* ========================================================================
@@ -15244,7 +15816,15 @@ const Weapons = {
   update(dt) {
     if (G.coop && (G.player.downed || G.player.dead)) return;
     if (G.time < G.silenceT) return;   // THE TOLL: nothing of yours fires in here
+    // everything a weapon leaves on the floor (shocks, meteors, spikes, traps) remembers whose it was
+    let pw = null, f0 = 0, g0 = 0;
+    const tag = () => {
+      if (!pw) return;
+      for (let i = f0; i < G.fx.length; i++) if (G.fx[i] && G.fx[i].wk === undefined) G.fx[i].wk = pw;
+      for (let i = g0; i < G.gadgets.length; i++) if (G.gadgets[i] && G.gadgets[i].wk === undefined) G.gadgets[i].wk = pw;
+    };
     for (const w of G.weapons) {
+      tag(); pw = w.id; f0 = G.fx.length; g0 = G.gadgets.length; G._wk = w.id;
       const AR = ARMS[w.id];
       if (AR) { AR.tick(w, dt); continue; }
       if (w.id === 'thorns') { this.thornsTick(w, dt); continue; }
@@ -15262,6 +15842,7 @@ const Weapons = {
         this.fire(w, s);
       }
     }
+    tag(); G._wk = null;
   },
   fire(w, s) {
     const p = G.player, col = weaponColor(w);
@@ -16019,6 +16600,7 @@ const Weapons = {
       if (b.dead) continue;
       const d = dist(b.x, b.y, p.x, p.y);
       if (d > s.rad + 12 || d < s.rad - 22) continue;
+      if (b.pierce) { if ((G.frame & 3) === 0) Particles.spark(b.x, b.y, Math.atan2(b.vy, b.vx) + rnd(-0.6, 0.6), rnd(80, 200), { col: col, life: 0.22, w: 1.6 }); continue; }
       if (b.vx * (p.x - b.x) + b.vy * (p.y - b.y) <= 0) continue;
       const ba = Math.atan2(b.y - p.y, b.x - p.x);
       if (!full && Math.abs(angDiff(a0, ba)) > arc / 2) continue;
@@ -16080,6 +16662,7 @@ const Weapons = {
     for (let i = G.fx.length - 1; i >= 0; i--) {
       const f = G.fx[i];
       if (!f) continue;
+      G._wk = f.wk || null;
       f.life -= dt;
       if (f.t === 'door' && f.src && !f.src.dead) { f.x = f.src.x; f.y = f.src.y; }
       if (f.life <= 0) {
@@ -17437,7 +18020,7 @@ const Thicket = {
     this.offcutT = Math.min(10, this.offcutT + dt * 10);
   },
   bark(n) {
-    if (!G.rel('barkskin') || this.barkHp <= 0) return n;
+    if (!G.rel('barkskin') || this.barkHp <= 0 || G._pierce) return n;
     const k = Math.min(n, this.barkHp);
     this.barkHp -= k;
     this.barkN = Math.ceil(this.barkHp / 20);
@@ -21009,7 +21592,7 @@ const Shallows = {
         const ox = p.x + Math.cos(this.orbA) * 46, oy = p.y + Math.sin(this.orbA) * 46;
         for (let i = G.ebullets.length - 1; i >= 0; i--) {
           const b = G.ebullets[i];
-          if (!b || b.dead) continue;
+          if (!b || b.dead || b.pierce) continue;
           if (dist2(b.x, b.y, ox, oy) < (b.r + 16) * (b.r + 16)) {
             b.dead = true; this.orbT = 1.5;
             Particles.ring(ox, oy, 4, 34, { col: '#f4f0ff', life: 0.3, w: 3 });
@@ -21053,7 +21636,7 @@ const Shallows = {
   hurt(n) {
     const p = G.player;
     // SPARE SHELL: the big one bounces off, once a minute
-    if (G.rel('spareshell') && n >= p.maxHp * 0.25 && G.time - this.shellT >= 45) {
+    if (G.rel('spareshell') && !G._pierce && n >= p.maxHp * 0.25 && G.time - this.shellT >= 45) {
       this.shellT = G.time;
       Pops.add(p.x, p.y - 22, 'SHELL', { col: '#f2d27a', size: 16, vy: -100 });
       Particles.ring(p.x, p.y, 16, 90, { col: '#f2d27a', life: 0.45, w: 5 });
@@ -21079,7 +21662,7 @@ const Shallows = {
     if (G.rel('inksac')) {
       for (let i = G.ebullets.length - 1; i >= 0; i--) {
         const b = G.ebullets[i];
-        if (b && !b.dead && dist2(b.x, b.y, p.x, p.y) < 240 * 240) b.dead = true;
+        if (b && !b.dead && !b.pierce && dist2(b.x, b.y, p.x, p.y) < 240 * 240) b.dead = true;
       }
       Particles.ring(p.x, p.y, 20, 240, { col: '#7a86ff', life: 0.5, w: 8 });
     }
@@ -26335,7 +26918,7 @@ function rollGauntlet(times) {
   GAUNTLET = T.map((t, i) => ({ t: t, id: pool[i % pool.length] }));
 }
 rollGauntlet();
-const ELITE_CYCLE = ['warden', 'harbinger', 'sentinel', 'carver', 'warden', 'sentinel', 'harbinger', 'carver'];
+const ELITE_CYCLE = ['warden', 'harbinger', 'sentinel', 'wardkeeper', 'carver', 'warden', 'wardkeeper', 'harbinger', 'sentinel', 'carver'];
 const ELITE_TIMES = [105, 250, 370, 490, 600];
 const ENDLESS_BOSSES = MID_BOSSES.concat(['bloom', 'voidheart']);
 const DAILY_BOSSES = ['mirror', 'crown', 'longnight', 'antiphon'];
@@ -26426,6 +27009,15 @@ const Game = {
     this.bossSpawned = false; this.boss = null;
     this.rerolls = D.rerolls; this.pendingLevels = 0; this.chestQueue = 0;
     this.endless = !!D.endless; this.endlessT = 0;
+    // RUN BOOSTS: one of each you hold goes into this run
+    this.boost = null;
+    if (!this.coop && !D.daily && !D.hollow && !D.rush && !this.tut && !this.solo) {
+      const got = [];
+      if (Boosts.take('reroll')) { this.rerolls += 2; got.push('+2 REROLLS'); }
+      if (Boosts.take('head')) { this.weapons[0].level = Math.max(this.weapons[0].level, 2); got.push('HEAD START'); }
+      if (Boosts.take('cards')) { this.boost = { cards: 1 }; got.push('FOUR CARDS'); }
+      if (got.length) { this.boost = this.boost || {}; this.boost.names = got; Save.save(); }
+    }
     this.recomputeStats();
     this.player.hp = this.player.maxHp;
     Cam.reset(0, 0);
@@ -26445,6 +27037,7 @@ const Game = {
     this.banner(D.endless ? 'DESCEND' : 'SURVIVE', D.color);
     if (this.planet) this.banner(this.planet.name, this.planet.col);
     else this.banner(D.name + ' \u00b7 ' + D.tag, D.color);
+    if (this.boost && this.boost.names) this.banner('BOOSTS \u00b7 ' + this.boost.names.join(' \u00b7 '), '#8dff6b');
   },
   // the local version of a garden enemy: in THE THICKET a drifter is a thornling
   fz(id) { const f = this.fauna; return ENEMY[(f && f[id]) || id] || ENEMY[id]; },
@@ -26487,7 +27080,7 @@ const Game = {
     // ---- the pet's perk: one small thing, in every mode --------------------
     { const P = petPerk();
       if (P) {
-        const v = P.v;
+        const v = P.v * petLvMul();
         if (P.k === 'magnet') S.magnet *= 1 + v;
         else if (P.k === 'dmg') S.dmgMul *= 1 + v;
         else if (P.k === 'regen') S.regen += v;
@@ -26697,6 +27290,7 @@ const Game = {
     if (!o.silent && rand() < S.crit) { crit = true; dmg *= S.critMul; }
     if (this.cov('bloomsight') && e.boss) dmg *= 1.4;
     if (e.shield > this.time) dmg *= 0.55;
+    if (e.exposedT > this.time) dmg *= WARD.exposedMul;
     if (e.shielded > 0) dmg *= 0.12;
     else if (e.def.bossKind === 'maw' && e.inhaling > 0) dmg *= 1.4;
     if (e.def.mega || e.def.megaPart) dmg *= MEGA.dmgMul(e);
@@ -26709,6 +27303,16 @@ const Game = {
     const TKh = e.boss && Thicket.boss[e.kindOverride || e.def.bossKind];
     if (TKh && TKh.hurt) { dmg = TKh.hurt(e, dmg, o); if (dmg <= 0) { e.hurt = 1; return; } }
     dmg = Math.max(1, dmg);
+    // SHIELDED: the ward takes it first; no knockback reaches a warded body
+    if (e.ward > 0) {
+      const wk = o.wkey || this._wk, wm = (wk && WARD_BREAK[wk]) || 1;
+      const k = Math.min(e.ward, dmg * wm);
+      e.ward -= k; dmg -= k / wm; e.wardHit = 1;
+      if (!o.silent && Pops.live.length < 40 && (k >= 8 || rand() < 0.3)) Pops.add(e.x + rnd(-6, 6), e.y - e.r * 0.7, String(Math.round(k)) + (wm > 1 ? '!' : ''), { col: wm > 1 ? WARD.hot : WARD.col, size: wm > 1 ? 15 : 13 });
+      if (e.ward <= 0) this.wardBreak(e);
+      else if (!o.silent && rand() < 0.5) Sound.hit(rand());
+      if (dmg <= 0.5) { e.hurt = Math.max(e.hurt, 0.4); return; }
+    }
     let held = false;
     if (e.forms && e.phT0 !== undefined) {
       const tp = this.time - e.phT0;
@@ -26860,6 +27464,10 @@ const Game = {
   },
 
   killEnemy(e, col) {
+    if (e.def && e.def.ai === 'wardkeeper' && !e.kinFreed) {
+      e.kinFreed = 1;
+      for (const o of this.enemies) if (o !== e && !o.dead && o.wardBy === e && o.ward > 0) this.wardBreak(o);
+    }
     // the first two bodies of the HOLLOW HARVEST do not die: they are shielded
     if (e.hw && (e.hwStage | 0) < 2 && !e.dead) { e.hp = 1; if (!e.hwShield) Hollow.stageDown(e); return; }
     // THE SOWER does not die three times; it stands back up, smaller
@@ -26928,6 +27536,7 @@ const Game = {
       Particles.shard(e.x, e.y, rnd(TAU), rnd(40, 220), { col: def.col, r: rnd(3, 4 + def.r * 0.25), sides: 3 });
     }
     Particles.ring(e.x, e.y, e.r * 0.6, e.r * (e.boss ? 8 : 3.4), { col: def.col, life: e.boss ? 0.9 : 0.36, w: e.boss ? 10 : 3 });
+    KillFX.play(e);
 
     if (e.boss && this.coop) {
       // the vault settles its own bosses (Coop.megaDown)
@@ -27067,7 +27676,17 @@ const Game = {
     if (this.ebullets.length > (this.coop ? 400 : 520)) this.ebullets.shift();
     const m = this.bulletMul();
     const dm = dmg * (1 + (this.D.bulletDmg - 1) * 0.5);
-    this.ebullets.push(new EBullet(x, y, vx * m, vy * m, dm, col, o));
+    const B = new EBullet(x, y, vx * m, vy * m, dm, col, o);
+    if (!B.pierce && !this.coop && !B.bead && !B.bola && !B.expire) {
+      const sh = this._shooter;
+      if ((sh && sh.ward > 0) || rand() < this.pierceRate(!!bc)) B.pierce = 1;
+    }
+    if (B.pierce && (!this.runStats || !this.runStats.pierceSeen)) {
+      if (this.runStats) this.runStats.pierceSeen = 1;
+      const sd = Save.data;
+      if (sd && !sd.seenPierce) { sd.seenPierce = 1; Save.save(); this.callout('PIERCING · SHIELDS WON’T STOP IT', '#ffffff'); }
+    }
+    this.ebullets.push(B);
   },
 
   screenClear() {
@@ -27081,7 +27700,10 @@ const Game = {
         this.hitEnemy(e, e.boss ? 900 : (e.elite ? 700 : e.hp), { col: '#ffd166', silent: true });
       }
     }
-    this.ebullets.length = 0;
+    // piercing bolts ride it out
+    let j = 0;
+    for (let i = 0; i < this.ebullets.length; i++) { const b = this.ebullets[i]; if (b.pierce && !b.dead) this.ebullets[j++] = b; }
+    this.ebullets.length = j;
   },
 
   /* every boss death, weighed for the achievements that care */
@@ -27870,7 +28492,7 @@ const Game = {
       pool.push({ kind: 'pass', id: def.id, name: def.name, color: def.color, desc: def.blurb, tag: 'NEW', weight: 7, pair: def.id });
     }
     // weighted pick without repeats
-    const NCARD = this.D.cards || 3;
+    const NCARD = (this.D.cards || 3) + (this.boost && this.boost.cards ? 1 : 0);
     while (cards.length < NCARD && pool.length) {
       let tot = 0; for (const c of pool) tot += c.weight;
       let r = rand() * tot, idx = 0;
@@ -27954,16 +28576,72 @@ const Game = {
   },
   bossHpMul(def, fin) {
     // endless has its own compounding tide, and the old difficulty scale
-    if (this.endless) return this.D.bossHp;
+    if (this.endless) return this.D.bossHp * (1 + (this.hordeMul() - 1) * HORDE.boss);
     const d = BOSS_HP_DIFF[this.D.id] || this.D.bossHp;
     // a finale is sized to ~72k at level 12: a long fight, whatever its base
     const f = fin ? clamp(72000 / def.hp, 1.15, 2.2) : 1;
-    return this.bossLevelMul() * d * f;
+    return this.bossLevelMul() * d * f * (1 + (this.hordeMul() - 1) * HORDE.boss);
+  },
+  /* how much the build out-guns the horde: 0 .. HORDE.cap */
+  hordePower() {
+    if (this.coop || !this.weapons) return 0;
+    let k = 0;
+    for (const w of this.weapons) {
+      if (w.evolved) k += HORDE.evo[w.id] !== undefined ? HORDE.evo[w.id] : HORDE.evoBase;
+      else k += (HORDE.raw[w.id] || 0) + ((w.level | 0) >= 5 ? HORDE.maxLv : 0);
+    }
+    // EASY stays gentle: half the answer
+    return Math.min(HORDE.cap, k) * (this.D.id === 'easy' ? 0.5 : 1);
+  },
+  /* the toughness it buys the horde, eased in by game time (a new run resets it) */
+  hordeMul() {
+    const tgt = 1 + this.hordePower(), t = this.time || 0;
+    if (this._hkT === undefined || t < this._hkT || this._hk === undefined) this._hk = tgt;
+    else this._hk += (tgt - this._hk) * (1 - Math.exp(-(t - this._hkT) / 12));
+    this._hkT = t;
+    return this._hk;
+  },
+  /* the share of the rank and file that arrive shielded */
+  wardRate() {
+    if (this.coop || this.tutorial) return 0;
+    const t = this.time, dk = { easy: 0.4, medium: 1, hard: 1.3, impossible: 1.6, hardcore: 1.4, endless: 1.2, daily: 1.4 }[this.D.id] || 1;
+    let r = clamp((t - 60) / 540, 0, 1) * 0.1 * dk + this.hordePower() * 0.08;
+    if (this.endless) r += (this.tide || 0) * 0.004;
+    return Math.min(0.24, r);
+  },
+  maybeWard(e) {
+    if (!e || e.boss || e.elite || e.isMoon || e.def.mega || e.def.megaPart || e.def.noWard || e.def.id === 'swarmer' || e.def.latch) return;
+    if (rand() >= this.wardRate()) return;
+    e.ward = e.wardMax = Math.round(e.maxHp * WARD.hp + WARD.flat);
+    if (!e.armed && !e.def.fireCd && !e.def.noGun && rand() < WARD.armed) { e.armed = true; e.gunT = rnd(1.2, 2.6); }
+    if (!this.runStats || !this.runStats.wardSeen) {
+      if (this.runStats) this.runStats.wardSeen = 1;
+      const sd = Save.data;
+      if (sd && !sd.seenWard) { sd.seenWard = 1; Save.save(); this.banner('SHIELDED FOES · BREAK THE WARD', WARD.col); }
+    }
+  },
+  wardBreak(e) {
+    e.ward = 0; e.exposedT = this.time + WARD.exposed;
+    const R = e.r * (e.scale || 1) + 17;
+    Particles.ring(e.x, e.y, R * 0.6, R + 46, { col: WARD.col, life: 0.4, w: 4 });
+    for (let i = 0; i < 9; i++) Particles.shard(e.x + rnd(-R, R) * 0.5, e.y + rnd(-R, R) * 0.5, rnd(TAU), rnd(120, 300), { col: i % 3 ? WARD.col : WARD.alt, r: rnd(3, 5.5), sides: 6 });
+    if (Pops.live.length < 46) Pops.add(e.x, e.y - e.r - 10, 'BROKEN', { col: WARD.hot, size: 13, vy: -90 });
+    Sound.hit(0.9); Cam.shake(0.06);
+  },
+  /* the chance a given enemy bolt pierces */
+  pierceRate(boss) {
+    if (this.coop || this.tutorial) return 0;
+    const b = PIERCE.base[this.D.id];
+    if (!b && !this.hordePower()) return 0;
+    let r = (b || 0) * clamp(this.time / PIERCE.ramp, 0, 1) + this.hordePower() * PIERCE.power * (this.D.id === 'easy' ? 0.3 : 1);
+    if (this.endless) r += (this.tide || 0) * PIERCE.tide;
+    if (boss) r *= PIERCE.boss;
+    return Math.min(PIERCE.cap, r);
   },
   hpMul() {
     if (this.coop) return Coop.hpMul();
     const t = this.time;
-    let m = (1 + Math.pow(t / 60, 1.33) * 0.38) * this.D.hp;
+    let m = (1 + Math.pow(t / 60, 1.33) * 0.38) * this.D.hp * this.hordeMul();
     if (this.planet) m *= THREAT_HP[this.planet.threat] || 1;
     if (this.rel('buoyancy')) m *= 1.05;
     if (this.endless) m *= Math.pow(1 + TIDE.hp, this.tide);
@@ -28062,6 +28740,7 @@ const Game = {
     if (!force && this.enemies.length >= this.enemyCap) return null;
     const pos = this.spawnPos();
     const e = new Enemy(def || this.pickType(), pos.x, pos.y, this.hpMul(), this.dmgScale);
+    if (!this.coop) this.maybeWard(e);
     this.enemies.push(e);
     return e;
   },
@@ -28292,6 +28971,7 @@ const Game = {
     this.relicTick(dt);
     Weapons.update(dt);
     Weapons.updateFx(dt);
+    this._wk = null;
 
     // enemies
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -28320,7 +29000,7 @@ const Game = {
         if (e.def.latch && Thicket.latch(e)) break;
         Thicket.touched(e);
         const bossy = e.boss || e.isDecoy;
-        p.damage(e.dmg, (bossy || e.bossAdd) ? HIT.bossContact : HIT.contact);
+        p.damage(e.dmg * (e.ward > 0 ? WARD.dmg : 1), (bossy || e.bossAdd) ? HIT.bossContact : HIT.contact);
         if (this.cov('thorn')) this.hitEnemy(e, 900 * (this.stats.dmgMul || 1), { silent: true, col: '#ff5470' });
         const a = Math.atan2(e.y - p.y, e.x - p.x);
         e.kx += Math.cos(a) * 260; e.ky += Math.sin(a) * 260;
@@ -28342,6 +29022,7 @@ const Game = {
       if (!s) continue;
       s.update(dt);
       if (!s.dead && Thicket.shot(s)) s.dead = true;
+      this._wk = s.wkey || null;
       if (!s.dead) {
         const list = this.queryEnemies(s.x, s.y, s.r + 34);
         for (let j = 0; j < list.length; j++) {
@@ -28395,6 +29076,7 @@ const Game = {
         this.shots.splice(i, 1);
       }
     }
+    this._wk = null;
     // enemy bullets
     for (let i = this.ebullets.length - 1; i >= 0; i--) {
       const b = this.ebullets[i];
@@ -28403,7 +29085,8 @@ const Game = {
       if (b.dead) this.ebullets.splice(i, 1);
     }
     // gadgets (pylons, mines, wells, chains)
-    for (let i = this.gadgets.length - 1; i >= 0; i--) { const o = this.gadgets[i]; if (!o) continue; o.update(dt); if (o.dead) this.gadgets.splice(i, 1); }
+    for (let i = this.gadgets.length - 1; i >= 0; i--) { const o = this.gadgets[i]; if (!o) continue; this._wk = o.wk || null; o.update(dt); if (o.dead) this.gadgets.splice(i, 1); }
+    this._wk = null;
     // pools & pickups & fx
     for (let i = this.pools.length - 1; i >= 0; i--) { const o = this.pools[i]; if (!o) continue; o.update(dt); if (o.dead) this.pools.splice(i, 1); }
     for (let i = this.pickups.length - 1; i >= 0; i--) { const o = this.pickups[i]; if (!o) continue; o.update(dt); if (o.dead) this.pickups.splice(i, 1); }
@@ -32513,7 +33196,7 @@ const Pass = {
    pass track plus ~40-95 from pilot milestones, so an exclusive skin
    (300-400) is about two seasons. The premium track adds another 120.
    ======================================================================== */
-const VB_SKIN_IDS = ['tesseract', 'jadedragon', 'phoenix'];
+const VB_SKIN_IDS = ['tesseract', 'jadedragon', 'phoenix', 'elharbinger', 'elsentinel', 'elcarver', 'elwardkeeper'];
 
 const Vbux = {
   get() { return Save.data.vbux | 0; },
@@ -33116,7 +33799,8 @@ const STD = {
    cached sprite; only the sheen and the flicker are drawn live. */
 const TIX = {
   std: { name: 'STANDARD TICKET', rim: '#ffd166', hi: '#fff3b0', lo: '#ff9a3c', deep: '#3a1c04', glow: '#ffb347' },
-  evt: { name: 'EVENT TICKET',    rim: '#ff9a3c', hi: '#c79bff', lo: '#4a1c8a', deep: '#10061e', glow: '#ff9a3c' }
+  evt: { name: 'EVENT TICKET',    rim: '#ff9a3c', hi: '#c79bff', lo: '#4a1c8a', deep: '#10061e', glow: '#ff9a3c' },
+  rare: { name: 'RARE TICKET',    rim: '#e0c8ff', hi: '#9ef7ff', lo: '#8a4cff', deep: '#12062a', glow: '#b48cff' }
 };
 const TIX_W = 132, TIX_H = 84;
 function tixPath(g, w, h) {
@@ -33155,6 +33839,7 @@ function tixBase(tk) {
     // the picture, on the plate
     const px = W * 0.1, py = 1;
     if (tk === 'evt') tixPumpkin(g, px, py, H * 0.3);
+    else if (tk === 'rare') tixGem(g, px, py, H * 0.34);
     else tixStar(g, px, py, H * 0.34);
   });
 }
@@ -33167,6 +33852,23 @@ function tixStar(g, x, y, R) {
   g.fillStyle = f; g.beginPath(); pathStar(g, 5, R, R * 0.46, -Math.PI / 2); g.fill();
   g.strokeStyle = '#7a3a06'; g.lineWidth = 1.4; g.lineJoin = 'round'; g.stroke();
   g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(-R * 0.18, -R * 0.2, R * 0.12, 0, TAU); g.fill();
+  g.restore();
+}
+/* the rare ticket's picture: a cut gem, violet into cyan, with a glint */
+function tixGem(g, x, y, R) {
+  g.save(); g.translate(x, y);
+  const P = [[0, -1], [0.78, -0.42], [0.62, 0.3], [0, 1.05], [-0.62, 0.3], [-0.78, -0.42]];
+  g.shadowColor = '#8a4cff'; g.shadowBlur = 9;
+  g.fillStyle = '#16062e'; g.beginPath(); P.forEach(([a, b], i) => i ? g.lineTo(a * R * 1.14, b * R * 1.14) : g.moveTo(a * R * 1.14, b * R * 1.14)); g.closePath(); g.fill();
+  g.shadowBlur = 0;
+  const f = g.createLinearGradient(-R, -R, R, R); f.addColorStop(0, '#ffffff'); f.addColorStop(0.35, '#c9a3ff'); f.addColorStop(0.7, '#7e8cff'); f.addColorStop(1, '#9ef7ff');
+  g.fillStyle = f; g.beginPath(); P.forEach(([a, b], i) => i ? g.lineTo(a * R, b * R) : g.moveTo(a * R, b * R)); g.closePath(); g.fill();
+  g.strokeStyle = '#2a0e5a'; g.lineWidth = 1.3; g.lineJoin = 'round'; g.stroke();
+  // the facets: the crown's table and the lines down to the point
+  g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(-R * 0.78, -R * 0.42); g.lineTo(-R * 0.3, -R * 0.42); g.lineTo(0, -R); g.moveTo(R * 0.78, -R * 0.42); g.lineTo(R * 0.3, -R * 0.42); g.lineTo(0, -R);
+  g.moveTo(-R * 0.3, -R * 0.42); g.lineTo(R * 0.3, -R * 0.42); g.moveTo(-R * 0.3, -R * 0.42); g.lineTo(0, R * 1.05); g.lineTo(R * 0.3, -R * 0.42); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(-R * 0.34, -R * 0.62, R * 0.1, 0, TAU); g.fill();
   g.restore();
 }
 function tixPumpkin(g, x, y, R) {
@@ -33247,8 +33949,14 @@ const TIX_OPEN = 1.9;
    pumpkin); 24 views of it turning are splatted once into small sprites with a z-buffer and lit like a planet
    (lamp upper left, a specular, a warm rim). A frame is two stamps' worth of work at play time. The bake is spread
    over the first frames of the opening, 2 views a call. */
-const TIX_NF = 24, TIX_SZ = 192, TIX_SPIN = { std: [], evt: [] };
+const TIX_NF = 24, TIX_SZ = 192, TIX_SPIN = { std: [], evt: [], rare: [] };
 function tixObject(tk) {
+  // the rare ticket's coin is the star, cut in violet and ice
+  if (tk === 'rare') {
+    const P = tixObject('std');
+    for (const p of P) { const L = (p.r + p.g + p.b) / 765; p.r = 120 + 130 * L; p.g = 80 + 170 * L; p.b = 230 + 25 * L; }
+    return P;
+  }
   const N = 64, H = new Float32Array((N * 2 + 1) * (N * 2 + 1)), W = N * 2 + 1;
   const pts = [];
   if (tk === 'std') {
@@ -33618,6 +34326,152 @@ const Standard = {
     if (what === 'vbux') Vbux.add(STD.DUPE_VB); else d.shards = (d.shards || 0) + STD.DUPE_SHARDS;
     d.stdPend = null; Save.save();
     return true;
+  }
+};
+
+/* ========================================================================
+   RUN BOOSTS  --  shards for a better start to ONE run. Bought ahead and
+   held (up to nine of each); the next run you start uses one of each you
+   hold. Never in the Daily (everyone starts equal there), co-op, the
+   tutorial, the HOLLOW HARVEST or a boss rush.
+   ======================================================================== */
+const BOOSTS = [
+  { id: 'reroll', name: '+2 REROLLS', price: 500, col: '#7ee8ff', blurb: 'Two more rerolls on the level-up cards, for one run.' },
+  { id: 'head',   name: 'HEAD START', price: 900, col: '#8dff6b', blurb: 'Your first weapon starts at LEVEL 2, for one run.' },
+  { id: 'cards',  name: 'FOUR CARDS', price: 1400, col: '#ffd166', blurb: 'Every level-up offers one more card, for one run.' }
+];
+const BOOST_MAX = 9;
+const Boosts = {
+  held(id) { const B = Save.data.boosts; return B ? B[id] | 0 : 0; },
+  add(id) { const d = Save.data; if (!d.boosts || typeof d.boosts !== 'object') d.boosts = {}; d.boosts[id] = Math.min(BOOST_MAX, (d.boosts[id] | 0) + 1); },
+  take(id) { const d = Save.data; if (!d.boosts || !(d.boosts[id] > 0)) return false; d.boosts[id]--; return true; }
+};
+/* ========================================================================
+   STYLE  --  shards for how your kills and your shots look. Cosmetic only.
+   Kill effects play over the usual death burst (six a frame at most, so a
+   wave clear stays cheap); a shot palette recolours every weapon you fire
+   (never red or orange: those are the enemies' colours).
+   ======================================================================== */
+const KILL_FX = [
+  { id: 'shatter',   name: 'SHATTER',   price: 2500, col: '#9ef7ff', blurb: 'Kills burst into hexagonal glass: a little for the rank and file, more for an elite, a storm of it for a boss.' },
+  { id: 'bloom',     name: 'BLOOM',     price: 4000, col: '#ff8fd8', blurb: 'Kills open into a ring of petals: small for the rank and file, wide for an elite, a whole bloom for a boss.' },
+  { id: 'glitch',    name: 'GLITCH',    price: 6000, col: '#63ffc9', blurb: 'Kills tear into pixels split cyan and magenta: a flicker, a tear, then a boss coming apart.' },
+  { id: 'starburst', name: 'STARBURST', price: 9000, col: '#fff3a3', blurb: 'Kills flash out in a four-point star: a glint, a flare, then a boss going supernova.' }
+];
+const SHOT_PALS = [
+  { id: 'ice',     name: 'ICE',     price: 3000, col: '#9ef7ff', cols: ['#9ef7ff', '#c8f4ff', '#7ee8ff', '#e8fbff'], evo: ['#ffffff', '#bff6ff'], blurb: 'Every shot you fire in pale ice blues.' },
+  { id: 'gold',    name: 'GOLD',    price: 5000, col: '#ffe27a', cols: ['#fff3a3', '#ffe27a', '#fffbe0', '#f6e08a'], evo: ['#ffffff', '#fff3a3'], blurb: 'Every shot you fire in pale gold.' },
+  { id: 'verdant', name: 'VERDANT', price: 5000, col: '#8dff6b', cols: ['#8dff6b', '#63ffc9', '#b8ff9a', '#3ef0a0'], evo: ['#eaffe0', '#9effd0'], blurb: 'Every shot you fire in living greens.' },
+  { id: 'void',    name: 'VOID',    price: 8000, col: '#c9a3ff', cols: ['#c9a3ff', '#a56bff', '#e0c8ff', '#8a7bff'], evo: ['#f2e8ff', '#d6b8ff'], blurb: 'Every shot you fire in deep violets.' }
+];
+const Style = {
+  owns(id) { return (Save.data.styles || []).indexOf(id) >= 0; },
+  key(st) { return st === 'kfx' ? 'killFx' : 'shotPal'; },
+  on(st, id) { return Save.data[this.key(st)] === id; },
+  give(st, id) { const d = Save.data; if (!Array.isArray(d.styles)) d.styles = []; if (d.styles.indexOf(id) < 0) d.styles.push(id); d[this.key(st)] = id; _palCache = null; },
+  toggle(st, id) { const d = Save.data, k = this.key(st); d[k] = d[k] === id ? null : id; _palCache = null; Save.save(); }
+};
+let _palCache = null;
+function shotPal() {
+  if (_palCache && _palCache.id === (Save.data.shotPal || null)) return _palCache.p;
+  const id = Save.data.shotPal || null, p = id ? SHOT_PALS.find(o => o.id === id && Style.owns(o.id)) || null : null;
+  _palCache = { id: id, p: p };
+  return p;
+}
+const KillFX = {
+  /* subtle for the rank and file, bigger for an elite, a finale for a boss.
+     The small ones have a budget: four a frame, none on LOW quality, none
+     while the particle pool is past 60% (a wave clear on a phone stays smooth). */
+  play(e) {
+    const id = Save.data.killFx;
+    if (!id || !Style.owns(id)) return;
+    const tier = e.boss ? 3 : (e.elite ? 2 : 1);
+    if (tier === 1) {
+      if (G._kfxF !== G.frame) { G._kfxF = G.frame; G._kfxN = 0; }
+      if (++G._kfxN > 4) return;
+      if (G.quality === 0 || Particles.live.length > Particles.max * 0.6) return;
+    }
+    const x = e.x, y = e.y, r = Math.min(e.r, tier === 3 ? 80 : 50);
+    const k = tier === 1 ? 1 : (tier === 2 ? 2 : 3.6), n = tier === 1 ? 3 : (tier === 2 ? 8 : (G.quality === 0 ? 12 : 20));
+    const sp = Math.sqrt(k);
+    if (id === 'shatter') {
+      for (let i = 0; i < n; i++) Particles.shard(x, y, rnd(TAU), rnd(70, 200) * sp, { col: i % 2 ? '#ffffff' : '#9ef7ff', r: rnd(2.5, 4.5) * (tier === 1 ? 0.8 : 1.2), sides: 6 });
+      Particles.ring(x, y, r * 0.4, r * 1.8 * sp, { col: '#dffbff', life: 0.25 + 0.1 * tier, w: 1.5 * tier });
+    } else if (id === 'bloom') {
+      const a0 = rnd(TAU), m = tier === 1 ? 5 : n;
+      for (let i = 0; i < m; i++) Particles.spark(x, y, a0 + i / m * TAU, 90 * sp + 30, { col: i % 2 ? '#ff8fd8' : '#ffd1f0', life: 0.3 + 0.12 * tier, w: 1.6 + tier, len: 0.7 });
+      Particles.ring(x, y, r * 0.3, r * 1.7 * sp, { col: '#ff8fd8', life: 0.3 + 0.1 * tier, w: 1.5 * tier });
+    } else if (id === 'glitch') {
+      for (let i = 0; i < n; i++) Particles.shard(x + rnd(-r, r) * 0.6, y + rnd(-r, r) * 0.6, i % 2 ? 0 : Math.PI, rnd(30, 140) * sp, { col: i % 2 ? '#63ffc9' : '#ff4fd8', r: rnd(2, 3.5) * (tier === 1 ? 0.9 : 1.3), sides: 4 });
+      const o = 2 * tier;
+      Particles.ring(x - o, y, r * 0.5, r * 1.9 * sp, { col: '#63ffc9', life: 0.18 + 0.06 * tier, w: 1.2 * tier });
+      Particles.ring(x + o, y, r * 0.5, r * 1.9 * sp, { col: '#ff4fd8', life: 0.18 + 0.06 * tier, w: 1.2 * tier });
+    } else if (id === 'starburst') {
+      const a0 = rnd(TAU);
+      for (let i = 0; i < 4; i++) Particles.spark(x, y, a0 + i * Math.PI / 2, 260 * sp, { col: '#fff3a3', life: 0.2 + 0.06 * tier, w: 1.6 + tier * 0.7, len: 1.4 * sp });
+      if (tier > 1) for (let i = 0; i < 4; i++) Particles.spark(x, y, a0 + Math.PI / 4 + i * Math.PI / 2, 150 * sp, { col: '#ffffff', life: 0.2, w: 1.8, len: 1.4 });
+      Particles.ring(x, y, r * 0.3, r * 2 * sp, { col: '#ffd166', life: 0.25 + 0.08 * tier, w: 1.6 * tier });
+    }
+    // a boss goes out with the whole thing: three rings rolling out, and a flash
+    if (tier === 3) {
+      const col = (KILL_FX.find(o => o.id === id) || {}).col || '#ffffff';
+      Particles.ring(x, y, r, r * 5, { col: col, life: 0.7, w: 8 });
+      Particles.ring(x, y, r * 0.6, r * 3.6, { col: '#ffffff', life: 0.5, w: 4 });
+      Particles.ring(x, y, r * 1.4, r * 7, { col: col, life: 1.0, w: 3 });
+      Flash.hit(col, 0.22); Cam.shake(0.25);
+    }
+  }
+};
+/* ========================================================================
+   THE RARE ROLL  --  one RARE TICKET, one skin VARIANT: an EPIC (the skin
+   in a colourway of its own, with a richer glow) or, rarely, a CHROMA (the
+   skin running through every colour there is, with rainbow stars and a
+   rainbow trail). Every shard skin and every exclusive skin has one of
+   each; you do not need to own the skin to win its variant.
+     RARE TICKETS: 100 voidbux each, no limit; or 15,000 shards, one a day.
+     A CHROMA at least every RARE.PITY rolls. A duplicate pays shards.
+   ======================================================================== */
+const RARE = { P_CHROMA: 15, PITY: 10, BUY_VB: 100, BUY_SH: 15000, BUY_DAY: 1, DUPE: { epic: 4000, chroma: 10000 } };
+const Rare = {
+  n() { return Save.data.rareTix | 0; },
+  pity() { return Save.data.rarePity | 0; },
+  buyLeft() { const r = Save.data.rareBuy; return r && r.day === dailyKey() ? Math.max(0, RARE.BUY_DAY - (r.n | 0)) : RARE.BUY_DAY; },
+  /* the shop has already taken the price */
+  bought(cur) {
+    const d = Save.data;
+    if (cur === 'shards') { if (!d.rareBuy || d.rareBuy.day !== dailyKey()) d.rareBuy = { day: dailyKey(), n: 0 }; d.rareBuy.n++; }
+    d.rareTix = this.n() + 1;
+  },
+  buy(cur) {
+    const d = Save.data;
+    if (cur === 'shards') {
+      if (this.buyLeft() <= 0) return { ok: false, why: 'limit' };
+      if ((d.shards || 0) < RARE.BUY_SH) return { ok: false, why: 'shards' };
+      d.shards -= RARE.BUY_SH;
+    } else if (!Vbux.spend(RARE.BUY_VB)) return { ok: false, why: 'vbux' };
+    this.bought(cur); Save.save();
+    return { ok: true };
+  },
+  roll() {
+    const d = Save.data;
+    if (this.n() < 1) return { ok: false, why: 'none' };
+    d.rareTix = this.n() - 1;
+    const p = this.pity() + 1, chroma = p >= RARE.PITY || Math.random() * 100 < RARE.P_CHROMA;
+    d.rarePity = chroma ? 0 : p;
+    const pool = SKINS.filter(sk => sk.variant === (chroma ? 'chroma' : 'epic'));
+    const sk = pool[Math.floor(Math.random() * pool.length)];
+    let line, lcol;
+    if (skinOwned(sk.id)) {
+      const n = RARE.DUPE[sk.variant];
+      d.shards = (d.shards || 0) + n;
+      line = 'ALREADY YOURS  ·  +' + fmtNum(n) + ' SHARDS'; lcol = '#c9a3ff';
+    } else {
+      if (!Array.isArray(d.owned)) d.owned = ['seed'];
+      d.owned.push(sk.id);
+      line = chroma ? 'CHROMA  ·  NEW SKIN' : 'EPIC VARIANT  ·  NEW SKIN'; lcol = chroma ? '#ff7ae6' : '#8dff6b';
+    }
+    Save.save(); Ach.sweepMeta();
+    return { ok: true, type: 'cos', k: 'skin', id: sk.id, dupe: false, col: chroma ? '#ff7ae6' : '#c9a3ff', tk: 'rare', head: chroma ? 'C H R O M A !' : 'RARE ROLL', line: line, lcol: lcol };
   }
 };
 
@@ -34860,7 +35714,7 @@ const UI = {
     return st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' ||
            st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' ||
            st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' ||
-           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'gifts' || st === 'freevb' || st === 'rush';
+           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'rare' || st === 'hollow' || st === 'gifts' || st === 'freevb' || st === 'rush';
   },
   /* true while an online screen owns the keyboard for typing */
   typing() {
@@ -35205,6 +36059,11 @@ const UI = {
     }
     this.barTile(c, 'xpbar', pad, pad + bh + 7 * hs, hw, xh, G.xp / G.xpNeed, PAL.xp);
     const dnW = tracked(c, G.D.name, pad, pad + bh + 7 * hs + xh + 16 * hs, { size: 11 * hs, weight: 800, align: 'left', color: G.D.color, alpha: 0.78, track: 3 });
+    // THE HORDE HARDENS: how much tougher your build has made them
+    if (!G.coop) {
+      const hk = Math.round((G.hordeMul() - 1) * 100);
+      if (hk >= 3) tracked(c, 'HORDE +' + hk + '%', pad, pad + bh + 7 * hs + xh + 31 * hs, { size: 9.5 * hs, weight: 800, align: 'left', color: '#ff7a9c', alpha: 0.72 + 0.12 * Math.sin(G.uiT * 3), track: 2.5 });
+    }
     if (G.planet) {
       // right under the end of the XP bar; on a phone, straight after the
       // difficulty, clear of the clock
@@ -37485,7 +38344,8 @@ const UI = {
     const w = Math.min(940, VW - 32);
     const ownsIt = id => (d.owned || []).indexOf(id) >= 0;
     const SHOP = SKINS.filter(s => s.price >= 0 && (!s.secret || ownsIt(s.id)));
-    const MAST = SKINS.filter(s => s.price < 0 && !s.pass && !s.exclusive && !s.event && !s.cryptic && (!s.secret || ownsIt(s.id)));
+    const MAST = SKINS.filter(s => s.price < 0 && !s.pass && !s.exclusive && !s.event && !s.cryptic && !s.variant && (!s.secret || ownsIt(s.id)));
+    const VARW = SKINS.filter(s => s.variant && ownsIt(s.id));
     // October's skins all show while the harvest is on (the ones not won yet say where they come from); after it, the ones you won
     const hwOn = Hollow.on();
     const EVTW = SKINS.filter(s => s.event && (ownsIt(s.id) || (hwOn && s.event === 'halloween')));
@@ -37495,7 +38355,7 @@ const UI = {
     const PASSW = SKINS.filter(s => s.pass && ownsIt(s.id));
     // the voidbux skins always show: locked, they point at the shop
     const EXCL = SKINS.filter(s => s.exclusive);
-    const WALLS = [SHOP, MAST].concat(PASSW.length ? [PASSW] : []).concat(EVTW.length ? [EVTW] : []).concat([EXCL]).concat(SECW.length ? [SECW] : []);
+    const WALLS = [SHOP, MAST].concat(PASSW.length ? [PASSW] : []).concat(EVTW.length ? [EVTW] : []).concat([EXCL]).concat(VARW.length ? [VARW] : []).concat(SECW.length ? [SECW] : []);
     // how many tiles there actually are -- a hidden secret skin is in
     // SKINS but not in any wall, so NSK overruns the grid
     const NSK = WALLS.reduce((a, W) => a + W.length, 0);
@@ -37640,6 +38500,7 @@ const UI = {
       else if (W === PASSW) lbl('BLOOM PASS', wy[k] - 8, '#ffd166', 'season rewards');
       else if (W === EVTW) lbl('EVENT', wy[k] - 8, '#ff9a3c', hwOn ? 'the harvest: its banner, two feats' : 'won in events');
       else if (W === SECW) lbl('SECRETS', wy[k] - 8, '#9ef7ff', 'found, never told');
+      else if (W === VARW) lbl('VARIANTS', wy[k] - 8, '#c9a3ff', 'epic and chroma, from the rare roll');
       else lbl('EXCLUSIVE', wy[k] - 8, '#ff4fd8', 'voidbux, in the shop');
     }
 
@@ -38002,7 +38863,7 @@ const UI = {
       ['GROW', 'Green motes level you up. Pick a boon from the draft.'],
       ['EVOLVE', 'Max a weapon (LV 5), then reach LV 3 on its paired passive'],
       ['', 'to unlock its evolved form. Every card shows its pair.'],
-      ['ELITES', 'Wardens, Harbingers, Sentinels and Carvers arrive on a timer'],
+      ['ELITES', 'Wardens, Harbingers, Sentinels, Wardkeepers, Carvers come on a timer'],
       ['', 'and each one drops a relic cache.'],
       ['GAUNTLET', 'Four bosses before the finale, drawn at random from eight,'],
       ['', 'at 2:45, 4:45, 6:45 and 8:45. Each drops two caches.'],
@@ -38337,8 +39198,9 @@ const UI = {
   },
   // a skin, at any size; the animated ones keep animating
   passSkin(c, sk, x, y, pr, rot, t, alpha) {
-    const key = 'passkin_' + sk.id + '_' + Math.round(pr) + (sk.anim ? '_a' + (Math.floor(t * 10) % 40) : '') + (sk.oil ? '_o' + (Math.floor(t * 6) % 48) : '');
-    const spr = sprite(key, pr * 5, pr * 5, cc => paintSkin(cc, sk, pr, sk.anim || sk.oil ? t : 0));
+    const key = 'passkin_' + sk.id + '_' + Math.round(pr) + (sk.anim ? '_a' + (Math.floor(t * 10) % 40) : '') + (sk.oil ? '_o' + (Math.floor(t * 6) % 48) : '') + chromaKey(sk, t);
+    const spr0 = sprite(key, pr * 5, pr * 5, cc => paintSkin(cc, sk, pr, sk.anim || sk.oil ? t : 0, true));
+    const spr = sk.variant === 'chroma' ? chromaTint(spr0, t, 'pass' + Math.round(pr)) : spr0;
     c.save();
     if (alpha !== undefined) c.globalAlpha *= alpha;
     c.globalCompositeOperation = 'lighter';
@@ -41968,6 +42830,68 @@ Object.assign(UI, {
     const eTop = y + h + 34, eGap = clamp((VH - 20 - eTop) / Math.max(1, items.length - 1), 22, 36);
     this.menu(c, items, VW / 2, eTop, eGap, { size: Math.min(17, eGap * 0.48), w: 340, id: win ? 'win' : 'dead' });
   },
+  openRare() { this.stdRes = null; this.rareMsg = null; G.state = 'rare'; this.lastState = ''; },
+  rareBack() {
+    if (this.stdRes) return;
+    this.shopFocus = 'rare'; this.shopModal = null;
+    G.state = 'shop'; this.lastState = ''; Sound.ui(false);
+  },
+  rareDo() {
+    const r = Rare.roll();
+    if (!r.ok) { Sound.hurt(); this.rareMsg = { t: 'NO RARE TICKETS  \u00b7  BUY ONE BELOW', col: '#ff7a90', at: G.uiT }; return; }
+    this.rareMsg = null; r.at = G.uiT; r.burst = false; r.open = true; this.stdRes = r; Sound.ui(true);
+  },
+  rareBuy(cur) {
+    const r = Rare.buy(cur);
+    if (r.ok) { Sound.achieve(); this.rareMsg = { t: '+1 RARE TICKET', col: '#8dff6b', at: G.uiT }; return; }
+    Sound.hurt();
+    this.rareMsg = { t: r.why === 'limit' ? 'ONE SHARD TICKET A DAY  \u00b7  BACK TOMORROW' : (r.why === 'vbux' ? 'NOT ENOUGH VOIDBUX' : 'NOT ENOUGH SHARDS'), col: '#ff7a90', at: G.uiT };
+  },
+  rare(c) {
+    this.begin('rare');
+    const t = G.uiT, narrow = VW < 640, A = '#c9a3ff';
+    this.dim(c, 0.84);
+    tracked(c, 'RARE ROLL', VW / 2, 46, { size: Math.min(28, VW * 0.06), weight: 900, align: 'center', color: A, glow: A, blur: 18, track: 8 });
+    text(c, 'one rare ticket, one skin variant  \u00b7  you do not need to own the skin', VW / 2, 68, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
+    const tix = Rare.n();
+    if (narrow) tixCount(c, VW / 2, 92, 24, 'rare', tix, 'center');
+    else tixCount(c, VW - 20, 38, 34, 'rare', tix, 'right');
+    // the two outcomes, each with a skin turning in it
+    const rw = Math.min(560, VW - 36), rh = narrow ? 62 : 72, x0 = VW / 2 - rw / 2, y0 = narrow ? 112 : 100;
+    const V = k => SKINS.filter(s2 => s2.variant === k), ch = V('chroma'), ep = V('epic');
+    [{ n: 'EPIC', p: 100 - RARE.P_CHROMA, col: '#c9a3ff', d: 'a skin in a colourway of its own, with a richer glow', pool: ep },
+     { n: 'CHROMA', p: RARE.P_CHROMA, col: hueHex('#ff5f5f', (t * 90) % 360), d: 'every colour at once: rainbow stars, a rainbow trail', pool: ch }].forEach((o, i) => {
+      const y = y0 + i * (rh + 10);
+      glass(c, x0, y, rw, rh, 12, o.col, i === 1);
+      if (i === 1) hglow(c, o.col, x0 + rw / 2, y + rh / 2, rw * 0.5, 0.1 + 0.04 * Math.sin(t * 3));
+      const sk = o.pool[Math.floor(t / 1.6 + i * 7) % o.pool.length];
+      if (sk) this.passSkin(c, skinView(sk, 3), x0 + rh * 0.72, y + rh / 2, rh * 0.2, Math.sin(t) * 0.3, t);
+      tracked(c, o.n, x0 + rh * 1.55, y + rh / 2 - 2, { size: narrow ? 13 : 15, weight: 900, color: o.col, glow: o.col, blur: 8, track: 3 });
+      text(c, fitText(c, o.d, rw - rh * 1.55 - 90, 10.5, 600), x0 + rh * 1.55, y + rh / 2 + 15, { size: 10.5, weight: 600, color: PAL.dim });
+      tracked(c, o.p + '%', x0 + rw - 22, y + rh / 2 + 5, { size: narrow ? 13 : 15, weight: 900, align: 'right', color: '#ffffff', track: 2 });
+    });
+    const ny = y0 + 2 * (rh + 10) + 14;
+    ['a CHROMA at least every ' + RARE.PITY + ' rolls  \u00b7  ' + (RARE.PITY - Rare.pity()) + ' to go',
+     'already yours? an epic pays ' + fmtNum(RARE.DUPE.epic) + ' shards, a chroma ' + fmtNum(RARE.DUPE.chroma),
+     ep.length + ' epics and ' + ch.length + ' chromas to find  \u00b7  they go on the VARIANTS shelf'].forEach((ln, i) =>
+      text(c, ln, VW / 2, ny + i * 16, { size: 10.5, weight: 600, align: 'center', color: PAL.dim }));
+    const my = Math.min(VH - 150, ny + 70);
+    if (this.rareMsg && t - this.rareMsg.at < 3.5) tracked(c, this.rareMsg.t, VW / 2, my - 26, { size: 12, weight: 900, align: 'center', color: this.rareMsg.col, glow: this.rareMsg.col, blur: 8, track: 2 });
+    const left = Rare.buyLeft();
+    this.menu(c, [
+      { label: 'ROLL  \u00b7  1 RARE TICKET', color: tix ? '#8dff6b' : '#7d86ab', act: () => this.rareDo() },
+      { label: 'BUY A TICKET  \u00b7  ' + RARE.BUY_VB + ' VOIDBUX', color: Vbux.can(RARE.BUY_VB) ? '#ff4fd8' : '#7d86ab', act: () => this.rareBuy('vbux') },
+      { label: left ? 'BUY A TICKET  \u00b7  ' + fmtNum(RARE.BUY_SH) + ' SHARDS  (1 A DAY)' : 'SHARD TICKET  \u00b7  BACK TOMORROW', color: left && (Save.data.shards || 0) >= RARE.BUY_SH ? '#ffd166' : '#7d86ab', act: () => this.rareBuy('shards') },
+      { label: 'BACK', color: PAL.dim, act: () => this.rareBack() }
+    ], VW / 2, my, 38, { size: narrow ? 13 : 16, w: Math.min(560, VW - 24), id: 'rare', passive: !!this.stdRes });
+    this.prizeLayer(c);
+  },
+  petUp(pt) {
+    const r = petUpgrade(pt.id);
+    if (r.ok) { Sound.fanfare(true); this.petFx = 1; this.petMsg = { s: pt.name + '  \u00b7  LEVEL ' + r.lv, col: '#c9a3ff', at: G.uiT }; Flash.hit(pt.col, 0.2); return; }
+    Sound.hurt();
+    this.petMsg = { s: r.why === 'max' ? 'ALREADY LEVEL 5' : 'NEED ' + fmtNum(r.need || 0) + ' MORE SHARDS', col: r.why === 'max' ? PAL.gold : PAL.hp, at: G.uiT };
+  },
   openStd(from) { this.stdFrom = from || null; this.stdRes = null; this.stdMsg = null; G.state = 'std'; this.lastState = ''; },
   stdBack() {
     if (Standard.pend() || this.stdRes) return;          // a prize waits to be taken
@@ -42023,7 +42947,7 @@ Object.assign(UI, {
       const ph = t - rs.at - (rs.open ? TIX_OPEN : 0), col = rs.col, cx = VW / 2, cy = VH * 0.36, e = Math.min(1, Math.max(0, (ph - 0.9) / 0.35));
       c.save(); c.fillStyle = 'rgba(2,3,10,0.86)'; c.fillRect(0, 0, VW, VH); c.restore();
       if (ph < 0) {
-        ticketOpen(c, 'std', ph + TIX_OPEN, cx, cy, rs);
+        ticketOpen(c, rs.tk || 'std', ph + TIX_OPEN, cx, cy, rs);
         if (ph + TIX_OPEN > 0.5 && this.lockT <= 0 && (Input.hit('Enter', 'space') || Input.mclick || Input.gpPressed[0])) { rs.at = t - TIX_OPEN; this.lockT = 0.2; }
       } else if (ph < 0.9) {
         const k = ph / 0.9;
@@ -42050,6 +42974,7 @@ Object.assign(UI, {
           name = it ? it.name : '';
           line = rs.dupe ? 'YOU ALREADY OWN THIS  ·  TAKE SHARDS OR VOIDBUX' : (rs.k === 'skin' ? 'NEW SKIN' : 'NEW PET');
           lcol = rs.dupe ? '#c9a3ff' : '#8dff6b';
+          if (rs.line) { line = rs.line; lcol = rs.lcol || lcol; }
         }
         tracked(c, rs.head || (rs.type === 'cos' ? 'A FIND' : 'STANDARD ROLL'), cx, cy - 100, { size: 14, weight: 900, align: 'center', color: col, glow: col, blur: 14, track: 8, alpha: e });
         tracked(c, name, cx, cy + 96, { size: 24, weight: 900, align: 'center', color: '#ffffff', glow: col, blur: 14, track: 4, alpha: e });
@@ -42092,8 +43017,12 @@ Object.assign(UI, {
     const pad = n => String(n).padStart(2, '0');
     const out = [
       { id: 'deals', title: 'DAILY DEALS', note: 'NEW IN ' + hh + ':' + pad(mm) + ':' + pad(ss), col: '#ffb347', cards: Deals.list().map(o => ({ kind: 'deal', o: o, w: 1 })) },
-      { id: 'skins', title: 'EXCLUSIVE SKINS', note: 'ONLY HERE', col: '#ff4fd8', cards: VB_SKINS.map(sk => ({ kind: 'vbskin', sk: sk, w: 1.12 })) }
+      { id: 'skins', title: 'EXCLUSIVE SKINS', note: 'ONLY HERE', col: '#ff4fd8', cards: VB_SKINS.map(sk => ({ kind: 'vbskin', sk: sk, w: 1.12 })) },
+      { id: 'boosts', title: 'RUN BOOSTS', note: 'SHARDS \u00b7 ONE OF EACH USED PER RUN', col: '#8dff6b', cards: BOOSTS.map(o => ({ kind: 'boost', o: o, w: 0.95 })) },
+      { id: 'style', title: 'STYLE', note: 'KILL EFFECTS \u00b7 SHOT COLOURS', col: '#9ef7ff', cards: KILL_FX.map(o => ({ kind: 'style', st: 'kfx', o: o, w: 0.95 })).concat(SHOT_PALS.map(o => ({ kind: 'style', st: 'pal', o: o, w: 0.95 }))) }
     ];
+    out.splice(1, 0, { id: 'rare', title: 'RARE ROLL', note: 'EPIC & CHROMA SKINS', col: '#c9a3ff',
+      cards: [{ kind: 'rareroll', w: 1.25 }, { kind: 'tix', tk: 'rare', w: 1.1 }, { kind: 'tix', tk: 'rare', cur: 'shards', w: 1.1 }] });
     if (Standard.on()) out.splice(1, 0, { id: 'standard', title: 'STANDARD ROLL', note: 'ALWAYS HERE', col: '#ff9a3c', cards: [{ kind: 'standard', w: 1.25 }] });
     { const bl = Banners.live(); if (bl.length) { Banners.purge(); out.splice(1, 0, { id: 'banner', title: 'EVENT BANNER', note: bl.every(b => b.yearly) ? 'EVERY OCTOBER' : 'DESKTOP', col: '#ffd166', cards: bl.map(b => ({ kind: 'banner', b: b, w: 1.25 })) }); } }
     { const tc = [];
@@ -42130,6 +43059,22 @@ Object.assign(UI, {
       return { state: 'buy', cur: 'money', label: pr, ok: true };
     }
     if (cd.kind === 'code') return { state: 'enter', label: 'ENTER CODE' };
+    if (cd.kind === 'tix' && cd.tk === 'rare') {
+      if (cd.cur === 'shards') {
+        if (Rare.buyLeft() <= 0) return { state: 'owned', label: 'TOMORROW' };
+        return { state: 'buy', cur: 'shards', n: RARE.BUY_SH, ok: (Save.data.shards || 0) >= RARE.BUY_SH };
+      }
+      return { state: 'buy', cur: 'vbux', n: RARE.BUY_VB, ok: Vbux.can(RARE.BUY_VB) };
+    }
+    if (cd.kind === 'rareroll') return { state: 'enter', label: 'OPEN ROLL' };
+    if (cd.kind === 'boost') {
+      if (Boosts.held(cd.o.id) >= BOOST_MAX) return { state: 'owned', label: 'HOLDING ' + BOOST_MAX };
+      return { state: 'buy', cur: 'shards', n: cd.o.price, ok: (Save.data.shards || 0) >= cd.o.price };
+    }
+    if (cd.kind === 'style') {
+      if (Style.owns(cd.o.id)) return { state: 'owned', label: Style.on(cd.st, cd.o.id) ? 'EQUIPPED' : 'EQUIP' };
+      return { state: 'buy', cur: 'shards', n: cd.o.price, ok: (Save.data.shards || 0) >= cd.o.price };
+    }
     if (cd.kind === 'tix') {
       const left = cd.tk === 'evt' ? Banners.buyLeft() : Standard.buyLeft();
       if (left <= 0) return { state: 'owned', label: 'LIMIT TODAY' };
@@ -42148,6 +43093,8 @@ Object.assign(UI, {
     if (cd.kind === 'vbuxpack') return fmtNum(cd.p.n) + ' VOIDBUX';
     if (cd.kind === 'banner') return cd.b.title;
     if (cd.kind === 'standard') return 'STANDARD ROLL';
+    if (cd.kind === 'rareroll') return 'RARE ROLL';
+    if (cd.kind === 'boost' || cd.kind === 'style') return cd.o.name;
     if (cd.kind === 'tix') return TIX[cd.tk].name;
     if (cd.kind === 'code') return 'REDEEM A CODE';
     return '';
@@ -42159,6 +43106,10 @@ Object.assign(UI, {
     if (cd.kind === 'shards') return cd.p.tag || 'SHARD PACK';
     if (cd.kind === 'vbuxpack') return cd.p.tag ? cd.p.tag + ' BONUS' : 'VOIDBUX';
     if (cd.kind === 'standard') return 'TICKETS ' + Standard.n() + ' \u00b7 FROM EVERY WIN';
+    if (cd.kind === 'rareroll') return 'TICKETS ' + Rare.n() + ' \u00b7 CHROMA WITHIN ' + (RARE.PITY - Rare.pity());
+    if (cd.kind === 'boost') return 'HOLDING ' + Boosts.held(cd.o.id) + ' \u00b7 USED NEXT RUN';
+    if (cd.kind === 'style') return (cd.st === 'kfx' ? 'KILL EFFECT' : 'SHOT COLOURS') + (Style.owns(cd.o.id) ? ' \u00b7 OWNED' : '');
+    if (cd.kind === 'tix' && cd.tk === 'rare') return (cd.cur === 'shards' ? 'IN SHARDS \u00b7 ' + Rare.buyLeft() + ' LEFT TODAY' : 'NO LIMIT') + ' \u00b7 YOU HAVE ' + Rare.n();
     if (cd.kind === 'tix') {
       const n = cd.tk === 'evt' ? Banners.rec(cd.b).tickets : Standard.n(), left = cd.tk === 'evt' ? Banners.buyLeft() : Standard.buyLeft();
       return (cd.cur === 'shards' ? 'IN SHARDS \u00b7 ' : '') + 'YOU HAVE ' + n + ' \u00b7 ' + left + ' LEFT TODAY';
@@ -42171,6 +43122,8 @@ Object.assign(UI, {
     if (cd.kind === 'deal') { const x = cd.o.k === 'skin' ? SKIN_BY_ID[cd.o.ref] : PET_BY_ID[cd.o.ref]; return (x && x.col) || sec.col; }
     if (cd.kind === 'vbskin') return cd.sk.col;
     if (cd.kind === 'tix') return TIX[cd.tk].rim;
+    if (cd.kind === 'boost' || cd.kind === 'style') return cd.o.col;
+    if (cd.kind === 'rareroll') return '#c9a3ff';
     return sec.col;
   },
   shopBuy(cd) {
@@ -42191,6 +43144,12 @@ Object.assign(UI, {
       d.owned.push(cd.sk.id); got = { k: 'skin', id: cd.sk.id };
     } else if (cd.kind === 'pass') {
       const r = Pass.rec(cd.S); r.vb = 1; Pass.setPrem(cd.S, true); got = { k: 'pass' };
+    } else if (cd.kind === 'boost') {
+      Boosts.add(cd.o.id); got = { k: 'boost', id: cd.o.id };
+    } else if (cd.kind === 'style') {
+      Style.give(cd.st, cd.o.id); got = { k: 'style', id: cd.o.id };
+    } else if (cd.kind === 'tix' && cd.tk === 'rare') {
+      Rare.bought(cd.cur); got = { k: 'tix', tk: 'rare' };
     } else if (cd.kind === 'tix') {
       if (cd.tk === 'evt') {
         if (!d.rollBuy || d.rollBuy.day !== dailyKey()) d.rollBuy = { day: dailyKey(), n: 0 };
@@ -42368,7 +43327,9 @@ Object.assign(UI, {
     if (cd.kind === 'code') { this.openCodes('shop'); Sound.ui(true); return; }
     if (cd.kind === 'banner') { this.openRoll(cd.b); Sound.ui(true); return; }
     if (cd.kind === 'standard') { this.openStd(); Sound.ui(true); return; }
+    if (cd.kind === 'rareroll') { this.openRare(); Sound.ui(true); return; }
     const P = this.shopPrice(cd);
+    if (cd.kind === 'style' && P.state === 'owned') { Style.toggle(cd.st, cd.o.id); Sound.ui(true); return; }
     if (P.state === 'owned') {
       if (cd.kind === 'vbskin' || (cd.kind === 'deal' && cd.o.k === 'skin')) { this.shopModal = { cd: cd, mode: 'own' }; Sound.ui(true); }
       else Sound.hurt();
@@ -42419,7 +43380,9 @@ Object.assign(UI, {
     if (cd.kind === 'vbskin' && P.state === 'buy') this.ribbon(c, x + 10, y + 10, 'EXCLUSIVE', '#ff4fd8');
     if (cd.kind === 'banner') this.ribbon(c, x + 10, y + 10, 'EVENT', '#ffd166');
     if (cd.kind === 'standard') this.ribbon(c, x + 10, y + 10, 'ALWAYS', '#ff9a3c');
-    if (cd.kind === 'tix') this.ribbon(c, x + 10, y + 10, cd.tk === 'evt' ? 'EVENT' : 'ALWAYS', cd.tk === 'evt' ? '#ff9a3c' : '#ffb347');
+    if (cd.kind === 'tix') this.ribbon(c, x + 10, y + 10, cd.tk === 'evt' ? 'EVENT' : (cd.tk === 'rare' ? 'RARE' : 'ALWAYS'), cd.tk === 'evt' ? '#ff9a3c' : (cd.tk === 'rare' ? '#b48cff' : '#ffb347'));
+    if (cd.kind === 'rareroll') this.ribbon(c, x + 10, y + 10, 'NEW', '#b48cff');
+    if (cd.kind === 'style' && Style.on(cd.st, cd.o.id)) this.ribbon(c, x + 10, y + 10, 'ON', cd.o.col);
     if ((cd.kind === 'shards' || cd.kind === 'vbuxpack') && cd.p.tag) this.ribbon(c, x + 10, y + 10, cd.p.tag, '#ffb347');
     if (on) focusTicks(c, x, y, w, h, col, t);
   },
@@ -42487,6 +43450,60 @@ Object.assign(UI, {
       if (sl) this.passSkin(c, sl, x - r * 0.98, y + r * 0.42, r * 0.34, t * 0.6, t);
       if (sm) this.passSkin(c, sm, x + r * 0.98, y + r * 0.42, r * 0.38, -t * 0.6, t);
       if (st2) this.passSkin(c, st2, x, y - r * 0.08, r * 0.6, Math.sin(t * 0.8) * 0.3, t);
+    } else if (cd.kind === 'rareroll') {
+      // the ticket, and one of the variants it could be, changing every two seconds
+      const V = SKINS.filter(s2 => s2.variant === 'chroma'), vk = V[Math.floor(t / 2) % V.length];
+      hglow(c, '#b48cff', x, y, r * 1.5, on ? 0.34 : 0.2);
+      if (vk) this.passSkin(c, skinView(vk, 3), x, y - r * 0.18, r * 0.5, Math.sin(t * 0.8) * 0.3, t);
+      ticketIcon(c, x + r * 0.62, y + r * 0.66, r * 0.62, 'rare', t);
+    } else if (cd.kind === 'boost') {
+      const col = cd.o.col, id = cd.o.id;
+      hglow(c, col, x, y, r * 1.3, on ? 0.3 : 0.18);
+      if (id === 'reroll') {
+        neon(c, q => { q.beginPath(); q.arc(x, y, r * 0.55, -0.4 + t * 0.8, 2.4 + t * 0.8); }, col, { lw: 3, blur: 14, core: null, inner: false });
+        neon(c, q => { q.beginPath(); q.arc(x, y, r * 0.55, Math.PI - 0.4 + t * 0.8, Math.PI + 2.4 + t * 0.8); }, '#ffffff', { lw: 3, blur: 14, core: null, inner: false });
+        tracked(c, '+2', x, y + r * 0.14, { size: r * 0.42, weight: 900, align: 'center', color: '#ffffff', glow: col, blur: 10 });
+      } else if (id === 'head') {
+        c.save(); c.translate(x, y); c.rotate(Math.sin(t * 0.8) * 0.12);
+        neon(c, q => pathPoly(q, 6, r * 0.6, Math.PI / 6), col, { lw: 2.6, blur: 14, core: 'rgba(4,16,6,0.9)' });
+        neon(c, q => pathPoly(q, 6, r * 0.44, Math.PI / 6), col, { lw: 1.2, blur: 6, core: null, inner: false });
+        c.restore();
+        const bob = Math.sin(t * 3) * r * 0.06;
+        neon(c, q => { q.beginPath(); q.moveTo(x - r * 0.26, y + r * 0.1 + bob); q.lineTo(x, y - r * 0.18 + bob); q.lineTo(x + r * 0.26, y + r * 0.1 + bob); }, '#ffffff', { lw: 2.6, blur: 10, core: null, inner: false });
+        tracked(c, 'LV 2', x, y + r * 0.36, { size: r * 0.2, weight: 900, align: 'center', color: col });
+      } else {
+        for (let i = 0; i < 4; i++) {
+          const a = (i - 1.5) * 0.28 + Math.sin(t * 1.5) * 0.04, cx2 = x + (i - 1.5) * r * 0.3, cy2 = y + Math.abs(i - 1.5) * r * 0.08;
+          c.save(); c.translate(cx2, cy2); c.rotate(a);
+          neon(c, q => { q.beginPath(); roundRect(q, -r * 0.18, -r * 0.28, r * 0.36, r * 0.56, 4); }, i === 3 ? '#ffffff' : col, { lw: 2, blur: 10, core: 'rgba(16,12,2,0.92)' });
+          c.restore();
+        }
+      }
+    } else if (cd.kind === 'style') {
+      const col = cd.o.col;
+      hglow(c, col, x, y, r * 1.3, on ? 0.3 : 0.18);
+      if (cd.st === 'pal') {
+        // its colours, as three shots circling
+        for (let i = 0; i < 3; i++) {
+          const a = t * 1.6 + i / 3 * TAU, px = x + Math.cos(a) * r * 0.5, py = y + Math.sin(a) * r * 0.5, cc = cd.o.cols[i % cd.o.cols.length];
+          c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.7; c.drawImage(glowSprite(cc), px - r * 0.3, py - r * 0.3, r * 0.6, r * 0.6); c.restore();
+          neon(c, q => { q.beginPath(); q.arc(px, py, r * 0.1, 0, TAU); }, cc, { lw: 2, blur: 10, core: '#ffffff', inner: false });
+        }
+      } else {
+        // the effect, looping: a body, then the burst
+        const ph = (t * 0.8) % 1, id = cd.o.id;
+        if (ph < 0.35) neon(c, q => pathPoly(q, 4, r * 0.28, t), '#ff8a9a', { lw: 2.4, blur: 12, core: 'rgba(12,4,8,0.9)' });
+        else {
+          const k = (ph - 0.35) / 0.65, R2 = r * (0.2 + 0.8 * k), al = 1 - k;
+          c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = al; c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 2.4;
+          if (id === 'shatter') for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + 0.3; c.save(); c.translate(x + Math.cos(a) * R2, y + Math.sin(a) * R2); c.rotate(k * 4 + i); pathPoly(c, 6, r * 0.07, 0); c.stroke(); c.restore(); }
+          else if (id === 'bloom') for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; c.beginPath(); c.ellipse(x + Math.cos(a) * R2 * 0.7, y + Math.sin(a) * R2 * 0.7, r * 0.14, r * 0.05, a, 0, TAU); c.fill(); }
+          else if (id === 'glitch') { for (let i = 0; i < 9; i++) { const px = x + Math.sin(i * 7.1) * R2, py = y + Math.cos(i * 3.3) * R2 * 0.7; c.fillStyle = i % 2 ? '#63ffc9' : '#ff4fd8'; c.fillRect(px - 3, py - 3, 6, 6); } }
+          else for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * R2 * 1.3, y + Math.sin(a) * R2 * 1.3); c.stroke(); }
+          c.beginPath(); c.arc(x, y, R2, 0, TAU); c.lineWidth = 1.5; c.stroke();
+          c.restore();
+        }
+      }
     } else if (cd.kind === 'tix') {
       const K = TIX[cd.tk];
       hglow(c, K.glow, x, y, r * 1.5, on ? 0.34 : 0.2);
@@ -42588,6 +43605,8 @@ Object.assign(UI, {
     else if (cd.kind === 'deal' && cd.o.k === 'pet' && PET_BY_ID[cd.o.ref]) blurb = 'PERK: ' + perkText(PET_BY_ID[cd.o.ref]) + '.  ' + (PET_BY_ID[cd.o.ref].blurb || '');
     else if (cd.kind === 'deal' && cd.o.k === 'skin' && M.mode === 'confirm') blurb = 'Comes at LEVEL 1. Shards level it up: glow, halo, dash FX, then its trail.';
     else if (cd.kind === 'pass') blurb = 'Every premium reward this season, and the ones already reached unlock now.';
+    else if (cd.kind === 'boost' || cd.kind === 'style') blurb = cd.o.blurb + (cd.kind === 'boost' ? ' Never in the Daily or co-op.' : (cd.st === 'kfx' ? ' Equip it from here; click again to switch it off.' : ' Co-op keeps the usual colours.'));
+    else if (cd.kind === 'tix' && cd.tk === 'rare') blurb = 'One roll on the RARE ROLL: an EPIC or, if you are lucky, a CHROMA variant of a skin. ' + (cd.cur === 'shards' ? 'One a day for shards.' : 'No limit for voidbux.');
     else if (M.mode === 'soon') blurb = 'Buying voidbux is not switched on in this version yet. Earn them from the BLOOM PASS and pilot levels.';
     else if (M.mode === 'wait') blurb = 'The payment page is open in your browser. Your voidbux land here by themselves when it is done.';
     wrapText(c, blurb, x + w / 2, y + h * 0.62 + 24, w - 50, 16, { size: 12, weight: 600, align: 'center', color: PAL.text, alpha: 0.88 });
@@ -44492,6 +45511,7 @@ function frame(now) {
   if (st === 'shop' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.shopBack();
   if (st === 'roll' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rollBack();
   if (st === 'std' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.stdBack();
+  if (st === 'rare' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rareBack();
   if (st === 'hollow' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.hollowBack();
   if (st === 'rush' && UI.lockT <= 0 && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.rushBack();
   if (st === 'freevb' && (Input.hit('Backspace') || Input.hit('Escape') || Input.gpPressed[1])) UI.fvbBack();
@@ -44566,7 +45586,7 @@ function frame(now) {
 
   if (st === 'settings' && UI.settingsFrom === 'paused') {
     UI.world(c); UI.hud(c); UI.settings(c);
-  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb' || st === 'rush') {
+  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'rare' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb' || st === 'rush') {
     Cosmos.req = null;
     const cosOn = Cosmos.show(st === 'conquest' || st === 'planet' || st === 'modes' || st === 'hub');
     if (cosOn) c.clearRect(0, 0, VW, VH);
@@ -44577,6 +45597,7 @@ function frame(now) {
     else if (st === 'shop') { UI.shop(c); Payout.draw(c, k => UI.payTargetShop(k)); }
     else if (st === 'roll') { UI.roll(c); }
     else if (st === 'std') { UI.fit(c, 0, 600, () => UI.std(c)); }
+  else if (st === 'rare') { UI.fit(c, 0, 640, () => UI.rare(c)); }
     else if (st === 'hollow') { UI.hollow(c); }
     else if (st === 'rush') { UI.fit(c, 0, 470, () => UI.rush(c)); }
     else if (st === 'pilot') { UI.fit(c, 0, 540, () => UI.pilot(c)); }
@@ -49408,9 +50429,11 @@ Object.assign(Coop, {
   shipSprite(sk, t) {
     let key = 'player_body_' + sk.id;
     if (sk.rainbow) key += '_' + (Math.floor(t * 40) % 360 / 12 | 0);
+    key += chromaKey(sk, t);
     if (sk.oil) key += '_o' + (Math.floor(t * 6) % 48);
     if (sk.anim) key += '_a' + (Math.floor(t * 10) % 40);
-    return sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, t));
+    const s0 = sprite(key, 88, 88, cc => paintSkin(cc, sk, 19.5, t, true));
+    return sk.variant === 'chroma' ? chromaTint(s0, t, 'ally_' + sk.id) : s0;
   },
   drawAllies(c) {
     if (!this.on) return;
@@ -50927,10 +51950,12 @@ Object.assign(UI, {
       : sprite('player_ring1_' + base.id, 74, 74, cc => neon(cc, x => pathPoly(x, 3, 25, 0), base.col, { lw: 1.1, blur: 3, core: null, inner: false }));
     let key2 = 'player_body_' + base.id;
     if (base.rainbow) key2 += '_' + (Math.floor(t * 40) % 360 / 12 | 0);
+    key2 += chromaKey(base, t);
     if (base.oil) key2 += '_o' + (Math.floor(t * 6) % 48);
     if (base.anim) key2 += '_a' + (Math.floor(t * 10) % 40);
     if (base.id === 'archivist') { try { key2 += '_' + bossSeenCount(); } catch (e) { } }
-    const body = sprite(key2, 88, 88, cc => paintSkin(cc, base, 19.5, t));
+    const body0 = sprite(key2, 88, 88, cc => paintSkin(cc, base, 19.5, t, true));
+    const body = base.variant === 'chroma' ? chromaTint(body0, t, 'lvpage') : body0;
     const spin = t * 1.8;
     if (G2.dash > 0) {
       const k = G2.dash / DASH_SAFE;
@@ -51265,8 +52290,8 @@ Object.assign(UI, {
       tracked(c, fitText(c, pt.name, cw - 10, nmS, 800), x + cw / 2, y + chh - (roomy ? 40 : 26) * tu, { size: nmS, weight: 800, align: 'center', color: owned ? pt.col : '#c4cadf', track: 1.6 * tu });
       if (roomy) text(c, fitText(c, perkText(pt), cw - 10, sm, 700), x + cw / 2, y + chh - 26 * tu, { size: sm, weight: 700, align: 'center', color: '#9ef7ff', alpha: pt.id === 'none' ? 0.45 : 0.85 });
       let sub2;
-      if (on) sub2 = 'WITH YOU';
-      else if (owned) sub2 = 'OWNED';
+      if (on) sub2 = 'WITH YOU' + (pt.form !== 'none' ? ' \u00b7 LV ' + petLv(pt.id) : '');
+      else if (owned) sub2 = 'OWNED' + (pt.form !== 'none' ? ' \u00b7 LV ' + petLv(pt.id) : '');
       else if (earned) sub2 = pt.reqText;
       else sub2 = fmtNum(pt.price) + ' shards';
       const o2 = { size: sm, weight: 800, align: 'center', color: on ? PAL.gold : (owned ? PAL.dim : (earned ? 'rgba(255,107,208,0.85)' : (afford ? '#8dff6b' : '#b07080'))) };
@@ -51298,6 +52323,7 @@ Object.assign(UI, {
     if (!(sk.lv < 2)) hglow(c, sk.core, scx, scy, pr * 1.6, 0.4 + Math.sin(t * 6) * 0.05);
     this.passSkin(c, sk, scx, scy + Math.sin(t * 1.7) * 2, pr, Math.sin(t * 0.6) * 0.3, t);
     if (cur.form !== 'none' && !behind) this.hubPet(c, cur, px, ppy, t, pk, 1, 'inspect');
+    if (cur.form !== 'none' && owned) petLvFx(c, cur, px, ppy, behind ? 0.6 : 1, t, pk * 1.15);
     if (this.petFx > 0) {
       c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = this.petFx; c.strokeStyle = cur.col; c.lineWidth = 3 * this.petFx;
       c.beginPath(); c.arc(px, ppy, 14 + (1 - this.petFx) * 60, 0, TAU); c.stroke(); c.restore();
@@ -51314,7 +52340,7 @@ Object.assign(UI, {
     if (nmw > tw0) ns *= tw0 / nmw;
     const tAlign = port ? 'left' : 'center', tcx = port ? tx0 : ix + iw / 2;
     tracked(c, cur.name, tcx, ty0, { size: ns, weight: 900, align: tAlign, color: cur.form === 'none' ? '#c4cadf' : cur.col, glow: cur.col, blur: 14, track: 3 });
-    const state = on ? 'WITH YOU' : (owned ? 'YOURS' : (earned ? 'EARNED, NEVER BOUGHT' : 'NOT YOURS YET  \u00b7  ' + fmtNum(cur.price) + ' SHARDS'));
+    const state = (on ? 'WITH YOU' : (owned ? 'YOURS' : (earned ? 'EARNED, NEVER BOUGHT' : 'NOT YOURS YET  \u00b7  ' + fmtNum(cur.price) + ' SHARDS'))) + (owned && cur.form !== 'none' ? '  \u00b7  LEVEL ' + petLv(cur.id) + '/' + PET_LV_MAX : '');
     text(c, state, tcx, ty0 + 17 * pu, { size: 9.5 * pu, weight: 900, align: tAlign, color: on ? PAL.gold : (owned ? '#8dff6b' : PAL.dim) });
     // the perk, in a chip of its own
     const pkS = port ? 11.5 : 13 * pu;
@@ -51326,7 +52352,8 @@ Object.assign(UI, {
     tracked(c, fitText(c, ptxt, chipW - 58 * pu, pkS, 900), chipX + 46 * pu, chipY + chipH / 2 + pkS * 0.36, { size: pkS, weight: 900, color: '#ffffff', glow: '#9ef7ff', blur: 8, track: 1 });
     let by2 = chipY + chipH + 18 * pu;
     // the blurb, only where it fits above the button
-    const bTop = iy + ih - (port ? 36 : 42 * pu) - (port ? 12 : 18);
+    const upOk = owned && cur.form !== 'none', upH = upOk ? (port ? 30 : 34 * pu) : 0;
+    const bTop = iy + ih - (port ? 36 : 42 * pu) - (port ? 12 : 18) - (upOk ? upH + 8 : 0);
     const bN = (!port || ih > 220) ? wrapLines(c, cur.blurb || '', tw0, { size: 11.5 * pu, weight: 600 }) : 99;
     if (by2 + (bN - 1) * 15 * pu + 10 < bTop) {
       by2 = wrapText(c, cur.blurb || '', tcx, by2, tw0, 15 * pu, { size: 11.5 * pu, weight: 600, align: tAlign, color: PAL.text, alpha: 0.8 }) + 16;
@@ -51359,11 +52386,24 @@ Object.assign(UI, {
       tracked(c, fmtNum(cost), btx + bfs * 1.05, bby + bh / 2 + bfs * 0.36, { size: bfs, weight: 900, color: '#ffffff', mono: true, track: 0.5 });
     }
     if (bOn) focusTicks(c, bx, bby, bw, bh, bcol, t);
+    // LEVEL UP: shards for a little more perk and a lot more life
+    let uOn = false;
+    if (upOk) {
+      const L = petLv(cur.id), ub = bby - upH - 8, C = petLvCost(cur, L + 1), max = L >= PET_LV_MAX, can = !max && (d.shards || 0) >= C;
+      uOn = Input.mx > bx && Input.mx < bx + bw && Input.my > ub && Input.my < ub + upH;
+      const ucol = max ? PAL.gold : (can ? '#c9a3ff' : '#7d86ab');
+      if (can) hglow(c, ucol, bx + bw / 2, ub + upH / 2, bw * 0.45, 0.06 + 0.03 * Math.sin(t * 3));
+      glass(c, bx, ub, bw, upH, upH / 2, ucol, uOn || can);
+      const ul = max ? 'LEVEL 5  \u00b7  MAXED' : 'LEVEL UP  ' + L + ' \u2192 ' + (L + 1) + '  \u00b7  ' + fmtNum(C) + ' SHARDS';
+      const ufs = port ? 11 : 12 * pu;
+      tracked(c, fitText(c, ul, bw - 24, ufs, 900), bx + bw / 2, ub + upH / 2 + ufs * 0.36, { size: ufs, weight: 900, align: 'center', color: max ? PAL.gold : (can ? '#ffffff' : '#9aa0c0'), glow: can ? ucol : null, blur: 8, track: 1.4 });
+      if (uOn) focusTicks(c, bx, ub, bw, upH, ucol, t);
+    }
     const M = this.petMsg;
-    if (M && G.uiT - M.at < 1.8) tracked(c, fitText(c, M.s, bw, 11.5, 900), bx + bw / 2, bby - 10, { size: 11.5, weight: 900, align: 'center', color: M.col, glow: M.col, blur: 10, track: 2, alpha: Math.min(1, (1.8 - (G.uiT - M.at)) * 2) });
+    if (M && G.uiT - M.at < 1.8) tracked(c, fitText(c, M.s, bw, 11.5, 900), bx + bw / 2, upOk ? bby - upH - 18 : bby - 10, { size: 11.5, weight: 900, align: 'center', color: M.col, glow: M.col, blur: 10, track: 2, alpha: Math.min(1, (1.8 - (G.uiT - M.at)) * 2) });
 
     const modeW = d.petMode === 1 ? 'SHOWN' : (d.petMode === 0.5 ? 'FADED' : 'HIDDEN');
-    text(c, fitText(c, 'ENTER to equip or buy  ·  H: pets ' + modeW + '  ·  BACKSPACE to go back  ·  perks work in every mode', VW - 30, 11.5, 700),
+    text(c, fitText(c, 'ENTER to equip or buy  ·  U: level up  ·  H: pets ' + modeW + '  ·  BACKSPACE to go back  ·  perks work in every mode', VW - 30, 11.5, 700),
       VW / 2, VH - 18, { size: 11.5, weight: 700, align: 'center', color: PAL.dim });
 
     if (this.lockT > 0) return;
@@ -51376,6 +52416,7 @@ Object.assign(UI, {
       d.petMode = d.petMode === 1 ? 0.5 : (d.petMode === 0.5 ? 0 : 1);
       Save.save(); Sound.ui(true); this.lockT = 0.18;
     }
+    if (upOk && (Input.hit('u') || (Input.mclick && uOn))) { this.lockT = 0.18; this.petUp(cur); return; }
     if (Input.mclick && bOn) { this.lockT = 0.18; this.petAct(cur); return; }
     if (Input.mclick && hover >= 0) {
       this.sels.pets = hover;
