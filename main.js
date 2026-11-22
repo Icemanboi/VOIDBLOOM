@@ -275,7 +275,7 @@ function setupUpdates() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('update-downloaded', (info) => {
-    if (win) showUpdateToast(win, info.version);
+    if (win) showUpdateToast(win, info.version, info);
   });
 
   // No internet, no releases yet, GitHub having a bad day — all normal.
@@ -302,7 +302,30 @@ function setupUpdates() {
  *  Injected from here rather than built into the game, so VOIDBLOOM.html
  *  stays the same file that ships to CrazyGames and itch.
  * ------------------------------------------------------------------ */
-function showUpdateToast(w, version) {
+/* The release notes GitHub sent with the update (HTML or markdown, or a
+   list of them), as plain lines for the game's update screen. */
+function releaseNotesOf(info) {
+  let n = info && info.releaseNotes;
+  if (Array.isArray(n)) n = n.map(x => (x && x.note) || '').join('\n');
+  if (typeof n !== 'string') return [];
+  return n.replace(/<li[^>]*>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|h\d|div)>/gi, '\n')
+    .replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .split(/\n+/).map(x => x.replace(/^[\s*#>\-\u2022]+/, '').replace(/\*\*/g, '').trim())
+    .filter(x => x && x.length > 2).slice(0, 30);
+}
+
+/* The game has its own full-screen update card (VBUpdate.available): the
+   changes, and a big UPDATE button that restarts into the new version. It
+   waits for the title or the lobby, never interrupting a run. An older game
+   file without it gets the small bar below instead. */
+function showUpdateToast(w, version, info) {
+  const payload = JSON.stringify({ version: String(version || ''), notes: releaseNotesOf(info), via: 'desktop' });
+  const ask = `(function (p) { try { if (window.VBUpdate && typeof window.VBUpdate.available === 'function') return !!window.VBUpdate.available(p); } catch (e) {} return false; })(${payload})`;
+  w.webContents.executeJavaScript(ask)
+    .then(ok => { if (!ok) showUpdateBar(w, version); }, () => showUpdateBar(w, version));
+}
+
+function showUpdateBar(w, version) {
   const js = `(function (v) {
     if (document.getElementById('vb-update')) return;
 
