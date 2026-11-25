@@ -2,6 +2,16 @@ name: Build and release
 
 # Runs when you push a tag that looks like v1.0.1
 # (and can be run by hand from the Actions tab for a dry run).
+#
+# How it ships (changed 23 Nov 2026):
+#   1. "windows" and "macos" build at the same time but DO NOT publish.
+#      Each one just hands its files to the last job.
+#   2. "release" waits for BOTH, then makes ONE release for the tag with the
+#      Windows installer and the Mac downloads together.
+#
+# Before this, both builds published by themselves at the same moment, each
+# made its own draft release, and you got two drafts with the same tag that
+# could not both be posted. If either build fails now, nothing is released.
 on:
   push:
     tags:
@@ -65,18 +75,18 @@ jobs:
           fi
           echo "publishing to $OWNER"
 
-      - name: Build the installer and publish it to Releases
-        run: npx electron-builder --win --publish always
-        env:
-          # Provided automatically by Actions. Nothing to create yourself.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Build only. The "release" job at the bottom publishes, once both
+      # Windows and Mac are done.
+      - name: Build the installer
+        run: npx electron-builder --win --publish never
 
-      - name: Keep a copy on the run itself
+      - name: Hand the files to the release job
         uses: actions/upload-artifact@v4
         with:
           name: VOIDBLOOM-windows
           path: |
             dist/*.exe
+            dist/*.exe.blockmap
             dist/latest.yml
           if-no-files-found: error
 
@@ -128,9 +138,9 @@ jobs:
             exit 1
           fi
 
-      - name: Build the mac app and publish it to Releases
+      # Build only. The "release" job at the bottom publishes.
+      - name: Build the mac app
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # All five are optional. With none of them set the build is
           # unsigned and free; set them and the same command signs and
           # notarizes instead.
@@ -142,7 +152,7 @@ jobs:
         run: |
           if [ -n "$CSC_LINK" ] && [ -n "$APPLE_TEAM_ID" ]; then
             echo "Signing certificate found - building signed and notarized."
-            npx electron-builder --mac --publish always --config.mac.notarize=true
+            npx electron-builder --mac --publish never --config.mac.notarize=true
           else
             echo "No signing certificate - building unsigned. This is the free path."
             echo "Players will need to clear the quarantine flag once; see README."
@@ -161,15 +171,80 @@ jobs:
             # and stop it hunting the runner keychain for an identity that
             # is not there
             export CSC_IDENTITY_AUTO_DISCOVERY=false
-            npx electron-builder --mac --publish always
+            npx electron-builder --mac --publish never
           fi
 
-      - name: Keep a copy on the run itself
+      - name: Hand the files to the release job
         uses: actions/upload-artifact@v4
         with:
           name: VOIDBLOOM-macos
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.blockmap
             dist/latest-mac.yml
           if-no-files-found: error
+
+  # -------------------------------------------------------------- release
+  #
+  # Runs only after BOTH builds succeeded, and makes ONE release for the tag
+  # with everything in it: the Windows installer, both Mac downloads, and
+  # latest.yml / latest-mac.yml, which the auto-updater reads.
+  #
+  # It goes up as a normal published release, so installed copies update
+  # straight away. To get a draft you check and post by hand instead, change
+  # AS_DRAFT below to "true". (Auto-update ignores a release until it is
+  # posted.)
+  release:
+    needs: [windows, macos]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Collect the Windows and Mac files
+        uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Publish one release with everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          AS_DRAFT: "false"
+        run: |
+          set -euo pipefail
+          echo "files going into $TAG:"
+          ls -la out
+
+          # both sides must be there, or the auto-updater breaks for someone
+          test -f out/latest.yml     || { echo "::error::latest.yml (Windows) is missing"; exit 1; }
+          test -f out/latest-mac.yml || { echo "::error::latest-mac.yml (Mac) is missing"; exit 1; }
+          ls out/*.exe >/dev/null 2>&1 || { echo "::error::the Windows installer is missing"; exit 1; }
+          ls out/*.dmg >/dev/null 2>&1 || { echo "::error::the Mac .dmg is missing"; exit 1; }
+
+          # the release notes are the message you typed in UPDATE GAME.bat
+          NOTES=$(gh api "repos/$REPO/commits/$GITHUB_SHA" --jq .commit.message)
+
+          # Clear out leftover DRAFTS for this tag (e.g. the duplicate pair the
+          # old setup made, or one from an earlier failed run), so there is
+          # never more than one release per tag.
+          for id in $(gh api "repos/$REPO/releases?per_page=100" \
+                        --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .id"); do
+            echo "removing leftover draft $id for $TAG"
+            gh api -X DELETE "repos/$REPO/releases/$id"
+          done
+
+          DRAFT_FLAG=""
+          if [ "$AS_DRAFT" = "true" ]; then DRAFT_FLAG="--draft"; fi
+
+          if gh api "repos/$REPO/releases/tags/$TAG" >/dev/null 2>&1; then
+            # a posted release for this tag already exists (re-run): refresh its files
+            echo "release $TAG already exists - replacing its files"
+            gh release upload "$TAG" out/* --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" out/* --repo "$REPO" \
+              --title "VOIDBLOOM ${TAG#v}" --notes "$NOTES" --verify-tag $DRAFT_FLAG
+          fi
+          echo "done: https://github.com/$REPO/releases/tag/$TAG"

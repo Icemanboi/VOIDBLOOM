@@ -834,7 +834,7 @@ const Save = {
 };
 
 /* ========================================================================
-   AUDIO  --  fully synthesised: no asset files, ever.
+   AUDIO  --  effects synthesised in code; the soundtrack streams from bgm/ (MUSIC, below)
    ======================================================================== */
 const Sound = {
   ctx: null, master: null, sfxBus: null, musBus: null, noise: null,
@@ -892,6 +892,7 @@ const Sound = {
     const t = this.ctx.currentTime;
     this.sfxBus.gain.setTargetAtTime(0.85 * this.volSfx, t, 0.03);
     if (this.mus.on) this.musBus.gain.setTargetAtTime(0.55 * this.volMus, t, 0.08);
+    Music.setVolume();
   },
   frame() { this._budget = 14; },
   _can(tag, gap) {
@@ -1040,7 +1041,7 @@ const Sound = {
   },
   setIntensity(v) { this.targetIntensity = sat(v); },
   tickMusic() {
-    if (!this.ok || !this.mus.on) return;
+    if (!this.ok || !this.mus.on || !Music.dead) return;   // the synthesised score only plays when the soundtrack files can't
     this.intensity += (this.targetIntensity - this.intensity) * 0.02;
     const c = this.ctx, m = this.mus;
     const spb = 60 / (m.bpm + this.intensity * 22) / 4; // 16th note
@@ -1139,6 +1140,196 @@ const Sound = {
       src.connect(f); f.connect(g); g.connect(bus);
       src.start(t); src.stop(t + 0.2);
     }
+  }
+};
+
+/* ========================================================================
+   MUSIC  --  the soundtrack: 23 looping tracks written in BeepBox (the songs
+   themselves are in "BeepBox songs/", each opens in beepbox.co), shipped as
+   bgm/<id>.mp3 beside the game. Music.pick() chooses one every frame from
+   the screen, the mode, the planet and whether a boss is up; tracks cross-
+   fade, and a track left for a boss picks up where it was when the boss
+   dies. If the files can't be fetched at all, the synthesised score in
+   Sound plays instead, exactly as before.
+   ======================================================================== */
+const Music = {
+  // id: [loop length in samples at 44.1 kHz, level]
+  T: {
+    title: [3414194, 0.85], chart: [3628800, 0.75], wardrobe: [3681392, 0.7], lobby: [3024000, 0.8],
+    skirmish: [3307500, 1], pressure: [3386880, 1], hardcore: [2953675, 1], undervault: [3256616, 1],
+    boss: [2822400, 1], raid: [3207273, 1], finale: [2646000, 1], verdance: [2940001, 1],
+    cinderholt: [3078982, 1], weepingcoast: [4233600, 0.85], ossuary: [4233600, 0.9], chorusdeep: [3528000, 0.75],
+    nullspire: [3207273, 1], greatloom: [3969001, 1], paleorbit: [3528001, 0.75], brassmeridian: [3386880, 1],
+    tollingdark: [4490182, 0.85], mawstead: [3024000, 1], bloomheart: [3067827, 1]
+  },
+  RUN: { playing: 1, levelup: 1, paused: 1 },
+  CHART: { conquest: 1, planet: 1, relics: 1 },
+  SHOP: { shop: 1, skins: 1, pets: 1, pass: 1, rare: 1, roll: 1, std: 1, freevb: 1, gifts: 1, codes: 1,
+          armory: 1, achievements: 1, boards: 1, cloud: 1 },
+  ONLINE: { mp: 1, lobby: 1, hub: 1, mpend: 1 },
+  dir: 'bgm/', ext: '.mp3',
+  dead: false, anyOk: false, lite: false,
+  raw: Object.create(null), dec: new Map(), loading: Object.create(null), failAt: Object.create(null),
+  pos: Object.create(null), keep: 3,
+  bus: null, lp: null, node: null, cur: null, duck: 1,
+  bossT: 0, noBossT: 0, inBoss: false, overT: 0, wasRun: false, els: Object.create(null),
+
+  init() {
+    const c = Sound.ctx;
+    if (!c || this.bus) return;
+    this.lp = c.createBiquadFilter(); this.lp.type = 'lowpass'; this.lp.frequency.value = 20000; this.lp.Q.value = 0.6;
+    this.bus = c.createGain(); this.bus.gain.value = 0.5 * Sound.volMus;
+    this.lp.connect(this.bus); this.bus.connect(Sound.master);
+    // a decoded loop is ~30 MB of samples: phones keep two, everything else three
+    try {
+      const dm = navigator.deviceMemory;
+      if ((dm && dm <= 4) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) this.keep = 2;
+    } catch (e) { }
+  },
+  setVolume() {
+    if (this.bus) this.bus.gain.setTargetAtTime(0.5 * Sound.volMus * this.duck, Sound.ctx.currentTime, 0.12);
+    if (this.lite) for (const id in this.els) this.els[id]._lv = -1;
+  },
+  // the first file that won't load decides: no files here, so the synthesised score takes over
+  die() {
+    if (location.protocol === 'file:' && !this.lite) { this.lite = true; return; }   // the bare HTML on disk
+    this.dead = true;
+    if (this.node) this.stopCur(0.3);
+  },
+
+  load(id) {
+    if (this.dec.has(id)) { const b = this.dec.get(id); this.dec.delete(id); this.dec.set(id, b); return Promise.resolve(b); }
+    if (this.loading[id]) return this.loading[id];
+    if (this.failAt[id] && Sound.ctx.currentTime - this.failAt[id] < 12) return Promise.reject(new Error('retry later'));
+    const c = Sound.ctx;
+    const p = (this.raw[id] ? Promise.resolve(this.raw[id])
+      : fetch(this.dir + id + this.ext).then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.arrayBuffer(); })
+          .then(a => (this.raw[id] = a)))
+      .then(a => new Promise((res, rej) => {
+        const pr = c.decodeAudioData(a.slice(0), res, rej);   // keep the bytes: re-decoding beats re-downloading
+        if (pr && pr.then) pr.then(res, rej);
+      }))
+      .then(b => { delete this.loading[id]; this.anyOk = true; this.dec.set(id, b); this.trim(id); return b; })
+      .catch(e => {
+        delete this.loading[id]; this.failAt[id] = c.currentTime;
+        if (!this.anyOk) this.die();
+        throw e;
+      });
+    return (this.loading[id] = p);
+  },
+  trim(keepId) {
+    for (const id of this.dec.keys()) {
+      if (this.dec.size <= this.keep) break;
+      if (id !== this.cur && id !== keepId) this.dec.delete(id);
+    }
+  },
+
+  play(id, fade) {
+    const c = Sound.ctx, b = this.dec.get(id), t = c.currentTime;
+    this.stopCur(fade);
+    this.dec.delete(id); this.dec.set(id, b);
+    const meta = this.T[id], sr = b.sampleRate;
+    const n = Math.min(b.length, Math.round(meta[0] * sr / 44100));
+    // some decoders keep the encoder's lead-in: skip it so the loop points land on the music
+    let off = 0;
+    if (b.length > n + 64) {
+      const d = b.getChannelData(0), lim = Math.min(b.length - n, 4096);
+      while (off < lim && Math.abs(d[off]) < 1e-4) off++;
+    }
+    const src = c.createBufferSource();
+    src.buffer = b; src.loop = true;
+    src.loopStart = off / sr; src.loopEnd = (off + n) / sr;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(meta[1], t + fade);
+    src.connect(g); g.connect(this.lp);
+    const len = n / sr, at = (this.pos[id] || 0) % len;
+    src.start(t, (off / sr) + at);
+    this.cur = id;
+    this.node = { src: src, g: g, id: id, t0: t - at, len: len };
+  },
+  stopCur(fade) {
+    const nd = this.node;
+    if (!nd) return;
+    const c = Sound.ctx, t = c.currentTime;
+    this.pos[nd.id] = (t - nd.t0) % nd.len;
+    nd.g.gain.cancelScheduledValues(t); nd.g.gain.setValueAtTime(nd.g.gain.value, t);
+    nd.g.gain.linearRampToValueAtTime(0, t + fade);
+    try { nd.src.stop(t + fade + 0.05); } catch (e) { }
+    this.node = null; this.cur = null;
+  },
+
+  // which track this moment wants (null: silence)
+  pick() {
+    const g = G, st = g ? g.state : 'title';
+    if (g && this.RUN[st] && g.player) {
+      if (g.planet && g.planet.id === 'eventide') return 'finale';
+      const coop = typeof Coop !== 'undefined' && Coop.on;
+      if (coop) return (Coop.raid || this.inBoss) ? 'raid' : 'undervault';
+      if (g.diff === 'hardcore' && !g.planet) return 'hardcore';
+      if (this.inBoss) return 'boss';
+      if (g.planet) return g.actII ? 'pressure' : (this.T[g.planet.id] ? g.planet.id : 'skirmish');
+      if (g.diff === 'endless') return 'hardcore';
+      return (g.actII || g.time >= 360) ? 'pressure' : 'skirmish';
+    }
+    if (st === 'dead' || st === 'win') return this.overT > 3.5 ? 'title' : null;
+    if (this.CHART[st]) return 'chart';
+    if (this.SHOP[st]) return 'wardrobe';
+    if (this.ONLINE[st]) return 'lobby';
+    return 'title';
+  },
+
+  update(dt) {
+    if (this.dead || !Sound.ok || !Sound.started || !Sound.ctx) return;
+    if (Sound.ctx.state !== 'running') return;
+    this.init();
+    const g = G, st = g ? g.state : 'title';
+    const run = !!(g && this.RUN[st] && g.player);
+    const boss = run && g.boss && !g.boss.dead;
+    if (boss) { this.noBossT = 0; this.bossT += dt; if (this.bossT > 0.3) this.inBoss = true; }
+    else { this.bossT = 0; this.noBossT += dt; if (this.noBossT > 2.5) this.inBoss = false; }
+    this.overT = (st === 'dead' || st === 'win') ? this.overT + dt : 0;
+    if (run && !this.wasRun && g.time < 2) {
+      // a fresh run starts every track from its first bar
+      for (const k in this.T) if (k !== 'title' && k !== 'chart' && k !== 'wardrobe' && k !== 'lobby') delete this.pos[k];
+      this.inBoss = false;
+    }
+    this.wasRun = run;
+    const want = this.pick();
+    if (this.lite) { this.liteUpdate(want, st, dt); return; }
+    const t = Sound.ctx.currentTime;
+    // a run opens muffled and lets the music in over its first twelve seconds; pausing ducks it
+    const open = run && g.time < 13 ? 420 * Math.pow(48, clamp(g.time / 12, 0, 1)) : 20000;
+    this.lp.frequency.setTargetAtTime(Math.min(20000, open), t, 0.08);
+    const duck = st === 'paused' ? 0.35 : 1;
+    if (duck !== this.duck) { this.duck = duck; this.setVolume(); }
+    if (want !== this.cur) {
+      if (!want) { if (this.node) this.stopCur(st === 'dead' ? 0.5 : 1.5); }
+      else if (this.dec.has(want)) this.play(want, this.node ? (this.inBoss || this.cur === 'boss' || this.cur === 'raid' ? 0.6 : 1.4) : 0.9);
+      else this.load(want).catch(() => { });
+    }
+    // have the boss track decoded before the boss arrives
+    if (run && !this.loading.boss && !this.loading.raid) {
+      const nb = (typeof Coop !== 'undefined' && Coop.on) ? 'raid' : (g.diff === 'hardcore' || (g.planet && g.planet.id === 'eventide') ? null : 'boss');
+      if (nb && nb !== this.cur && !this.dec.has(nb) && this.anyOk) this.load(nb).catch(() => { });
+    }
+  },
+
+  // the HTML opened straight from disk: browsers won't fetch next to it, but an <audio> element still plays
+  liteUpdate(want, st, dt) {
+    for (const id in this.els) {
+      const el = this.els[id], on = id === want;
+      const target = on ? 0.5 * Sound.volMus * (st === 'paused' ? 0.35 : 1) * this.T[id][1] * (Sound.muted ? 0 : 1) : 0;
+      el._v += Math.sign(target - el._v) * Math.min(Math.abs(target - el._v), dt * 0.8);
+      try { el.volume = clamp(el._v, 0, 1); } catch (e) { }
+      if (!on && el._v <= 0.001 && !el.paused) el.pause();
+    }
+    if (want && !this.els[want]) {
+      const el = new Audio(this.dir + want + this.ext);
+      el.loop = true; el._v = 0; el.volume = 0;
+      el.onerror = () => { this.dead = true; for (const k in this.els) this.els[k].pause(); };
+      this.els[want] = el;
+    }
+    if (want && this.els[want].paused) { const p = this.els[want].play(); if (p && p.catch) p.catch(() => { }); }
   }
 };
 
@@ -1603,6 +1794,10 @@ const TRAILS = {
     core: { cols: ['#fffbe0', '#ffd166', '#ffb347', '#c25a14'], r: 10 },
     bits: [{ k: 'spark', cols: ['#ffd166', '#fffbe0', '#ffb347'], gap: 8, life: [0.25, 0.45], v: [140, 260], side: true, spread: 0.6, w: 1.8, len: 1.3 },
            { k: 'ring', cols: ['#ffd166'], gap: 55, size: [4, 6], end: 4.5, life: [0.45, 0.6], w: 1.6 }] },
+  newstar: { name: 'FIRST LIGHT',
+    core: { cols: ['#ffffff', '#c8fff0', '#63ffc9', '#ffd166'], r: 9 },
+    bits: [{ k: 'shape', s: 'star4', cols: ['#ffd166', '#63ffc9', '#ffffff'], gap: 16, size: [4, 7.5], life: [0.5, 0.9], v: [20, 70], spread: 1.2, spin: [-3, 3], flick: 0.7, add: true },
+           { k: 'dot', cols: ['#63ffc9', '#ffffff'], gap: 10, size: [1.4, 2.8], life: [0.35, 0.7], v: [30, 90], spread: 1.5 }] },
   unbroken: { name: 'AEGIS',
     core: { cols: ['#ffffff', '#eafcff', '#9ef7ff', '#5ec8ff'], r: 10 },
     bits: [{ k: 'shape', s: 'star4', cols: ['#ffffff', '#9ef7ff'], gap: 15, size: [4, 7], life: [0.5, 0.8], v: [20, 70], spread: 1.3, flick: 0.7, add: true },
@@ -7686,6 +7881,9 @@ const MASTERY = [
   { id: 'barrow', name: 'BARROW', mastery: 'barrow', req: 'PUT DOWN THE REAPER', short: 'THE BARROW',
     col: '#ff5a70', ring: '#8dff6b', core: '#ffe0e6', halo: 6, haloCol: '#8dff6b', pulse: true,
     blurb: 'Loam over something that died, a ring of old stones, and one green shoot coming up through it.' },
+  { id: 'newstar', name: 'NEWSTAR', mastery: 'rookie', req: 'FINISH THE ROOKIE TASKS', short: 'ROOKIE',
+    col: '#63ffc9', ring: '#ffd166', core: '#ffffff', halo: 6, haloCol: '#8affd8', pulse: true,
+    blurb: 'Every light out here was new once. This one remembers being yours.' },
   /* secret: hidden from the wardrobe entirely until a code puts it there */
   { id: 'dayzero', name: 'DAY ZERO', mastery: 'code', req: 'A CODE', short: 'A CODE', secret: true,
     col: '#9ef7ff', ring: '#ff7ae6', core: '#ffffff', halo: 10, haloCol: '#9ef7ff', pulse: true, oil: true,
@@ -9863,6 +10061,21 @@ function paintSkin(c, sk, R, t, raw) {
     }
 
     /* ------------------------------------------------ mastery, earned */
+    case 'newstar': {
+      // a young star: a long four-point flare, a second one turned through it in gold,
+      // a white heart, and three sparks still settling round it on a broken orbit
+      neon(c, x => pathStar(x, 4, R * 1.16, R * 0.3, -Math.PI / 2), col, o);
+      neon(c, x => pathStar(x, 4, R * 0.7, R * 0.22, -Math.PI / 4), sk.ring, { lw: 1.9, blur: 14, core: 'rgba(30,22,4,0.55)', inner: false });
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.2, 0, TAU); }, '#ffffff', { lw: 1.6, blur: 14, core: 'rgba(255,255,255,0.9)', inner: false });
+      neon(c, x => { x.beginPath(); x.arc(0, 0, R * 0.98, -0.35, 0.8); x.moveTo(Math.cos(1.45) * R * 0.98, Math.sin(1.45) * R * 0.98); x.arc(0, 0, R * 0.98, 1.45, 2.4); x.moveTo(Math.cos(3.3) * R * 0.98, Math.sin(3.3) * R * 0.98); x.arc(0, 0, R * 0.98, 3.3, 4.5); },
+        sk.ring, { lw: 1.2, blur: 9, core: null, inner: false });
+      for (let i = 0; i < 3; i++) {
+        const a = 1.05 + i * 2.05;
+        neon(c, x => { x.beginPath(); x.arc(Math.cos(a) * R * 0.98, Math.sin(a) * R * 0.98, R * 0.075, 0, TAU); }, i ? col : '#ffffff', { lw: 1.4, blur: 10, core: i ? null : 'rgba(255,255,255,0.8)', inner: false });
+      }
+      break;
+    }
+
     case 'pathless': {
       // a shape that never closes -- it only ever leaves a trace
       for (let i = 0; i < 5; i++) {
@@ -27357,9 +27570,11 @@ const Game = {
     this.arenaR = 1500; this.arenaTarget = 0;
     this.revives = D.revives || 0;
     this.continues = 0; this.contT = 0; this.chestTix = 0; this.endlessTix = 0; this.cgAd = null; this.cgOffered = false;
-    this.tut = Tut.want && !this.coop ? Tut.begin() : null; Tut.want = false;
+    this.tut = !this.coop ? Tut.begin(Tut.want) : null; Tut.want = false;
     this.enemyCap = (this.quality === 0 && Settings.effects && !this.coop) ? Math.min(D.cap, 200) : D.cap;
     this.eliteTimes = ELITE_TIMES.map(t => Math.round(t * D.eliteMul)).filter(t => !D.shortRun || t < (D.bossT || BOSS_T));
+    // THE FIRST MISSION: no gauntlet, one elite, and something to fall back on
+    if (this.tut && this.tut.mission) { GAUNTLET = []; this.eliteTimes = [TUT.ELITE_AT]; this.revives = Math.max(this.revives, 2); }
     Particles.clear(); Pops.clear();
     this.grid = new Grid(90);
     this.player = new Player(0, 0);
@@ -28085,6 +28300,7 @@ const Game = {
     const rs = this.runStats;
     if (rs) {
       rs.bossKills++;
+      Rookie.boss();
       if (this.time - e.bornT <= 20) Ach.grant('headsman');
       if (this.time - rs.lastBossT <= 10) Ach.grant('nowitness');
       rs.lastBossT = this.time;
@@ -28782,7 +28998,7 @@ const Game = {
 
   /* -------------------------------------------------------- xp / progress */
   addXp(v) {
-    const gain = v * this.stats.xpMul;
+    const gain = v * this.stats.xpMul * (this.tut && this.tut.mission && !this.tut.hold ? TUT.XP : 1);
     this.xp += gain; this.totalXp += gain;
     while (this.xp >= this.xpNeed) {
       this.xp -= this.xpNeed;
@@ -28920,7 +29136,7 @@ const Game = {
   },
 
   /* ------------------------------------------------------------- spawning */
-  bossTime() { return (!this.planet && this.D.bossT) ? this.D.bossT : BOSS_T; },
+  bossTime() { return this.tut && this.tut.mission ? TUT.BOSS_AT : ((!this.planet && this.D.bossT) ? this.D.bossT : BOSS_T); },
   // the boss that closes this run: the world's own finale, else the mode's
   finaleId() { return this.planet ? this.planet.finaleNow : (this.D.finaleId || (this.D.daily ? 'voidheart' : 'bloom')); },
   /* ------------------------------------------------------------------
@@ -28949,6 +29165,8 @@ const Game = {
     const d = BOSS_HP_DIFF[this.D.id] || this.D.bossHp;
     // a finale is sized to ~72k at level 12: a long fight, whatever its base
     const f = fin ? clamp(72000 / def.hp, 1.15, 2.2) : 1;
+    // THE FIRST MISSION's boss is sized for a two-minute build, whatever the level
+    if (this.tut && this.tut.mission) return d * f * TUT.BOSS_HP;
     return this.bossLevelMul() * d * f * (1 + (this.hordeMul() - 1) * HORDE.boss);
   },
   /* how much the build out-guns the horde: 0 .. HORDE.cap */
@@ -29026,6 +29244,7 @@ const Game = {
     if (!this.endless && this.D.rate <= 1) base *= 1 + 1.3 * Math.max(0, 1 - t / 90);
     if (this.endless) base *= Math.min(TIDE.rateCap, 1 + this.tide * TIDE.rate) * (this.tide >= 35 ? 1.3 : 1);
     if (this.postBloom) base *= 1 + Math.min(1.2, (t - BOSS_T) / 420);
+    if (this.tut && this.tut.mission) base *= TUT.RATE;
     return Math.min(this.endless ? Tide.spawnCap(this.tide) : 34, base);
   },
   tideMul(key, cap) {
@@ -29203,7 +29422,7 @@ const Game = {
       if (f < this.runStats.minHpFrac) this.runStats.minHpFrac = f;
     }
     this._achT = (this._achT || 0) - dt;
-    if (this._achT <= 0) { this._achT = 1; Ach.sweep(); }
+    if (this._achT <= 0) { this._achT = 1; Ach.sweep(); Rookie.sweep(); }
     // the difficulty's damage multiplier eases in over the first 40s, so a hard
     // run is survivable long enough to get your first two levels
     const dEase = 1 + (D.dmg - 1) * (0.6 + 0.4 * Math.min(1, this.time / 40));
@@ -29682,6 +29901,7 @@ const Game = {
       if (gp.id === 'garden' && Conquest.count(gp) >= gp.planets.length) Ach.grant('conqueror');
       if (gp.mod && gp.mod.worldWon) gp.mod.worldWon(this.planet);
     }
+    if (this.tut && this.tut.mission) Tut.over(win);
     const sc = Math.round(this.score);
     if (sc > d.best) d.best = sc;
     if (this.time > d.bestTime) d.bestTime = this.time;
@@ -29753,6 +29973,7 @@ const Game = {
     if (!d.owned) d.owned = ['seed'];
     Save.save();
     Ach.sweepMeta();
+    if (!this.coop) Rookie.sweep(this.level);
     // death burst
     for (let i = 0; i < 70; i++) {
       Particles.spark(this.player.x, this.player.y, rnd(TAU), rnd(90, 520), { col: win ? '#fff' : PAL.hp, life: rnd(0.4, 1.1), w: 3 });
@@ -29813,6 +30034,7 @@ const ACHS = [
   { id: 'unbroken', n: 'UNBROKEN', d: 'Win a run without ever dropping below half health', c: '#ffffff', g: 'MASTERY', skin: 'unbroken' },
   { id: 'ascendant', n: 'ASCENDANT', d: 'Win a run carrying two evolved weapons', c: '#c9a3ff', g: 'MASTERY', skin: 'ascendant' },
   { id: 'pathless', n: 'PATHLESS', d: 'Beat THE WITNESS without an echo touching you', c: '#e8f4ff', g: 'MASTERY', skin: 'pathless' },
+  { id: 'rookie', n: 'ROOKIE NO MORE', d: 'Finish every rookie task', c: '#63ffc9', g: 'MASTERY', skin: 'newstar' },
   { id: 'untolled', n: 'UNTOLLED', d: 'Beat THE TOLL without ever being silenced', c: '#c9a86b', g: 'MASTERY', skin: 'untolled' },
   { id: 'deeproot', n: 'DEEPROOT', d: 'Beat THE CULTIVAR before any seed matures', c: '#b6d13a', g: 'MASTERY', skin: 'deeproot' },
   { id: 'endurant', n: 'ENDURANT', d: 'Finish an Act II run', c: '#ff4fd8', g: 'MASTERY', skin: 'endurant' },
@@ -32578,6 +32800,8 @@ const BootHold = {
     if (this.n < 3) return;
     this.on = false;
     Loader.hide('boot');
+    // the first launch of a new save: the tutorial is the first thing played
+    try { if (G.state === 'title' && FirstRun.want() && !(Save.data.runs | 0)) FirstRun.go(); } catch (e) { }
   }
 };
 
@@ -33944,6 +34168,9 @@ const BUNDLE_HOURS = 72;
 const BUNDLES = [
   { id: 'bundle_starter', name: 'STARTER PACK', starter: true, once: true, col: '#63ffc9', main: 'vbux', price: 'A$2.99', aud: 2.99,
     give: { vbux: 200, shards: 8000, rare: 2, boosts: { reroll: 2, head: 2, cards: 2 } } },
+  // NO ADS: no ad between runs ever again (the ones you choose to watch for rewards stay). Only where the store lists it.
+  { id: 'remove_ads', name: 'NO ADS', noads: true, once: true, col: '#9ef7ff', main: 'noads', price: 'US$2.99', aud: 4.49,
+    give: { noads: 1, vbux: 50 } },
   { id: 'bundle_boost', name: 'BOOST BUNDLE', col: '#8dff6b', main: 'boost', price: 'A$1.99', aud: 1.99,
     give: { shards: 4000, boosts: { reroll: 4, head: 4, cards: 4 } } },
   { id: 'bundle_tickets', name: 'TICKET BUNDLE', col: '#c9a3ff', main: 'rare', price: 'A$4.99', aud: 4.99,
@@ -34900,6 +35127,7 @@ const Rare = {
     const d = Save.data;
     if (this.n() < 1) return { ok: false, why: 'none' };
     d.rareTix = this.n() - 1;
+    Rookie.rolled();
     const N = this.rolls() + 1;
     d.rareRolls = N;
     let x = Math.random() * 100;
@@ -34984,13 +35212,15 @@ const Gifts = {
   },
   dayOf(s) { return ((Math.max(1, s) - 1) % 7) + 1; },
   weekOf(s) { return Math.floor((Math.max(1, s) - 1) / 7) + 1; },
-  mul(s) { return Math.min(GIFT.MAX, 1 + GIFT.STEP * (this.weekOf(s) - 1)); },
+  /* ROOKIE WEEK: a save's first seven days, in a streak's first week, every gift pays double */
+  rookie(s) { const b = Save.data.born; return this.weekOf(s) === 1 && b > 0 && Date.now() - b < 7 * 864e5; },
+  mul(s) { return this.rookie(s) ? 2 : Math.min(GIFT.MAX, 1 + GIFT.STEP * (this.weekOf(s) - 1)); },
   /* what DAY n pays in the week streak s sits in */
   pay(n, s) {
     const D = GIFT_DAYS[clamp(n | 0, 1, 7) - 1];
     let sh = Math.round((D.sh || 0) * this.mul(s) / 5) * 5, tix = D.tix || 0;
     if (tix && !Standard.on()) { sh += tix * GIFT.TIX_SH; tix = 0; }
-    return { shards: sh, vbux: D.vb || 0, tix: tix, chest: !!D.chest };
+    return { shards: sh, vbux: (D.vb || 0) * (this.rookie(s) ? 2 : 1), tix: tix, chest: !!D.chest };
   },
   claim() {
     if (!this.can()) return null;
@@ -36111,7 +36341,7 @@ const Bundles = {
     if (!Array.isArray(d.bundles.bought)) d.bundles.bought = [];
     return d.bundles;
   },
-  bought(B) { return this.rec().bought.indexOf(B.id) >= 0; },
+  bought(B) { return this.rec().bought.indexOf(B.id) >= 0 || !!(B.noads && Save.data.noAds); },
   /* the starter clock starts the first time the shop opens in the app */
   seen() {
     if (!this.on()) return;
@@ -36130,6 +36360,7 @@ const Bundles = {
     const I = VbuxStore.info;
     return BUNDLES.filter(B => {
       if (B.starter && this.starterLeft() <= 0) return false;
+      if (B.noads && !(I && I.packs && I.packs[B.id])) return false;
       if (I && !(I.packs && I.packs[B.id])) return false;
       return true;
     });
@@ -36138,6 +36369,7 @@ const Bundles = {
   /* each line on the card, biggest first */
   lines(B) {
     const g = B.give, L = [], f = n => Number(n).toLocaleString('en-US');
+    if (g.noads) L.push({ k: 'noads', s: 'NO ADS BETWEEN RUNS, EVER' });
     if (g.vbux) L.push({ k: 'vbux', s: f(g.vbux) + ' VOIDBUX' });
     if (g.shards) L.push({ k: 'shards', s: f(g.shards) + ' SHARDS' });
     if (g.rare) L.push({ k: 'rare', s: g.rare + ' RARE TICKET' + (g.rare > 1 ? 'S' : '') });
@@ -36155,11 +36387,13 @@ const Bundles = {
   blurb(B) {
     const L = this.lines(B).map(l => l.s.toLowerCase());
     const b = B.give.boosts ? ' Boosts: ' + BOOSTS.map(o => (B.give.boosts[o.id] | 0) + '\u00d7 ' + o.name).join(', ') + '.' : '';
+    if (B.give.noads) return 'No more ads between runs, ever, on this save. The videos you choose to watch for rewards stay, so free voidbux and shards still work. Plus 50 voidbux, as thanks.';
     return 'Inside: ' + L.join(', ') + '.' + b + (B.once ? ' Once only.' : '');
   },
   /* everything lands at once (the shop has already been paid) */
   grant(B) {
     const d = Save.data, g = B.give;
+    if (g.noads) d.noAds = 1;
     if (g.vbux) Vbux.add(g.vbux);
     if (g.shards) d.shards = (d.shards || 0) + g.shards;
     if (g.rare) d.rareTix = Rare.n() + g.rare;
@@ -36271,7 +36505,7 @@ const UI = {
     return st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' ||
            st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' ||
            st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'mp' || st === 'lobby' ||
-           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'rare' || st === 'hollow' || st === 'gifts' || st === 'freevb' || st === 'rush';
+           st === 'boards' || st === 'cloud' || st === 'pass' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'armory' || st === 'roll' || st === 'std' || st === 'rare' || st === 'hollow' || st === 'gifts' || st === 'freevb' || st === 'rush' || st === 'rookie';
   },
   /* true while an online screen owns the keyboard for typing */
   typing() {
@@ -40894,6 +41128,16 @@ const UI = {
     c.restore();
   },
 
+  /* ONE MORE RUN's mark: a loop of arrow, turning, in the row's colour */
+  againIcon(c, x, y, s, on, col) {
+    const R = s * 0.42, a = on ? G.uiT * 3 : 0;
+    c.save(); c.translate(x, y); c.rotate(a);
+    neon(c, q => { q.beginPath(); q.arc(0, 0, R, -Math.PI * 0.15, Math.PI * 1.45); }, on ? col : PAL.dim, { lw: Math.max(1.4, s * 0.1), blur: on ? 9 : 0, core: null, inner: false });
+    const ex = Math.cos(-Math.PI * 0.15) * R, ey = Math.sin(-Math.PI * 0.15) * R;
+    neon(c, q => { q.beginPath(); q.moveTo(ex - R * 0.5, ey - R * 0.12); q.lineTo(ex, ey); q.lineTo(ex + R * 0.1, ey - R * 0.52); }, on ? '#ffffff' : PAL.dim, { lw: Math.max(1.4, s * 0.1), blur: on ? 7 : 0, core: null, inner: false });
+    c.restore();
+  },
+
   endScreen(c, win) {
     if (G.hollow && G.D.hollow) { this.hollowEnd(c, win); return; }
     if (G.rush && G.D.rush) { this.rushEnd(c, win); return; }
@@ -40919,7 +41163,7 @@ const UI = {
       sub2 = heart.winSub;
     } else if (G.planet) {
       head = G.planet.name + ' IS YOURS';
-      sub2 = 'one more world out of the dark';
+      sub2 = G.tut && G.tut.mission ? 'first mission complete  ·  the rest of the galaxy is open' : 'one more world out of the dark';
     }
     // a short window: the title higher, the rows tighter, and (when it is wide enough) the menu beside the results
     const shortS = VH < 600, tY = shortS ? Math.max(88, VH * 0.17) : VH * 0.22;
@@ -40980,18 +41224,21 @@ const UI = {
       }
     }
     const again = G.planet ? G.planet.id : null;
-    items.push({ label: 'RUN AGAIN', color: G.D.color,
+    items.push({ label: win ? 'RUN AGAIN' : 'ONE MORE RUN', color: G.D.color, omr: !win, icon: win ? null : (c2, ix, iy, sz, on, col) => this.againIcon(c2, ix, iy, sz, on, col),
       act: () => CG.midgameAd(() => Descent.start(again, G.diff)) });
+    if (Rookie.on() && !G.coop) { const rn = Rookie.ready(); items.push({ label: rn ? 'ROOKIE TASKS  \u2022 ' + rn + ' TO CLAIM' : 'ROOKIE TASKS  \u00b7  ' + Rookie.count() + '/' + ROOKIE_TASKS.length, color: rn ? ROOKIE.COL2 : ROOKIE.COL, act: () => this.openRookie(G.state) }); }
     if (G.D.daily) items.push({ label: 'DAILY STANDINGS', color: '#ffb347', act: () => { G.state = 'daily'; UI.lastState = ''; } });
     else if (G.planet) items.push({ label: 'SECTOR MAP', color: galOf(G.planet).col, act: () => { applySky(null); if (win) this._galSeen = null; G.state = 'conquest'; UI.lastState = ''; } });
     else items.push({ label: 'CHANGE DIFFICULTY', color: '#c9a3ff', act: () => { G.state = 'select'; UI.lastState = ''; } });
     { const pn = Pass.pending(); if (pn) items.push({ label: 'BLOOM PASS  \u2022 ' + pn + ' TO CLAIM', color: '#ffd166', act: () => UI.openPass(G.state) }); }
-    items.push({ label: 'SKINS', color: PAL.gold, act: () => { G.state = 'skins'; UI.lastState = ''; } });
+    if (!Rookie.on()) items.push({ label: 'SKINS', color: PAL.gold, act: () => { G.state = 'skins'; UI.lastState = ''; } });
     if (Cloud.on()) {
       const re = this._rankE, me = re && re.data && this._rankB && re.data.board === this._rankB.b ? re.data.me : null;
       if (me && !me.name && !me.hidden) items.push({ label: 'CLAIM YOUR SPOT', color: '#ffd166', act: () => this.openName('end') });
     }
     items.push({ label: 'LOBBY', color: PAL.dim, act: () => { G.state = 'hub'; UI.lastState = ''; } });
+    // R: one more run, straight away
+    { const om = items.find(q => q.omr); if (om && this.lockT <= 0 && !this.nameEntry && Input.hit('r')) { Sound.ui(true); om.act(); return; } }
     // six or seven rows under a tall panel: tighten up rather than run off the bottom
     const eTop = twoCol ? y + 16 : y + h + 30, eGap = clamp((VH - 20 - eTop) / Math.max(1, items.length - 1), 21, 36);
     this.menu(c, items, twoCol ? x + w + 174 : VW / 2, eTop, eGap, { size: Math.min(17, eGap * 0.48), w: twoCol ? 300 : 340, id: win ? 'win' : 'dead' });
@@ -41557,7 +41804,7 @@ Object.assign(UI, {
       case 'menu': this.hubMenuOpen(); break;
       case 'mode': go('modes'); break;
       case 'weapon': this.openArmory('hub'); break;
-      case 'pass': this.openPass('hub'); break;
+      case 'pass': if (Rookie.on()) this.openRookie('hub'); else this.openPass('hub'); break;
       case 'pilot': go('pilot'); break;
       case 'shop': this.openShop(null); break;
       case 'shards': this.openShop('shards'); break;
@@ -41604,13 +41851,13 @@ Object.assign(UI, {
       this.curChip(c, L.it.shards, 'shards', false, t);
       this.curChip(c, L.it.vbux, 'vbux', false, t);
       this.gearBtn(c, L.it.gear, false, t);
-      this.passBar(c, L.it.pass, false, t);
+      if (Rookie.on()) this.rookieBar(c, L.it.pass, false, t); else this.passBar(c, L.it.pass, false, t);
       this.modeBox(c, L.it.mode, false, t, Hub.world());
       this.weaponBox(c, L.it.weapon, false, t);
       this.playBtn(c, L.it.play, false, t);
       return;
     }
-    if (this.lastState !== 'hub') { this.begin('hub'); this.hubMenu = null; this.hubSel = this._hubKeep || 'play'; this._hubKeep = null; this._hubHov = null; VbuxStore.refresh(false); Payout.arrive('hub'); this.giftAuto(); }
+    if (this.lastState !== 'hub') { this.begin('hub'); this.hubMenu = null; this.hubSel = this._hubKeep || 'play'; this._hubKeep = null; this._hubHov = null; VbuxStore.refresh(false); Rookie.ensure(); Payout.arrive('hub'); this.giftAuto(); }
     // ---------------------------------------------------- input
     let hov = null;
     const MN = L.menu ? this.hubMenu : (this.hubMenu = null);
@@ -41650,7 +41897,7 @@ Object.assign(UI, {
     this.curChip(c, L.it.shards, 'shards', sel === 'shards', t);
     this.curChip(c, L.it.vbux, 'vbux', sel === 'vbux', t);
     this.gearBtn(c, L.it.gear, sel === 'gear', t);
-    this.passBar(c, L.it.pass, sel === 'pass', t);
+    if (Rookie.on()) this.rookieBar(c, L.it.pass, sel === 'pass', t); else this.passBar(c, L.it.pass, sel === 'pass', t);
     this.modeBox(c, L.it.mode, sel === 'mode', t, W);
     this.weaponBox(c, L.it.weapon, sel === 'weapon', t);
     this.playBtn(c, L.it.play, sel === 'play', t);
@@ -44282,7 +44529,7 @@ Object.assign(UI, {
     // the price
     this.priceBtn(c, x + 12 * u, by, w - 24 * u, bh, P, on, t);
     // the value, and for the starter its clock
-    if (P.state !== 'owned') this.ribbon(c, x + 10, y + 10, '\u00d7' + Bundles.value(B) + ' VALUE', '#ff2f5d');
+    if (P.state !== 'owned' && !B.noads) this.ribbon(c, x + 10, y + 10, '\u00d7' + Bundles.value(B) + ' VALUE', '#ff2f5d');
     if ((B.starter || B.tag) && P.state !== 'owned') {
       let s2 = B.tag;
       if (B.starter) {
@@ -44298,6 +44545,12 @@ Object.assign(UI, {
   },
   /* the small pictures a bundle is made of */
   bundleIcon(c, k, x, y, r, t) {
+    if (k === 'noads') {
+      // a video screen with a red bar struck through it
+      this.adIcon(c, x, y, r * 1.35, false, '#9ef7ff');
+      neon(c, q => { q.beginPath(); q.moveTo(x - r * 0.95, y + r * 0.72); q.lineTo(x + r * 0.95, y - r * 0.72); }, '#ff5a6e', { lw: Math.max(1.6, r * 0.2), blur: 10, core: null, inner: false });
+      return;
+    }
     if (k === 'vbux') this.vbuxGem(c, x, y, r, t);
     else if (k === 'shards') this.shardGem(c, x, y, r, t);
     else if (k === 'rare') ticketIcon(c, x, y, r * 1.25, 'rare', t);
@@ -44538,8 +44791,8 @@ Object.assign(UI, {
       }
       c.restore();
     }
-    const viaPlay = VbuxStore.kind() === 'play';
-    const head = done ? 'YOURS' : (M.mode === 'own' ? 'YOU OWN THIS' : (M.mode === 'soon' ? (cd.kind === 'bundle' ? 'ONE MOMENT' : 'COMING SOON') : (M.mode === 'wait' ? (viaPlay ? 'GOOGLE PLAY' : 'FINISH IN YOUR BROWSER') : 'BUY')));
+    const viaPlay = VbuxStore.kind() === 'play', storeN = (window.vbPlay && window.vbPlay.name) || 'GOOGLE PLAY';
+    const head = done ? 'YOURS' : (M.mode === 'own' ? 'YOU OWN THIS' : (M.mode === 'soon' ? (cd.kind === 'bundle' ? 'ONE MOMENT' : 'COMING SOON') : (M.mode === 'wait' ? (viaPlay ? storeN : 'FINISH IN YOUR BROWSER') : 'BUY')));
     tracked(c, head, x + w / 2, y + 30, { size: 12, weight: 900, align: 'center', color: PAL.dim, track: 4 });
     tracked(c, this.shopName(cd), x + w / 2, y + h * 0.62, { size: 20, weight: 900, align: 'center', color: col, glow: col, blur: 14, track: 3 });
     let blurb = this.shopSub(cd);
@@ -44553,7 +44806,7 @@ Object.assign(UI, {
     else if (cd.kind === 'bundle' && M.mode === 'soon') blurb = 'The store is still loading its prices. Try again in a moment.';
     else if (cd.kind === 'bundle' && M.mode !== 'wait') blurb = Bundles.blurb(cd.b);
     else if (M.mode === 'soon') blurb = 'Buying voidbux is not switched on in this version yet. Earn them from the BLOOM PASS and pilot levels.';
-    else if (M.mode === 'wait') blurb = viaPlay ? 'Finish the purchase in Google Play. Everything lands here the moment it goes through.' : 'The payment page is open in your browser. Your voidbux land here by themselves when it is done.';
+    else if (M.mode === 'wait') blurb = viaPlay ? 'Finish the purchase in ' + (storeN === 'GOOGLE PLAY' ? 'Google Play' : 'the ' + storeN.toLowerCase().replace(/^./, s => s.toUpperCase()) + ' window') + '. Everything lands here the moment it goes through.' : 'The payment page is open in your browser. Your voidbux land here by themselves when it is done.';
     wrapText(c, blurb, x + w / 2, y + h * 0.62 + 24, w - 50, 16, { size: 12, weight: 600, align: 'center', color: PAL.text, alpha: 0.88 });
     // buttons
     const P = this.shopPrice(cd);
@@ -45147,10 +45400,12 @@ Object.assign(UI, {
     let sub = wk === 1 ? (L.port ? 'WEEK 2 PAYS ×' + nm : 'WEEK 1  ·  WEEK 2 PAYS SHARDS ×' + nm)
       : 'WEEK ' + wk + '  ·  SHARDS ×' + mul + (mul >= GIFT.MAX ? ' MAX' : (L.port ? '' : '  ·  NEXT WEEK ×' + nm));
     if (best > Math.max(1, Gifts.streak()) && !L.port) sub += '  ·  BEST ' + best;
+    const rkw = Gifts.rookie(s);
+    if (rkw) sub = L.port ? 'ROOKIE WEEK  ·  EVERY GIFT ×2' : 'ROOKIE WEEK  ·  EVERY GIFT ×2 FOR YOUR FIRST SEVEN DAYS';
     let bsz = L.port ? 9.5 : 11 * u;
     const bw = tracked(c, sub, 0, 0, { size: bsz, weight: 800, track: 1.2, measureOnly: true });
     if (bw > room) bsz *= room / bw;
-    tracked(c, sub, rx, P.y + P.h * 0.72, { size: bsz, weight: 800, align: 'right', color: PAL.dim, track: 1.2 });
+    tracked(c, sub, rx, P.y + P.h * 0.72, { size: bsz, weight: 800, align: 'right', color: rkw ? ROOKIE.COL : PAL.dim, track: 1.2 });
   },
 
   /* one day: glass card, DAY n, what it pays, and where it stands */
@@ -46448,6 +46703,7 @@ function frame(now) {
   UI.lockT = Math.max(0, UI.lockT - dt);
   Sound.frame();
   Sound.tickMusic();
+  Music.update(dt);
   G.uiT += dt; G.uiDt = dt;
   if (!Tut.quiet()) Ach.update(dt);
 
@@ -46556,8 +46812,8 @@ function frame(now) {
   c.imageSmoothingEnabled = true;
 
   if (st === 'settings' && UI.settingsFrom === 'paused') {
-    UI.world(c); UI.hud(c); UI.settings(c);
-  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'rare' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb' || st === 'rush') {
+    UI.world(c); UI.hud(c); UI.settings(c); Guide.draw(c, st);
+  } else if (st === 'title' || st === 'how' || st === 'records' || st === 'select' || st === 'skins' || st === 'settings' || st === 'daily' || st === 'achievements' || st === 'conquest' || st === 'planet' || st === 'relics' || st === 'pets' || st === 'codes' || st === 'modes' || st === 'hub' || st === 'shop' || st === 'pilot' || st === 'roll' || st === 'std' || st === 'rare' || st === 'hollow' || st === 'mp' || st === 'lobby' || st === 'boards' || st === 'cloud' || st === 'pass' || st === 'armory' || st === 'gifts' || st === 'freevb' || st === 'rush' || st === 'rookie') {
     Cosmos.req = null;
     const cosOn = Cosmos.show(st === 'conquest' || st === 'planet' || st === 'modes' || st === 'hub');
     if (cosOn) c.clearRect(0, 0, VW, VH);
@@ -46573,6 +46829,7 @@ function frame(now) {
     else if (st === 'rush') { UI.fit(c, 0, 470, () => UI.rush(c)); }
     else if (st === 'pilot') { UI.fit(c, 0, 540, () => UI.pilot(c)); }
     else if (st === 'gifts') { UI.fit(c, 0, 560, () => UI.gifts(c)); }
+    else if (st === 'rookie') { UI.hub(c, true); UI.fit(c, 0, VW < 700 || VW < VH * 0.9 ? 700 : 560, () => UI.rookie(c)); }
     else if (st === 'freevb') { UI.freevb(c); Payout.draw(c, k => UI.payTarget(UI.hubLayout(), k)); }
     else if (st === 'how') { UI.hub(c, true); UI.fit(c, 360, 440, () => UI.fitUp(c, () => UI.how(c))); }
     else if (st === 'select') { UI.hub(c, true); UI.fit(c, 0, 520, () => UI.select(c)); }
@@ -46620,6 +46877,7 @@ function frame(now) {
     if (st === 'levelup') UI.fit(c, 0, 520, () => UI.levelup(c));
     else if (st === 'covenant') UI.fit(c, 0, 520, () => UI.covenant(c));
     else if (st === 'paused') UI.paused(c);
+    if (st === 'playing' || st === 'paused') Guide.draw(c, st);
     else if (st === 'continue') UI.fit(c, 0, G.cgAd ? 520 : 0, () => UI.continueScreen(c));
     else if (st === 'dead') UI.endScreen(c, false);
     else if (st === 'mpend') Coop.endScreen(c);
@@ -54283,8 +54541,26 @@ function warmSprites() {
    lobby, never in a run. LATER leaves a pill on those screens so the update
    is never more than a tap away.
    ======================================================================== */
-const GAME_VERSION = '3.1';
+const GAME_VERSION = '3.2';
 const PATCH_NOTES = [
+  { v: '3.2', date: 'NOVEMBER 2026', title: 'FIRST MISSION', col: '#63ffc9', col2: '#ffd166',
+    highlights: [
+      { k: 'boss', t: 'FIRST MISSION', s: 'a boss inside three minutes' },
+      { k: 'gem',  t: 'ROOKIE TASKS', s: 'eight goals, one NEWSTAR' },
+      { k: 'raid', t: 'ROOKIE WEEK', s: 'every daily gift x2' }
+    ],
+    groups: [
+      { h: 'NEW', col: '#8dff6b', items: [
+        'THE FIRST MISSION: a new player\u2019s first run is short and loud. Learn to move and dash, survive two minutes, then a WARNING and the world\u2019s boss. Win it and the first world is yours.',
+        'ROOKIE TASKS: eight first goals in the lobby, each paying shards, voidbux, rare tickets or run boosts. Finish all eight for NEWSTAR, a mastery skin that is never sold.',
+        'ROOKIE WEEK: for your first seven days every daily gift pays double.',
+        'ONE MORE RUN: after a loss it is the first button, and R starts it straight away.'
+      ] },
+      { h: 'CHANGES', col: '#9ef7ff', items: [
+        'The tutorial is quicker: one dash instead of two, the motes come to you, and the CONTROLS card is gone (the step cards teach them).',
+        'The lobby tour after the tutorial is four stops instead of eighteen.'
+      ] }
+    ] },
   { v: '3.1', date: 'NOVEMBER 2026', title: 'MEGA RAIDS', col: '#ffd36b', col2: '#ff4fd8',
     highlights: [
       { k: 'raid', t: 'MEGA RAIDS', s: 'up to 8 players vs one boss' },
@@ -54923,23 +55199,27 @@ Object.assign(UI, {
 });
 
 /* ========================================================================
-   THE TUTORIAL  --  a brand-new player's first run teaches itself.
+   THE TUTORIAL  --  a brand-new player's first run is a short mission.
 
    START drops a new player straight into the first world (every build). The
-   run's clock and its spawner wait while four steps are done, one at a time:
+   run's clock and its spawner wait while the steps are done, one at a time:
      1 MOVE   fly into a light set down nearby
-     2 DASH   dash twice (nothing touches you mid-dash)
+     2 DASH   dash once (nothing touches you mid-dash)
      3 FIGHT  six drifters close in; the weapons fire by themselves
-     4 GROW   grab their green motes; the level-up opens
+     4 GROW   their green motes rush in; the level-up opens
      5 BOON   pick a card
-   Then the clock starts, 300 shards are paid (once per save) and the run is
-   an ordinary run. Later, the first time each happens, the game slows for a
-   moment with a tip: a weapon nearing LV 5 (evolutions), the first boss, and
-   THE BLOOM's approach. After the run the lobby gives a short tour. SKIP
-   TUTORIAL (on the card) ends all of it; HOW TO PLAY can replay it. A save
-   from before the tutorial never sees any of this.
+   Then THE FIRST MISSION: the clock runs to 2:00 (XP comes fast, the swarm is
+   thicker, one elite at 0:45), a WARNING ten seconds out, and the world's own
+   boss -- sized for a two-minute build. Kill it and the world is taken: the
+   whole thing is about three minutes. 300 shards are paid when the steps are
+   done (once per save). Lose the mission and the same world runs the mission
+   again (no steps). SKIP (on the card) skips the teaching, never the mission.
+   After it the lobby gives a short tour. HOW TO PLAY can replay it all. A
+   save from before the tutorial never sees any of this.
    ======================================================================== */
-const TUT = { PAY: 300, BEACON: 290, FOES: 6, SLOW: 0.2, TIP_SECS: 6.5,
+const TUT = { PAY: 300, BEACON: 290, FOES: 6, SLOW: 0.2, TIP_SECS: 4.5,
+  BOSS_AT: 120, WARN: 10, ELITE_AT: 45, XP: 1.25, RATE: 1.4, BOSS_HP: 0.5,
+  TIPS: { hurt: 1, elite: 1, chest: 1, heart: 1 },     // the only slow-motion cards a mission stops for
   COL: { move: '#9ef7ff', dash: '#ffd166', fight: '#ff7ae6', motes: '#8dff6b', boon: '#c9a3ff', go: '#8dff6b' } };
 const Tut = {
   want: false,      // the next G.reset builds a tutorial run
@@ -54965,17 +55245,34 @@ const Tut = {
   /* the level-up the BOON step is about (its title gives way to PICK A BOON) */
   boonNow() { return !!(G.tut && G.tut.hold && G.tut.step === 'boon' && G.state === 'levelup'); },
   /* G.reset: the run being built is the tutorial */
-  begin() {
-    const r = this.rec();
+  begin(want) {
+    const r = this.rec(), pl = G.planet, D = G.D || {};
+    if (!want) {
+      // a mission lost: the same world runs the mission again, without the steps
+      if (!(r.on && r.mis === 1 && pl && pl.id === r.misPl && !D.daily && !D.hollow && !D.rush)) return null;
+      this.tip = null; this.slow = 1; this.skipArm = 0;
+      return { step: 'go', hold: false, mission: true, retry: true, st: 0, t: 0, ended: false, paid: 0, warn: 0 };
+    }
     r.on = 1; r.done = 0; r.skip = 0; r.tour = 0; r.tips = {}; r.seen = {}; r.guidesOff = 0;
+    r.mis = pl ? 1 : 0; r.misPl = pl ? pl.id : null;
+    if (!Save.data.born) Save.data.born = Date.now();
+    Rookie.start();
     Save.save();
     this.tip = null; this.slow = 1; this.skipArm = 0;
-    return { step: 'move', hold: true, st: 0, t: 0, bx: 0, by: 0, placed: false, dash0: -1, spawned: false, foes: 0, ended: false, paid: 0 };
+    return { step: 'move', hold: true, mission: !!pl, st: 0, t: 0, bx: 0, by: 0, placed: false, dash0: -1, spawned: false, foes: 0, ended: false, paid: 0, warn: 0 };
   },
+  /* the world the mission is fought on: the first world of the first galaxy */
+  world() { return (GAL_BY_ID.shallows || GALAXIES[0]).planets[0]; },
   replay() {
     this.want = true;
     Sound.resume(); applySky(null);
-    Descent.start(null, 'easy');
+    const W = this.world();
+    Descent.start(W.id, galOf(W).diff);
+  },
+  /* the run is over: a mission won is a mission done */
+  over(win) {
+    const r = this.rec();
+    if (win && r.mis === 1) { r.mis = 2; Save.save(); }
   },
   /* the run's finale, by name and time: a world's own boss on a conquest world, THE BLOOM otherwise */
   finale() {
@@ -55011,11 +55308,20 @@ const Tut = {
     if (p) { Particles.ring(p.x, p.y, 16, 520, { col: TUT.COL.go, life: 0.9, w: 9 }); Particles.ring(p.x, p.y, 10, 300, { col: '#ffffff', life: 0.6, w: 5 }); }
   },
 
+  /* the clock to the boss: a WARNING ten seconds out, the last three counted */
+  missionTick(T) {
+    if (G.over || G.bossSpawned || G.boss) { T.warn = 0; return; }
+    const left = G.bossTime() - G.time;
+    if (left > TUT.WARN) { T.warn = 0; return; }
+    if (!T.warn) { T.warn = 1; T.warnT = G.uiT; Sound.bossHorn(); Flash.hit('#ff5a6e', 0.16); Cam.shake(0.35); }
+    const s = Math.ceil(left);
+    if (s >= 1 && s <= 3 && s !== T.beat) { T.beat = s; Sound.ui(true); }
+  },
   /* every fixed step of a run (G.update) */
   tick(dt) {
     const T = G.tut;
     if (T && T.hold) this.stepTick(T, dt);
-    else if (T) T.st += dt;
+    else if (T) { T.st += dt; if (T.mission) this.missionTick(T); }
     if (!this.tip && this.tipsOn() && !(T && T.hold) && !G.coop && !G.hollow && !G.solo && !G.over && G.player) this.tipCheck();
   },
   stepTick(T, dt) {
@@ -55045,7 +55351,7 @@ const Tut = {
       const n = G.runStats ? G.runStats.dashes | 0 : 0;
       if (T.dash0 < 0) T.dash0 = n;
       T.dashes = n - T.dash0;
-      if (T.dashes >= 2 && T.st > 0.4) this.next(T, 'fight');
+      if (T.dashes >= 1 && T.st > 0.3) this.next(T, 'fight');
     } else if (T.step === 'fight') {
       if (!T.spawned) {
         T.spawned = true;
@@ -55064,10 +55370,10 @@ const Tut = {
       T.foes = n;
       if (n === 0 && T.st > 0.8) this.next(T, 'motes');
     } else if (T.step === 'motes') {
-      let n = 0; for (const pk of G.pickups) if (pk && pk.type === 'mote' && !pk.dead) n++;
+      let n = 0; for (const pk of G.pickups) if (pk && pk.type === 'mote' && !pk.dead) { n++; if (T.st > 0.9) pk.pull = true; }
       T.motes = n;
-      // every mote taken (or a while on) and still no level: the first one comes now
-      if ((n === 0 && T.st > 0.6) || T.st > 9) {
+      // a moment to see them, then they rush in; every mote taken (or a while on) and still no level: the first one comes now
+      if ((n === 0 && T.st > 0.6) || T.st > 3.5) {
         if (G.state === 'playing' && !(G.pendingLevels > 0)) G.addXp((G.xpNeed - G.xp) / Math.max(0.01, G.stats.xpMul) + 0.01);
       }
     }
@@ -55090,6 +55396,7 @@ const Tut = {
     else if (!tips.boss && G.boss && !G.boss.dead && !G.boss.isFinale && G.boss.spawnT <= 0.2) id = 'boss';
     else if (!tips.bloom && !G.endless && !G.D.daily && G.bossTime && G.time >= G.bossTime() - 16 && G.time < G.bossTime()) id = 'bloom';
     if (!id) return;
+    if (G.tut && G.tut.mission && !TUT.TIPS[id]) return;      // a mission is short: it stops for nothing but these
     tips[id] = 1; Save.save();
     this.lastTip = G.time;
     const T = {
@@ -55157,7 +55464,12 @@ const Tut = {
       this.stepCard(c, T, t);
     }
     if (T && T.hold && T.step === 'boon' && st === 'levelup') this.boonBar(c, t);
-    if (T && T.step === 'go' && T.st < 4.5 && st === 'playing' && !this.tip) this.goCard(c, T, t);
+    const goUp = T && T.step === 'go' && T.st < 4.5 && st === 'playing' && !this.tip;
+    if (goUp) this.goCard(c, T, t);
+    if (T && T.mission && !T.hold && !G.over && (st === 'playing' || st === 'paused')) {
+      if (T.warn && st === 'playing') this.warnDraw(c, T, t);
+      if (!goUp && !this.tip && !(VW < 560 && Ach.toasts.length)) this.missionPlate(c, T, t);
+    }
     if (this.tip && (st === 'playing' || st === 'paused')) this.tipCard(c, this.tip, t);
   },
   /* the light to fly into: a column of glow, two rings turning against each other, a beat at the core */
@@ -55269,8 +55581,7 @@ const Tut = {
     // the step
     const S = {
       move: { title: 'MOVE', keys: touch ? null : ['W', 'A', 'S', 'D'], text: touch ? 'drag anywhere to fly  ·  reach the light' : 'or the arrow keys  ·  fly into the light' },
-      dash: { title: 'DASH', keys: touch ? null : ['SPACE'], text: (touch ? 'tap the lower right, twice' : 'twice') + '  ·  nothing can touch you mid-dash', prog: [T.dashes | 0, 2],
-        cnt: G.player && G.player.dashCd > 0 && (T.dashes | 0) < 2 ? 'RECHARGING' : '' },
+      dash: { title: 'DASH', keys: touch ? null : ['SPACE'], text: (touch ? 'tap the lower right' : 'once') + '  ·  nothing can touch you mid-dash', prog: [T.dashes | 0, 1] },
       fight: { title: 'FIGHT', keys: null, text: 'your weapons fire by themselves  ·  stay close, keep moving', cnt: T.foes ? T.foes + ' LEFT' : '' },
       motes: { title: 'GROW', keys: null, text: 'fly over the green motes  ·  they level you up' }
     }[T.step] || { title: '', text: '' };
@@ -55358,9 +55669,87 @@ const Tut = {
     c.save(); c.globalAlpha *= a;
     const col = TUT.COL.go, w = Math.min(520, VW - 20), h = 70, y = VH - h - Math.max(44, VH * 0.075);
     const x = this.cardBox(c, w, h, y, col, '#ffd166', t);
-    tracked(c, "YOU'RE READY", x + 16, y + 30, { size: 19, weight: 900, color: col, glow: col, blur: 12, track: 4 });
-    text(c, fitText(c, 'survive to ' + this.finale().at + ' and kill ' + this.finale().name + (T.paid ? '  ·  +' + T.paid + ' shards' : ''), w - 32, 12.5, 700), x + 16, y + 54, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.92 });
+    tracked(c, T.mission ? 'FIRST MISSION' : "YOU'RE READY", x + 16, y + 30, { size: 19, weight: 900, color: col, glow: col, blur: 12, track: 4 });
+    text(c, fitText(c, 'survive to ' + this.finale().at + (T.mission ? ', then kill ' : ' and kill ') + this.finale().name + (T.paid ? '  ·  +' + T.paid + ' shards' : ''), w - 32, 12.5, 700), x + 16, y + 54, { size: 12.5, weight: 700, color: PAL.text, alpha: 0.92 });
     c.restore();
+  },
+  /* THE FIRST MISSION, along the bottom: SURVIVE and a bar running to the boss
+     (a crown where it ends), then KILL <boss> once it is up. Clear of the middle. */
+  missionPlate(c, T, t) {
+    const F = this.finale(), narrow = VW < 560, touch = this.touchy();
+    const fight = !!(G.boss && !G.boss.dead && G.boss.isFinale);
+    const left = Math.max(0, G.bossTime() - G.time), tot = Math.max(1, G.bossTime());
+    const col = fight ? '#ff5a6e' : (T.warn ? '#ff8a5a' : TUT.COL.go);
+    const w = Math.min(narrow ? 330 : 430, VW - 20), h = 42;
+    const x = VW / 2 - w / 2, y = VH - h - Math.max(touch ? 22 : 16, VH * 0.03);
+    hglow(c, col, VW / 2, y + h / 2, w * 0.55, 0.1);
+    glass(c, x, y, w, h, h / 2, col, false);
+    tracked(c, 'FIRST MISSION', x + 20, y + 16, { size: 8.5, weight: 900, color: PAL.dim, track: 2.2 });
+    const goal = fight ? 'KILL ' + F.name.replace(/^THE /, '') : 'SURVIVE';
+    tracked(c, goal, x + 20, y + 32, { size: 13.5, weight: 900, color: col, glow: col, blur: 8, track: 2 });
+    const gw = tracked(c, goal, 0, 0, { size: 13.5, weight: 900, track: 2, measureOnly: true });
+    const fx = x + 20 + Math.max(gw, narrow ? 66 : 80) + 16;
+    if (fight) {
+      const pl = G.planet, B = G.boss, f = sat(B.hp / Math.max(1, B.maxHp));
+      const s = pl ? pl.name + ' IS YOURS IF IT FALLS' : 'IT IS THE LAST THING DOWN HERE';
+      tracked(c, fitText(c, s, x + w - 20 - fx, 10, 900), x + w - 20, y + 19, { size: 10, weight: 900, align: 'right', color: '#ffd166', track: 1.2 });
+      const bw = x + w - 20 - fx;
+      c.save(); c.fillStyle = 'rgba(160,170,220,0.16)'; roundRect(c, fx, y + 26, bw, 5, 2.5); c.fill();
+      c.fillStyle = col; roundRect(c, fx, y + 26, Math.max(5, bw * f), 5, 2.5); c.fill(); c.restore();
+    } else {
+      const tw = 46, bw = x + w - 20 - tw - 14 - fx, f = sat(1 - left / tot), by = y + h / 2 + 1;
+      c.save(); c.fillStyle = 'rgba(160,170,220,0.16)'; roundRect(c, fx, by - 3, bw, 6, 3); c.fill();
+      c.fillStyle = col; roundRect(c, fx, by - 3, Math.max(6, bw * f), 6, 3); c.fill();
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.75;
+      c.drawImage(glowSprite(col), fx + bw * f - 10, by - 10, 20, 20); c.restore();
+      // the crown at the end of the bar: that is where it comes
+      const cr = hsprite('tutcrown', 30, 26, g => neon(g, q => { q.beginPath(); q.moveTo(-8, 5); q.lineTo(-8, -3); q.lineTo(-4, 1); q.lineTo(0, -6); q.lineTo(4, 1); q.lineTo(8, -3); q.lineTo(8, 5); q.closePath(); }, '#ff5a6e', { lw: 1.6, blur: 8, core: 'rgba(30,4,10,0.9)' }));
+      const pul = T.warn ? 1 + 0.18 * Math.abs(Math.sin(t * 7)) : 1;
+      c.save(); c.translate(fx + bw + 2, by); c.scale(pul, pul); c.drawImage(cr.cv, -cr.w / 2, -cr.h / 2, cr.w, cr.h); c.restore();
+      tracked(c, fmtTime(left), x + w - 20, by + 5, { size: 14, weight: 900, align: 'right', color: T.warn ? '#ffb0bc' : '#ffffff', glow: T.warn ? '#ff5a6e' : null, blur: 8, mono: true, track: 1 });
+    }
+  },
+  /* WARNING: red light washes in from the edges, a striped band across the upper
+     third (never the middle, where bullets are read), the boss's name, and the
+     last three seconds counted out */
+  warnDraw(c, T, t) {
+    const left = Math.max(0, G.bossTime() - G.time), F = this.finale();
+    const u = clamp(VW / 760, 0.62, 1.15), k = sat((G.uiT - (T.warnT || 0)) / 0.35);
+    const a = (0.6 + 0.4 * Math.sin(t * 8)) * k;
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (const top of [true, false]) {
+      const y0 = top ? 0 : VH, y1 = top ? VH * 0.18 : VH * 0.82;
+      const g = c.createLinearGradient(0, y0, 0, y1);
+      g.addColorStop(0, 'rgba(255,50,80,' + (0.26 * a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,50,80,0)');
+      c.fillStyle = g; c.fillRect(0, Math.min(y0, y1), VW, Math.abs(y1 - y0));
+    }
+    c.restore();
+    const cy = Math.max(118, VH * 0.27), bh = 46 * u, bw = Math.min(VW, 820 * u);
+    const bx = VW / 2 - bw / 2;
+    // the band: a dark strip, hazard slashes marching through it, red rims
+    c.save(); c.globalAlpha = k;
+    c.fillStyle = 'rgba(14,2,8,0.72)'; c.fillRect(bx, cy - bh / 2, bw, bh);
+    c.beginPath(); c.rect(bx, cy - bh / 2, bw, bh); c.clip();
+    c.globalCompositeOperation = 'lighter'; c.strokeStyle = 'rgba(255,90,110,0.16)'; c.lineWidth = 9 * u;
+    const off = (t * 60) % (26 * u);
+    c.beginPath();
+    for (let xx = bx - bh + off; xx < bx + bw + bh; xx += 26 * u) { c.moveTo(xx, cy + bh / 2); c.lineTo(xx + bh, cy - bh / 2); }
+    c.stroke();
+    c.restore();
+    c.save(); c.globalAlpha = k; c.strokeStyle = '#ff5a6e'; c.lineWidth = 1.5; c.shadowColor = '#ff5a6e'; c.shadowBlur = 10;
+    c.beginPath(); c.moveTo(bx, cy - bh / 2); c.lineTo(bx + bw, cy - bh / 2); c.moveTo(bx, cy + bh / 2); c.lineTo(bx + bw, cy + bh / 2); c.stroke();
+    c.restore();
+    tracked(c, 'WARNING', VW / 2, cy + 12 * u, { size: 32 * u, weight: 900, align: 'center', color: '#ff6a80', glow: '#ff3a5a', blur: 18, track: 16 * u, alpha: k * (0.75 + 0.25 * a) });
+    tracked(c, F.name + ' IS COMING', VW / 2, cy + bh / 2 + 22 * u, { size: 13 * u + 1, weight: 900, align: 'center', color: '#ffd166', glow: '#ff9a3c', blur: 10, track: 4 * u, alpha: k });
+    // the last three seconds, counted at both ends of the band (never over the ship)
+    if (left <= 3 && left > 0) {
+      const n = Math.ceil(left), f = n - left, pop = 1 + 0.45 * Math.pow(f, 3);
+      for (const ex of [bx + Math.min(70 * u, bw * 0.09), bx + bw - Math.min(70 * u, bw * 0.09)]) {
+        c.save(); c.translate(ex, cy); c.scale(pop, pop);
+        tracked(c, String(n), 0, 13 * u, { size: 36 * u, weight: 900, align: 'center', color: '#ffffff', glow: '#ff5a6e', blur: 18, alpha: k * (0.45 + 0.55 * f) });
+        c.restore();
+      }
+    }
   },
   /* a tip: the run slows; the card says one thing; Enter, a tap, or six seconds lets it go */
   tipCard(c, tp, t) {
@@ -55392,6 +55781,464 @@ const Tut = {
     c.restore();
   }
 };
+
+/* ========================================================================
+   ROOKIE TASKS  --  a new player's first eight goals. They sit where the
+   BLOOM PASS bar would be on the lobby (every layout has that slot) until
+   they are all claimed. Each pays shards, voidbux, rare tickets or run
+   boosts; where ads are on, a claim can be doubled with a short video.
+   Finish all eight and NEWSTAR is yours: a mastery skin, never sold.
+   Progress is read from what the save already knows (worlds taken, kills,
+   the EVOLVE award) plus three counters kept here (best level, bosses,
+   rare rolls). A task finished in a run says so the moment it happens.
+   A save that began with the tutorial gets them, and so does one that is
+   still near its start (six runs or fewer) the first time the lobby opens.
+   ======================================================================== */
+const ROOKIE = { COL: '#63ffc9', COL2: '#ffd166', SKIN: 'newstar', ACH: 'rookie', EARLY_RUNS: 6 };
+const ROOKIE_TASKS = [
+  { id: 'mission', n: 'FIRST MISSION', d: 'Win the first mission', goal: 1, give: { shards: 500 } },
+  { id: 'lv10', n: 'POWER UP', d: 'Reach LEVEL 10 in one run', goal: 10, give: { boosts: { head: 1, cards: 1 } } },
+  { id: 'kills', n: 'SWARM BREAKER', d: 'Destroy 1,500 enemies', goal: 1500, give: { shards: 1000 } },
+  { id: 'world2', n: 'NEW GROUND', d: 'Take 2 CONQUEST worlds', goal: 2, give: { rare: 1 } },
+  { id: 'evo', n: 'EVOLVE', d: 'Evolve a weapon in a run', goal: 1, give: { rare: 1 } },
+  { id: 'roll', n: 'FEELING LUCKY', d: 'Open the RARE ROLL once', goal: 1, give: { shards: 1500, vbux: 10 } },
+  { id: 'bosses', n: 'BOSS HUNTER', d: 'Kill 6 bosses', goal: 6, give: { vbux: 30 } },
+  { id: 'world4', n: 'CONQUEROR', d: 'Take 4 CONQUEST worlds', goal: 4, give: { rare: 2, shards: 2000 } }
+];
+const Rookie = {
+  rec() {
+    const d = Save.data;
+    if (!d.rookie || typeof d.rookie !== 'object') return null;
+    const r = d.rookie;
+    if (!r.got || typeof r.got !== 'object') r.got = {};
+    if (!r.told || typeof r.told !== 'object') r.told = {};
+    return r;
+  },
+  start() {
+    const d = Save.data;
+    if (!d.rookie || typeof d.rookie !== 'object') d.rookie = { at: Date.now(), k0: d.kills | 0, b: 0, lv: 0, roll: 0, got: {}, told: {}, fin: 0 };
+  },
+  /* a save from before the rookie tasks that is still near its start gets them too */
+  ensure() {
+    const d = Save.data;
+    if (d.rookie || (d.runs | 0) > ROOKIE.EARLY_RUNS) return;
+    this.start(); Save.save();
+  },
+  on() { const r = this.rec(); return !!(r && !r.fin); },
+  conq() { try { const q = Conquest.d().conquered; return q ? Object.keys(q).length : 0; } catch (e) { return 0; } },
+  /* a solo run in progress (its kills and level are not in the save yet) */
+  live() { return !!(G && G.player && !G.over && !G.coop && (G.state === 'playing' || G.state === 'levelup' || G.state === 'paused')); },
+  prog(T) {
+    const r = this.rec(), d = Save.data;
+    if (!r) return 0;
+    switch (T.id) {
+      case 'mission': return d.tut && d.tut.mis === 2 ? 1 : 0;
+      case 'lv10': return Math.max(r.lv | 0, this.live() ? G.level | 0 : 0);
+      case 'world2': case 'world4': return this.conq();
+      case 'kills': return Math.max(0, (d.kills | 0) + (this.live() ? G.kills | 0 : 0) - (r.k0 | 0));
+      case 'evo': return d.achs && d.achs.evolved ? 1 : 0;
+      case 'roll': return r.roll | 0;
+      case 'bosses': return r.b | 0;
+    }
+    return 0;
+  },
+  done(T) { return this.prog(T) >= T.goal; },
+  claimed(T) { const r = this.rec(); return !!(r && r.got[T.id]); },
+  ready() { if (!this.on()) return 0; let n = 0; for (const T of ROOKIE_TASKS) if (this.done(T) && !this.claimed(T)) n++; return n; },
+  count() { let n = 0; for (const T of ROOKIE_TASKS) if (this.claimed(T)) n++; return n; },
+  allGot() { return this.count() >= ROOKIE_TASKS.length; },
+  /* what the lobby bar points at: something to claim, else the closest thing to finishing */
+  next() {
+    let best = null, bf = -1;
+    for (const T of ROOKIE_TASKS) {
+      if (this.claimed(T)) continue;
+      if (this.done(T)) return T;
+      const f = this.prog(T) / T.goal;
+      if (f > bf) { bf = f; best = T; }
+    }
+    return best;
+  },
+  /* once a second in a run, and when it ends: a task finished says so, once */
+  sweep(lvEnd) {
+    if (!this.on()) return;
+    const r = this.rec();
+    const lv = Math.max(lvEnd | 0, this.live() ? G.level | 0 : 0);
+    if (lv > (r.lv | 0)) r.lv = lv;
+    for (const T of ROOKIE_TASKS) {
+      if (r.told[T.id] || r.got[T.id] || !this.done(T)) continue;
+      r.told[T.id] = 1; Save.save();
+      Ach.toasts.push({ a: { n: T.n, d: 'Rookie task done  ·  claim it in the lobby', c: ROOKIE.COL, head: 'ROOKIE TASK' }, t: 0, life: 4.2 });
+      while (Ach.toasts.length > 3) Ach.toasts.shift();
+      Sound.achieve();
+    }
+  },
+  boss() { const r = this.rec(); if (r && !G.coop) r.b = (r.b | 0) + 1; },
+  rolled() { const r = this.rec(); if (r) { r.roll = (r.roll | 0) + 1; Save.save(); } },
+  /* the reward as the row shows it: [{ k, n, s }] */
+  gives(T, m) {
+    const g = T.give, L = [], f = n => fmtNum(n);
+    m = m || 1;
+    if (g.shards) L.push({ k: 'shards', n: g.shards * m, s: f(g.shards * m) });
+    if (g.vbux) L.push({ k: 'vbux', n: g.vbux * m, s: f(g.vbux * m) });
+    if (g.rare) L.push({ k: 'rare', n: g.rare * m, s: g.rare * m + ' RARE' });
+    if (g.boosts) { let n = 0; for (const k in g.boosts) n += g.boosts[k] | 0; L.push({ k: 'boost', n: n * m, s: n * m + ' BOOSTS' }); }
+    return L;
+  },
+  claim(T, mul) {
+    if (!this.on() || !this.done(T) || this.claimed(T)) return null;
+    const r = this.rec(), d = Save.data, g = T.give, m = mul > 1 ? 2 : 1, out = { shards: 0, vbux: 0, rare: 0, boosts: 0 };
+    if (g.shards) { out.shards = g.shards * m; d.shards = (d.shards || 0) + out.shards; }
+    if (g.vbux) { out.vbux = g.vbux * m; Vbux.add(out.vbux); }
+    if (g.rare) { out.rare = g.rare * m; d.rareTix = Rare.n() + out.rare; }
+    if (g.boosts) {
+      if (!d.boosts || typeof d.boosts !== 'object') d.boosts = {};
+      for (const k in g.boosts) { d.boosts[k] = (d.boosts[k] | 0) + (g.boosts[k] | 0) * m; out.boosts += (g.boosts[k] | 0) * m; }
+    }
+    r.got[T.id] = m; r.told[T.id] = 1;
+    Save.save();
+    if (this.allGot()) Ach.grant(ROOKIE.ACH);
+    try { Ach.sweepMeta(); } catch (e) { }
+    return out;
+  },
+  /* all eight claimed and NEWSTAR seen: the bar gives the slot back to the pass */
+  finish(wear) {
+    const r = this.rec();
+    if (!r || !this.allGot()) return;
+    if (wear && skinOwned(ROOKIE.SKIN)) Save.data.skin = ROOKIE.SKIN;
+    r.fin = 1; Save.save();
+  }
+};
+
+/* ------------------------------------------------------------------------
+   ON SCREEN  --  the lobby bar (in the pass's slot) and the ROOKIE TASKS
+   screen: eight rows, a claim button on each one that is done (and a
+   short-video x2 beside it where ads are on), and NEWSTAR on its plinth.
+   ------------------------------------------------------------------------ */
+Object.assign(UI, {
+  rkFrom: 'hub', rkSel: 0, rkFx: null, rkMsg: null,
+  openRookie(from) {
+    this.rkFrom = from || 'hub'; this.rkFx = null; this.rkMsg = null; this.rkSel = -1;
+    G.state = 'rookie'; this.lastState = '';
+  },
+  leaveRookie() {
+    if (Rookie.allGot()) Rookie.finish(false);
+    Payout.finish();
+    G.state = this.rkFrom || 'hub'; this.lastState = ''; Sound.ui(false);
+  },
+  /* the ring of eight: one lit segment per task claimed, a gold one for each ready */
+  rookieRing(c, x, y, R, t, big) {
+    const N = ROOKIE_TASKS.length, gap = 0.16;
+    c.save(); c.lineCap = 'round';
+    for (let i = 0; i < N; i++) {
+      const T = ROOKIE_TASKS[i], a0 = -Math.PI / 2 + i / N * TAU + gap / 2, a1 = a0 + TAU / N - gap;
+      const got = Rookie.claimed(T), rdy = !got && Rookie.done(T);
+      c.strokeStyle = got ? ROOKIE.COL : (rdy ? ROOKIE.COL2 : 'rgba(150,160,210,0.22)');
+      c.lineWidth = Math.max(2, R * (big ? 0.16 : 0.2));
+      if (got || rdy) { c.shadowColor = c.strokeStyle; c.shadowBlur = rdy ? 8 + 4 * Math.sin(t * 6) : 6; } else c.shadowBlur = 0;
+      c.beginPath(); c.arc(x, y, R, a0, a1); c.stroke();
+    }
+    c.restore();
+  },
+  /* the lobby's bottom-left bar while the rookie tasks are on */
+  rookieBar(c, r, on, t) {
+    const col = ROOKIE.COL, rdy = Rookie.ready(), all = Rookie.allGot();
+    const hu = this.hubLayout().u;
+    if (rdy || all) hglow(c, ROOKIE.COL2, r.x + r.w / 2, r.y + r.h / 2, r.w * 0.5, 0.1 + 0.06 * Math.sin(t * 4));
+    glass(c, r.x, r.y, r.w, r.h, 12, rdy || all ? ROOKIE.COL2 : col, on);
+    const R = r.h * 0.3, cx = r.x + r.h * 0.52, cy = r.y + r.h / 2;
+    this.rookieRing(c, cx, cy, R, t, false);
+    tracked(c, String(Rookie.count()), cx, cy + R * 0.42, { size: R * 1.05, weight: 900, align: 'center', color: '#ffffff', glow: col, blur: 8, mono: true });
+    const tx = r.x + r.h + 4, room = r.x + r.w - tx - 14;
+    let bs = clamp(r.h * 0.22, 11, 15 * hu);
+    { const bw0 = tracked(c, 'ROOKIE TASKS', 0, 0, { size: bs, weight: 900, track: 3, measureOnly: true }), br = room - (rdy ? 14 : 0); if (bw0 > br) bs *= br / bw0; }
+    tracked(c, 'ROOKIE TASKS', tx, r.y + r.h * 0.38, { size: bs, weight: 900, color: on ? '#ffffff' : col, glow: col, blur: 10, track: 3 });
+    let s, scol = PAL.dim;
+    if (all) { s = 'NEWSTAR IS YOURS  ·  TAP TO WEAR IT'; scol = ROOKIE.COL2; }
+    else if (rdy) { s = rdy + ' READY TO CLAIM'; scol = ROOKIE.COL2; }
+    else { const T = Rookie.next(); s = T ? T.d + '  ·  ' + fmtNum(Math.min(T.goal, Rookie.prog(T))) + '/' + fmtNum(T.goal) : ''; }
+    const ss = clamp(r.h * 0.16, 9, 10.5 * hu);
+    text(c, fitText(c, s, room, ss, 800), tx, r.y + r.h * 0.38 + ss + 6 * hu, { size: ss, weight: 800, color: scol, alpha: rdy || all ? 0.75 + 0.25 * Math.sin(t * 4) : 0.95 });
+    if (rdy) bubble(c, r.x + r.w - 6, r.y + 4, rdy);
+    if (on) focusTicks(c, r.x, r.y, r.w, r.h, col, t);
+  },
+
+  rookieLayout() {
+    const key = VW + 'x' + VH;
+    if (this._rkL && this._rkL.key === key) return this._rkL;
+    const port = VW < 700 || VW < VH * 0.9, m = port ? 12 : clamp(Math.min(VW, VH) * 0.026, 12, 22);
+    const L = { key: key, port: port, m: m };
+    const chipH = port ? 30 : 34, shW = port ? 104 : 128, vbW = port ? 88 : 108;
+    L.back = { x: m, y: m, w: port ? 82 : 104, h: chipH };
+    L.vbux = { x: VW - m - vbW, y: m, w: vbW, h: chipH };
+    L.shards = { x: L.vbux.x - 8 - shW, y: m, w: shW, h: chipH };
+    L.titleY = m + chipH + (port ? 34 : 40);
+    L.titleSz = port ? 21 : 30;
+    L.subY = L.titleY + (port ? 20 : 24);
+    const top = L.subY + (port ? 14 : 18), bot = VH - m - (port ? 16 : 22);
+    L.hintY = VH - m - 2;
+    const cw = Math.min(VW - m * 2, 1240);
+    const cx0 = VW / 2 - cw / 2;
+    const side = !port && cw >= 980;
+    let listX = cx0, listW = cw, listTop = top;
+    if (side) {
+      const hw = clamp(cw * 0.24, 230, 300);
+      L.hero = { x: cx0 + cw - hw, y: top, w: hw, h: bot - top, side: true };
+      listW = cw - hw - 16;
+    } else {
+      const hh = port ? 86 : 92;
+      L.hero = { x: cx0, y: top, w: cw, h: hh, side: false };
+      listTop = top + hh + 12;
+    }
+    const cols = port || listW < 640 ? 1 : 2, rows = Math.ceil(ROOKIE_TASKS.length / cols), g = port ? 8 : 10;
+    const rh = clamp((bot - listTop - g * (rows - 1)) / rows, 46, port ? 72 : 96);
+    const colW = (listW - g * (cols - 1)) / cols;
+    L.rows = ROOKIE_TASKS.map((T, i) => {
+      const ci = cols === 1 ? 0 : i % cols, ri = cols === 1 ? i : Math.floor(i / cols);
+      return { i: i, T: T, x: listX + ci * (colW + g), y: listTop + ri * (rh + g), w: colW, h: rh };
+    });
+    L.cols = cols;
+    this._rkL = L;
+    return L;
+  },
+  /* one task: its number in a ring that fills, what to do, how far, what it pays, CLAIM */
+  rookieRow(c, R, on, t, ads) {
+    const T = R.T, got = Rookie.claimed(T), rdy = !got && Rookie.done(T), port = this._rkL.port;
+    const p = Math.min(T.goal, Rookie.prog(T)), f = sat(p / T.goal);
+    const col = got ? '#5a6390' : (rdy ? ROOKIE.COL2 : ROOKIE.COL);
+    const x = R.x, y = R.y, w = R.w, h = R.h;
+    if (rdy) hglow(c, ROOKIE.COL2, x + w / 2, y + h / 2, Math.max(w, h) * 0.5, 0.08 + 0.05 * Math.sin(t * 4 + R.i));
+    glass(c, x, y, w, h, 12, col, on || rdy);
+    // the ring and the number
+    const gr = h * 0.27, gx = x + h * 0.5, gy = y + h / 2;
+    c.save(); c.lineCap = 'round'; c.lineWidth = Math.max(2.5, gr * 0.2);
+    c.strokeStyle = 'rgba(150,160,210,0.2)'; c.beginPath(); c.arc(gx, gy, gr, 0, TAU); c.stroke();
+    if (f > 0) { c.strokeStyle = got ? ROOKIE.COL : col; c.shadowColor = c.strokeStyle; c.shadowBlur = 8; c.beginPath(); c.arc(gx, gy, gr, -Math.PI / 2, -Math.PI / 2 + f * TAU); c.stroke(); }
+    c.restore();
+    if (got) neon(c, q => { q.beginPath(); q.moveTo(gx - gr * 0.42, gy + gr * 0.02); q.lineTo(gx - gr * 0.1, gy + gr * 0.34); q.lineTo(gx + gr * 0.46, gy - gr * 0.34); }, ROOKIE.COL, { lw: 2.4, blur: 8, core: null, inner: false });
+    else tracked(c, String(R.i + 1), gx, gy + gr * 0.4, { size: gr * 1.1, weight: 900, align: 'center', color: rdy ? '#ffffff' : '#cfe0ff', glow: rdy ? ROOKIE.COL2 : null, blur: 10, mono: true });
+    // the right-hand block: what it pays, then the buttons (or CLAIMED)
+    const rw = clamp(w * 0.34, port ? 112 : 128, 190), rx = x + w - rw - 12;
+    const tx = x + h, tw = rx - tx - 10;
+    let ns = clamp(h * 0.21, 11.5, 15);
+    const nw = tracked(c, T.n, 0, 0, { size: ns, weight: 900, track: 2, measureOnly: true });
+    if (nw > tw) ns *= tw / nw;
+    tracked(c, T.n, tx, y + h * 0.38, { size: ns, weight: 900, color: got ? PAL.dim : (rdy ? '#ffffff' : ROOKIE.COL), glow: rdy ? ROOKIE.COL2 : null, blur: 10, track: 2 });
+    const ds = clamp(h * 0.165, 9.5, 12);
+    text(c, fitText(c, T.d, tw, ds, 700), tx, y + h * 0.38 + ds + 4, { size: ds, weight: 700, color: PAL.text, alpha: got ? 0.45 : 0.85 });
+    // the bar and the count
+    if (!got) {
+      const by = y + h * 0.8, cnt = fmtNum(p) + ' / ' + fmtNum(T.goal);
+      setFont(c, 9.5, 900);
+      const cwid = c.measureText(cnt).width + 8, bw = Math.max(20, tw - cwid);
+      c.save(); c.fillStyle = 'rgba(160,170,220,0.15)'; roundRect(c, tx, by - 2, bw, 4, 2); c.fill();
+      c.fillStyle = rdy ? ROOKIE.COL2 : ROOKIE.COL; roundRect(c, tx, by - 2, Math.max(4, bw * f), 4, 2); c.fill(); c.restore();
+      text(c, cnt, tx + tw, by + 3.5, { size: 9.5, weight: 900, align: 'right', color: rdy ? ROOKIE.COL2 : PAL.dim });
+    }
+    // the reward: icons and amounts
+    const G2 = Rookie.gives(T, got ? (Rookie.rec().got[T.id] | 0) || 1 : 1), ir = clamp(h * 0.1, 6, 8.5), rs = clamp(h * 0.16, 9.5, 12);
+    const ry = rdy ? y + h * 0.3 : y + h * 0.5;
+    let lx = rx;
+    setFont(c, rs, 900);
+    const items = G2.map(g => ({ g: g, w: ir * 2.6 + c.measureText(g.s).width + 8 }));
+    const totW = items.reduce((s2, it) => s2 + it.w, 0);
+    if (totW < rw) lx = rx + (rw - totW) / 2;
+    const sq = Math.min(1, rw / Math.max(1, totW));
+    for (const it of items) {
+      this.bundleIcon(c, it.g.k, lx + ir * 1.1 * sq, ry, ir * sq, t + R.i);
+      text(c, it.g.s, lx + ir * 2.5 * sq, ry + rs * 0.36 * sq, { size: rs * sq, weight: 900, color: got ? PAL.dim : '#f2f4ff', alpha: got ? 0.6 : 1 });
+      lx += it.w * sq;
+    }
+    R.claim = null; R.ad = null;
+    if (got) {
+      tracked(c, (R.T && Rookie.rec().got[T.id] === 2 ? '×2  ·  ' : '') + 'CLAIMED', rx + rw / 2, y + h * 0.82, { size: 9.5, weight: 900, align: 'center', color: ROOKIE.COL, alpha: 0.7, track: 2 });
+    } else if (rdy) {
+      const bh = clamp(h * 0.38, 22, 30), by = y + h - bh - Math.max(6, h * 0.1);
+      const aw = ads ? Math.round(rw * 0.44) : 0, cwd = rw - (ads ? aw + 6 : 0);
+      const C = R.claim = { x: rx, y: by, w: cwd, h: bh };
+      const cOn = Input.mx > C.x && Input.mx < C.x + C.w && Input.my > C.y && Input.my < C.y + C.h;
+      glass(c, C.x, C.y, C.w, C.h, bh / 2, ROOKIE.COL2, true);
+      const gx2 = C.x + ((t * 0.5 + R.i * 0.13) % 1) * C.w;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      const gg = c.createLinearGradient(gx2 - 40, 0, gx2 + 40, 0);
+      gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(0.5, 'rgba(255,255,255,0.7)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.strokeStyle = gg; c.lineWidth = 1.4; c.beginPath(); c.moveTo(C.x + bh / 2, C.y + 1); c.lineTo(C.x + C.w - bh / 2, C.y + 1); c.stroke();
+      c.restore();
+      tracked(c, 'CLAIM', C.x + C.w / 2, C.y + bh / 2 + 4, { size: clamp(bh * 0.42, 10, 12.5), weight: 900, align: 'center', color: '#ffffff', glow: ROOKIE.COL2, blur: 10, track: 2.4 });
+      if (cOn) focusTicks(c, C.x, C.y, C.w, C.h, ROOKIE.COL2, t);
+      if (ads) {
+        const A = R.ad = { x: rx + cwd + 6, y: by, w: aw, h: bh };
+        const aOn = Input.mx > A.x && Input.mx < A.x + A.w && Input.my > A.y && Input.my < A.y + A.h;
+        glass(c, A.x, A.y, A.w, A.h, bh / 2, '#ff4fd8', aOn);
+        this.adIcon(c, A.x + bh * 0.62, A.y + bh / 2, bh * 0.46, aOn, '#ff4fd8');
+        tracked(c, '×2', A.x + A.w - bh * 0.5, A.y + bh / 2 + 4.5, { size: clamp(bh * 0.46, 11, 14), weight: 900, align: 'right', color: '#ffffff', glow: '#ff4fd8', blur: 10, track: 0.5 });
+      }
+    }
+    if (on && !rdy) focusTicks(c, x, y, w, h, col, t);
+  },
+  /* NEWSTAR on its plinth: what all eight are for */
+  rookieHero(c, L, t) {
+    const H = L.hero, all = Rookie.allGot(), sk = SKIN_BY_ID[ROOKIE.SKIN];
+    const col = all ? ROOKIE.COL2 : ROOKIE.COL;
+    glass(c, H.x, H.y, H.w, H.h, 14, col, all);
+    let cx, cy, R;
+    if (H.side) { cx = H.x + H.w / 2; cy = H.y + Math.min(H.h * 0.3, 150); R = Math.min(H.w * 0.2, 54); }
+    else { cx = H.x + H.h * 0.62; cy = H.y + H.h / 2; R = H.h * 0.26; }
+    hglow(c, sk ? sk.col : col, cx, cy, R * 3, 0.22 + 0.06 * Math.sin(t * 2));
+    // a plinth of rings under it, turning
+    c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = col; c.lineWidth = 1.2;
+    for (let i = 0; i < 2; i++) {
+      c.globalAlpha = 0.35 - i * 0.12; c.setLineDash([R * 0.3, R * 0.2]); c.lineDashOffset = (i ? -1 : 1) * t * 14;
+      c.beginPath(); c.ellipse(cx, cy + R * 1.25, R * (1.3 + i * 0.4), R * (0.3 + i * 0.1), 0, 0, TAU); c.stroke();
+    }
+    c.restore();
+    if (sk) {
+      c.save(); c.translate(cx, cy + Math.sin(t * 1.6) * R * 0.06); c.rotate(Math.sin(t * 0.7) * 0.12);
+      if (!all) c.globalAlpha = 0.8;
+      paintSkin(c, skinView(sk, 3), R, t);
+      c.restore();
+    }
+    // the words
+    const N = ROOKIE_TASKS.length, n = Rookie.count();
+    const head = all ? 'NEWSTAR IS YOURS' : 'FINISH ALL ' + N;
+    const sub = all ? 'a mastery skin: it can never be bought' : (L.port && !H.side ? 'and NEWSTAR is yours: never sold' : 'and NEWSTAR is yours  ·  a skin that can never be bought');
+    H.wear = null;
+    if (H.side) {
+      const ty = cy + R * 1.25 + 46;
+      tracked(c, head, cx, ty, { size: 17, weight: 900, align: 'center', color: col, glow: col, blur: 12, track: 3 });
+      setFont(c, 11.5, 700);
+      const nl = Math.max(1, Math.ceil(c.measureText(sub).width / Math.max(40, H.w - 36)));
+      wrapText(c, sub, cx, ty + 22, H.w - 36, 15, { size: 11.5, weight: 700, align: 'center', color: PAL.text, alpha: 0.85 });
+      // the ring of eight, big, in whatever room is left under the words (just the count when there is none)
+      const top = ty + 22 + nl * 15 + 10, floor = H.y + H.h - (all ? 72 : 14);
+      const rr = Math.min(H.w * 0.2, 46, (floor - top) / 2 - 4);
+      if (rr >= 18) {
+        const ry = top + (floor - top) / 2;
+        this.rookieRing(c, cx, ry, rr, t, true);
+        tracked(c, n + '/' + N, cx, ry + 7, { size: Math.min(20, rr * 0.5), weight: 900, align: 'center', color: '#ffffff', glow: col, blur: 10, mono: true });
+      } else if (floor - top > 16) tracked(c, n + ' / ' + N + ' CLAIMED', cx, top + 12, { size: 11, weight: 900, align: 'center', color: col, track: 2 });
+      if (all) {
+        const bw = H.w - 48, bh = 40, bx = cx - bw / 2, by = H.y + H.h - bh - 18;
+        H.wear = { x: bx, y: by, w: bw, h: bh };
+      }
+    } else {
+      const tx = cx + R * 1.9, room = H.x + H.w - tx - 14 - (all ? 130 : 70);
+      let hs = L.port ? 15 : 18;
+      const hw = tracked(c, head, 0, 0, { size: hs, weight: 900, track: 3, measureOnly: true });
+      if (hw > room) hs *= room / hw;
+      tracked(c, head, tx, H.y + H.h * 0.44, { size: hs, weight: 900, color: col, glow: col, blur: 12, track: 3 });
+      text(c, fitText(c, sub, room, L.port ? 10.5 : 12, 700), tx, H.y + H.h * 0.44 + 19, { size: L.port ? 10.5 : 12, weight: 700, color: PAL.text, alpha: 0.85 });
+      const rr = H.h * 0.27, rcx = H.x + H.w - rr - 20;
+      if (all) {
+        const bw = 112, bh = 36;
+        H.wear = { x: H.x + H.w - bw - 16, y: H.y + H.h / 2 - bh / 2, w: bw, h: bh };
+      } else {
+        this.rookieRing(c, rcx, H.y + H.h / 2, rr, t, true);
+        tracked(c, n + '/' + N, rcx, H.y + H.h / 2 + 5, { size: rr * 0.62, weight: 900, align: 'center', color: '#ffffff', glow: col, blur: 8, mono: true });
+      }
+    }
+    if (H.wear) {
+      const W = H.wear, on = Input.mx > W.x && Input.mx < W.x + W.w && Input.my > W.y && Input.my < W.y + W.h;
+      hglow(c, ROOKIE.COL2, W.x + W.w / 2, W.y + W.h / 2, W.w * 0.6, 0.16 + 0.08 * Math.sin(t * 4));
+      glass(c, W.x, W.y, W.w, W.h, W.h / 2, ROOKIE.COL2, true);
+      tracked(c, 'WEAR IT', W.x + W.w / 2, W.y + W.h / 2 + 5, { size: 14, weight: 900, align: 'center', color: '#ffffff', glow: ROOKIE.COL2, blur: 12, track: 3 });
+      if (on) focusTicks(c, W.x, W.y, W.w, W.h, ROOKIE.COL2, t);
+    }
+  },
+  rookieClaim(R, mul) {
+    const T = R.T, out = Rookie.claim(T, mul);
+    if (!out) { Sound.hurt(); return; }
+    const B = R.claim || R;
+    const ox = B.x + B.w / 2, oy = B.y + B.h / 2;
+    const lines = [];
+    if (out.rare) lines.push({ s: '+' + out.rare + ' RARE TICKET' + (out.rare > 1 ? 'S' : ''), col: '#c9a3ff' });
+    if (out.boosts) lines.push({ s: '+' + out.boosts + ' RUN BOOSTS', col: '#8dff6b' });
+    this.rkFx = { t: G.uiT, x: R.x + R.w / 2, y: R.y + R.h / 2, w: R.w, h: R.h, lines: lines, mul: mul > 1 };
+    Sound.achieve(); if (mul > 1 || Rookie.allGot()) Sound.fanfare(true);
+    Flash.hit(ROOKIE.COL2, 0.12);
+    if (out.shards || out.vbux) Payout.start({ shards: out.shards, vbux: out.vbux }, { state: 'rookie', quick: true, ox: ox, oy: oy });
+  },
+  rookieAd(R) {
+    if (CG.adBusy) return;
+    this.rkMsg = { s: 'LOADING A SHORT VIDEO…', col: '#ff4fd8', t: G.uiT };
+    CG.rewarded((ok, why) => {
+      if (G.state !== 'rookie') { if (ok) Rookie.claim(R.T, 2); return; }
+      if (ok) { this.rkMsg = null; this.rookieClaim(R, 2); }
+      else this.rkMsg = { s: why === 'blocked' ? 'AN AD BLOCKER IS ON  ·  CLAIM STILL WORKS' : 'NO VIDEO RIGHT NOW  ·  CLAIM STILL WORKS', col: '#ffb347', t: G.uiT };
+    });
+  },
+
+  rookie(c) {
+    const fresh = this.lastState !== 'rookie';
+    this.begin('rookie');
+    if (fresh) { this.rkFx = null; this._rkL = null; }
+    const L = this.rookieLayout(), t = G.uiT, port = L.port, ads = CG.ads() && !CG.adBusy;
+    this.dim(c, 0.9);
+    // mint light from the top corners
+    const wash = hsprite('rkwash|' + Math.round(VW) + '|' + Math.round(VH), VW, VH * 0.6, g => {
+      for (const sx of [-1, 1]) {
+        const rg = g.createRadialGradient(sx * VW * 0.5, -VH * 0.3, 0, sx * VW * 0.5, -VH * 0.3, Math.max(VW, VH) * 0.55);
+        rg.addColorStop(0, sx < 0 ? 'rgba(99,255,201,0.15)' : 'rgba(255,209,102,0.11)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = rg; g.fillRect(-VW / 2, -VH * 0.3, VW, VH * 0.6);
+      }
+    }, 0.5);
+    c.save(); c.globalCompositeOperation = 'lighter'; hstamp(c, wash, VW / 2, VH * 0.3); c.restore();
+    // header
+    tracked(c, 'ROOKIE TASKS', VW / 2, L.titleY, { size: L.titleSz, weight: 900, align: 'center', color: '#eafff8', glow: ROOKIE.COL, blur: 18, track: port ? 5 : 9 });
+    text(c, port ? 'each one pays  ·  all eight unlock NEWSTAR' : 'eight first goals  ·  each one pays shards, voidbux, tickets or boosts  ·  all eight unlock NEWSTAR', VW / 2, L.subY, { size: port ? 11 : 12.5, weight: 700, align: 'center', color: PAL.dim });
+    this.curChip(c, L.shards, 'shards', false, t);
+    this.curChip(c, L.vbux, 'vbux', false, t);
+    const B = L.back, backOn = Input.mx > B.x && Input.mx < B.x + B.w && Input.my > B.y && Input.my < B.y + B.h;
+    glass(c, B.x, B.y, B.w, B.h, B.h / 2, '#9ef7ff', backOn);
+    tracked(c, '‹ BACK', B.x + B.w / 2, B.y + B.h / 2 + 4.5, { size: port ? 11.5 : 12.5, weight: 900, align: 'center', color: backOn ? '#ffffff' : '#9ef7ff', track: 1.6 });
+    this.rookieHero(c, L, t);
+    // the rows
+    let hov = -1;
+    for (const R of L.rows) if (Input.mx > R.x && Input.mx < R.x + R.w && Input.my > R.y && Input.my < R.y + R.h) hov = R.i;
+    if (hov >= 0 && Input.mmoved) this.rkSel = hov;
+    for (const R of L.rows) this.rookieRow(c, R, R.i === this.rkSel, t, ads);
+    // the claim, just made: a ring off the row, and what came out of it rising
+    const F = this.rkFx;
+    if (F && t - F.t < 1.4) {
+      const f = (t - F.t) / 1.4;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = (1 - f) * 0.8; c.strokeStyle = ROOKIE.COL2; c.lineWidth = 3 * (1 - f) + 1;
+      roundRect(c, F.x - F.w / 2 - f * 22, F.y - F.h / 2 - f * 14, F.w + f * 44, F.h + f * 28, 14); c.stroke();
+      c.restore();
+      F.lines.forEach((l, i) => tracked(c, l.s, F.x, F.y - 8 - f * 46 + i * 18, { size: 15, weight: 900, align: 'center', color: '#ffffff', glow: l.col, blur: 14, track: 2, alpha: sat((1 - f) * 2.2) }));
+      if (F.mul) tracked(c, '×2', F.x + F.w / 2 - 26, F.y - f * 30, { size: 22, weight: 900, align: 'center', color: '#ffffff', glow: '#ff4fd8', blur: 16, alpha: sat((1 - f) * 2) });
+    }
+    // a word about the video, when there is one to say
+    const M = this.rkMsg;
+    if (M && t - M.t < 3.2) tracked(c, M.s, VW / 2, L.hintY - (port ? 0 : 16), { size: 11, weight: 900, align: 'center', color: M.col, track: 1.6, alpha: sat((3.2 - (t - M.t)) * 2) });
+    else if (!port) text(c, (ads ? '▶ ×2 doubles a claim with a short video  ·  ' : '') + 'ENTER claims  ·  ESC to go back', VW / 2, L.hintY - 6, { size: 11, weight: 700, align: 'center', color: PAL.dim, alpha: 0.75 });
+    // a payout in the air
+    if (Payout.q) {
+      Payout.draw(c, k => { const r = L[k]; return r ? { x: r.x + r.h * 0.5, y: r.y + r.h / 2, r: r.h * 0.5 } : null; });
+      if (this.lockT <= 0 && (Input.mclick || Input.hit('Escape', 'Backspace') || Input.gpPressed[1])) { Payout.finish(); }
+      else return;
+    }
+    if (this.lockT > 0 || CG.adBusy) return;
+    const inR = r => r && Input.mx > r.x && Input.mx < r.x + r.w && Input.my > r.y && Input.my < r.y + r.h;
+    if (Input.mclick) {
+      if (backOn) { this.leaveRookie(); return; }
+      if (inR(L.hero.wear)) { Rookie.finish(true); Flash.hit(ROOKIE.COL2, 0.3); Sound.fanfare(true); G.state = this.rkFrom === 'hub' ? 'skins' : this.rkFrom; this.lastState = ''; return; }
+      for (const R of L.rows) {
+        if (inR(R.ad)) { Sound.ui(true); this.rookieAd(R); return; }
+        if (inR(R.claim) || (inR(R) && R.claim)) { this.rookieClaim(R, 1); return; }
+      }
+    }
+    if (Input.hit('ArrowDown', 's') || Input.gpPressed[13]) { this.rkSel = Math.min(L.rows.length - 1, this.rkSel + (L.cols === 2 && this.rkSel >= 0 ? 2 : 1)); Sound.ui(false); }
+    if (Input.hit('ArrowUp', 'w') || Input.gpPressed[12]) { this.rkSel = Math.max(0, this.rkSel - (L.cols === 2 ? 2 : 1)); Sound.ui(false); }
+    if (L.cols === 2 && (Input.hit('ArrowRight', 'd') || Input.gpPressed[15])) { this.rkSel = Math.min(L.rows.length - 1, Math.max(0, this.rkSel) + 1); Sound.ui(false); }
+    if (L.cols === 2 && (Input.hit('ArrowLeft', 'a') || Input.gpPressed[14])) { this.rkSel = Math.max(0, this.rkSel - 1); Sound.ui(false); }
+    if (Input.hit('Escape', 'Backspace') || Input.gpPressed[1]) { this.leaveRookie(); return; }
+    if (Input.hit('Enter', 'space') || Input.gpPressed[0]) {
+      const R = L.rows[this.rkSel] || L.rows.find(q => q.claim);
+      if (R && R.claim) this.rookieClaim(R, 1);
+      else if (L.hero.wear) { Rookie.finish(true); Sound.fanfare(true); G.state = this.rkFrom === 'hub' ? 'skins' : this.rkFrom; this.lastState = ''; }
+    }
+  }
+});
 
 /* ========================================================================
    SCREEN GUIDES  --  the tutorial carries on past the first run. The first
@@ -55482,6 +56329,40 @@ const GUIDES = {
   freevb: { col: '#ff4fd8', title: 'FREE VOIDBUX', lines: [
     'Watch a short video, then the wheel spins and pays out voidbux.',
     'A few spins every day. Voidbux buy tickets, exclusive skins and the premium pass.'] },
+  controls: { col: '#9ef7ff', title: 'CONTROLS', lines: [
+    'MOVE: W A S D or the arrow keys. On a phone, drag anywhere on the left side of the screen.',
+    'DASH: SPACE, or tap the lower right on a phone. Nothing can touch you mid-dash.',
+    'Your weapons aim and fire by themselves: you move, dodge and collect.',
+    'P or the pause button pauses, M mutes. Menus: click or tap, or the arrows, ENTER and BACKSPACE.',
+    'Gamepad: the left stick moves, A dashes and picks, B goes back, START pauses.'] },
+  paused: { col: '#9ef7ff', title: 'PAUSED', lines: [
+    'The run is frozen. RESUME (or P) carries on exactly where you left it.',
+    'SETTINGS changes sound, music and graphics without ending the run.',
+    'ABANDON RUN ends it now. You keep every shard and all the XP you earned.'] },
+  settings: { col: '#8dff6b', title: 'SETTINGS', lines: [
+    'SOUND turns all sound on or off. MUSIC and SFX set each volume: pick one, then use the left and right arrows.',
+    'SCREEN SHAKE and SCREEN FLASH can be turned down if they bother you.',
+    'EFFECTS, GLOW, TUBE and STARFIELD trade looks for speed. Turn them down if your device runs hot or slow.',
+    'FPS COUNTER shows how smoothly the game runs. Every change saves at once.'] },
+  achievements: { col: '#8dff6b', title: 'AWARDS', lines: [
+    'Every achievement in the game, page by page. Each one pays shards the moment you earn it.',
+    'The ones marked SKIN also unlock a skin. A bar shows how far along you are on the longer ones.',
+    'Use the arrows at the bottom to turn the pages.'] },
+  codes: { col: '#ffd166', title: 'CODES', lines: [
+    'Type a code here to redeem free shards, skins or pets. Codes are shared in updates and events.',
+    'Type it in and press ENTER to redeem it.'] },
+  how: { col: '#9ef7ff', title: 'HOW TO PLAY', lines: [
+    'Every rule of the game in one place: moving, dashing, weapons, boons, bosses and currencies.',
+    'PLAY THE TUTORIAL runs the tutorial again and turns these screen guides back on.'] },
+  rush: { col: '#ff5a6e', title: 'BOSS RUSH', lines: [
+    'Ten bosses, one after another, against the clock. No waves in between.',
+    'Pick a difficulty and go. Your furthest boss and best time are kept here.'] },
+  hollow: { col: '#ff9a3c', title: 'THE HOLLOW HARVEST', lines: [
+    'A limited event with its own three levels, tasks and rewards.',
+    'Finish its TASKS for EVENT TICKETS, then spend them on the event skins before it ends.'] },
+  records: { col: '#9ef7ff', title: 'RECORDS', lines: [
+    'Your best score, best time and wins for every difficulty and mode.',
+    'Beat them to set new ones: the game remembers each mode separately.'] },
   select: { col: '#9ef7ff', title: 'DIFFICULTY', lines: [
     'Pick how hard the run is. Harder runs pay more shards.',
     'Each difficulty keeps its own records. Your choice is remembered for next time.'] }
@@ -55489,7 +56370,13 @@ const GUIDES = {
 const Guide = {
   key: null, t0: 0, inp: null, skipArm: 0,
   rec() { const r = Tut.rec(); if (!r.seen || typeof r.seen !== 'object') r.seen = {}; return r; },
-  keyFor(st) { return st === 'hub' ? (UI.hubMenu ? 'menu' : null) : st; },
+  keyFor(st) {
+    if (st === 'hub') return UI.hubMenu ? 'menu' : null;
+    // in a run only the tutorial's opening step gets a card: the controls, before the first move
+    if (st === 'playing') return null;       // the tutorial's own step cards teach the controls
+    // settings opened from the pause menu are drawn over the run: the card shows there too (draw below)
+    return st;
+  },
   due(st) {
     if (!Tut.tipsOn()) return null;
     const k = this.keyFor(st);
@@ -55539,7 +56426,8 @@ const Guide = {
       return out;
     };
     let rows = lay();
-    const head = 58, foot = 58;
+    // the foot holds GOT IT and, above it, the 'tap anywhere' hint: room for both under the last line
+    const head = 58, foot = 76;
     let h = head + rows.length * lh + (G0.lines.length - 1) * 5 + foot;
     if (h > VH - 16) { fs = 10.5; lh = 14; rows = lay(); h = head + rows.length * lh + (G0.lines.length - 1) * 4 + foot; }
     const x = VW / 2 - w / 2, y = Math.max(8, VH / 2 - h / 2 - (1 - a) * 12);
@@ -55595,9 +56483,10 @@ const Guide = {
 };
 
 /* ------------------------------------------------------------------------
-   THE LOBBY TOUR  --  once, after the tutorial run: a spotlight on PLAY,
-   REWARDS, SKINS, SHOP (and FREE VOIDBUX where there is one). A tap or ENTER
-   moves on; SKIP TOUR or ESC ends it. The daily gift waits until it is done.
+   THE LOBBY TOUR  --  once, after the tutorial run: four spotlights at most
+   -- ROOKIE TASKS (or the pass), PLAY, REWARDS (MENU on a phone) and FREE
+   VOIDBUX where there is one -- so a new player is back in a run fast. A tap
+   or ENTER moves on; SKIP TOUR or ESC ends it. The daily gift waits for it.
    ------------------------------------------------------------------------ */
 Object.assign(UI, {
   tour: null,
@@ -55624,7 +56513,9 @@ Object.assign(UI, {
       { id: 'achievements', col: '#8dff6b', title: 'AWARDS', text: 'Achievements: each one pays shards the moment you earn it.' },
       { id: 'how', col: '#9ef7ff', title: 'HOW TO PLAY', text: 'Every rule in one place, and PLAY THE TUTORIAL to run it again.' }
     ];
-    return S.filter(s => L.it[s.id]);
+    const keep = { pass: 1, play: 1, menu: 1, gifts: 1, freevb: 1, freesh: 1 };
+    return S.filter(s => L.it[s.id] && keep[s.id]).slice(0, 4).map(s => s.id === 'pass' && Rookie.on()
+      ? { id: 'pass', col: ROOKIE.COL, title: 'ROOKIE TASKS', text: 'Eight first goals. Each one pays shards, voidbux, tickets or boosts, and finishing all eight unlocks NEWSTAR, a skin no one can buy.' } : s);
   },
   tourEnd() {
     const r = Tut.rec(); r.tour = 2; Save.save();

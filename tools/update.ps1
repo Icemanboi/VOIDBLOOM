@@ -58,6 +58,13 @@ if (-not (Test-Path (Join-Path $root '.git'))) {
 if (-not (Test-Path (Join-Path $root '.github\workflows\release.yml'))) {
     Stop-Here "The build script isn't in place." "Step 1 of SETUP.md moves release-workflow.yml into .github\workflows\."
 }
+# 23 Nov 2026: the old build script let Windows and Mac each publish on their
+# own, which made two draft releases with the same tag. The fixed one builds
+# both, then posts ONE release. Refuse to ship with the old one.
+$wf = [System.IO.File]::ReadAllText((Join-Path $root '.github\workflows\release.yml'))
+if ($wf -match '--publish always') {
+    Stop-Here "The build script is the old one that makes two draft releases." "Copy Claude outputs\one-release-fix\release.yml over desktop\.github\workflows\release.yml, then run this again."
+}
 
 # ---------------------------------------------------------------- clear a crashed git's lock
 # When git is killed mid-write (window closed, PC slept, antivirus grabbed the
@@ -416,7 +423,8 @@ Ok "tagged v$newVer and pushed - the build has started"
 $url = 'https://github.com/Icemanboi/VOIDBLOOM'
 Write-Host ""
 Line 'Cyan'
-Write-Host "  Done. GitHub is building the installer now - about 3 to 5 minutes." -ForegroundColor White
+Write-Host "  Done. GitHub is building Windows and Mac now - about 5 to 10 minutes." -ForegroundColor White
+Info "When BOTH are built, one release with all the downloads goes up by itself."
 Write-Host ""
 Info "watch it:    $url/actions"
 Info "download:    $url/releases"
